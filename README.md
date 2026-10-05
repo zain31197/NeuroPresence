@@ -52,7 +52,34 @@ Supervisor: Muhammad Aamir Gulzar
 
 ## Status
 
-Repository initialized. Setup and run instructions will be added as modules land.
+| Stage | State |
+|---|---|
+| 1–2 Capture, tracking, driving signal | Working (`neuropresence/capture`) |
+| 3 Reenactment | Not started |
+| 4 Identity preservation | Not started |
+| 5 Consent and disclosure | Not started |
+| 6 Virtual camera | Not started |
+
+## Setup
+
+Requires Python 3.12.
+
+```
+python -m venv .venv
+.venv\Scripts\activate          # Linux: source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/download_models.py
+```
+
+## Run
+
+```
+python scripts/demo_capture.py                 # live webcam, press q to quit
+python scripts/demo_capture.py --source clip.mp4
+python -m pytest
+```
+
+The demo overlays face landmarks, head pose (yaw, pitch, roll), jaw opening, frame rate, and tracker latency. With no face or more than one face in frame it shows a banner and reports the frame as not usable for reenactment.
 
 ## Third-party components and licensing
 

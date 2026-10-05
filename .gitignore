@@ -41,3 +41,6 @@ data/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Downloaded models (fetch with scripts/download_models.py)
+models/
