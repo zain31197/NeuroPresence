@@ -22,6 +22,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from neuropresence.capture import FaceTracker, FrameSource, FrameSourceError, TrackStatus
+from neuropresence.capture.crop import letterbox
 from neuropresence.pipeline import Pipeline
 from neuropresence.reenactment import ReenactmentEngine, SourceError
 
@@ -33,22 +34,11 @@ BANNERS = {
 }
 
 
-def letterbox(frame, size=PANEL):
-    """Fit the frame inside a size x size panel without distorting it."""
-    h, w = frame.shape[:2]
-    scale = size / max(h, w)
-    resized = cv2.resize(frame, (int(round(w * scale)), int(round(h * scale))))
-    panel = np.zeros((size, size, 3), dtype=np.uint8)
-    y0, x0 = (size - resized.shape[0]) // 2, (size - resized.shape[1]) // 2
-    panel[y0:y0 + resized.shape[0], x0:x0 + resized.shape[1]] = resized
-    return panel
-
-
 def draw_metrics(panel, result, fps, vram_gb):
     t = result.timing_ms
     lines = [f"fps {fps:5.1f}   total {t['total']:6.1f} ms", f"tracker {t['tracker']:5.1f} ms"]
     if result.live:
-        lines.append(f"motion {t['motion']:5.1f} ms   render {t['render']:5.1f} ms")
+        lines.append(f"motion {t['motion']:5.1f}  render {t['render']:5.1f}  compose {t['compose']:4.1f} ms")
     lines.append(f"GPU memory {vram_gb:.2f} GB")
     for i, text in enumerate(lines):
         cv2.putText(panel, text, (8, 22 + 22 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.55, WHITE, 2)
@@ -119,9 +109,9 @@ def main():
             span = frame_times[-1] - frame_times[0]
             fps = (len(frame_times) - 1) / span if span > 0 else 0.0
 
-            left = letterbox(frame)
+            left = letterbox(frame, PANEL)
             draw_metrics(left, result, fps, engine.peak_vram_gb())
-            preview = np.hstack([left, result.output])
+            preview = np.hstack([left, letterbox(result.output, PANEL)])
             if writer is not None:
                 writer.write(preview)
             if not args.no_window:

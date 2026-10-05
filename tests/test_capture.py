@@ -65,13 +65,13 @@ def test_crop_is_square_and_centred():
     assert crop[5, 5].tolist() == [0, 0, 0]
 
 
-def test_crop_pads_at_frame_edge():
+def test_crop_repeats_edge_past_frame():
     from neuropresence.capture.crop import square_face_crop
 
     frame = np.full((480, 640, 3), 200, dtype=np.uint8)
     crop = square_face_crop(frame, (0, 0, 100, 100), scale=2.0, out_size=256)
     assert crop.shape == (256, 256, 3)
-    assert crop[5, 5].tolist() == [0, 0, 0]  # outside the frame: padded
+    assert crop[5, 5].tolist() == [200, 200, 200]  # outside the frame: edge repeated
     assert crop[250, 250].tolist() == [200, 200, 200]  # inside the frame
 
 

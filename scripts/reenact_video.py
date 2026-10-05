@@ -3,7 +3,7 @@
 Usage:
     python scripts/reenact_video.py --source me.jpg --driving clip.mp4 --out out.mp4
 
-Writes a side-by-side video (driving crop | reenacted source) and prints the
+Writes a side-by-side video (driving frame | reenacted source) and prints the
 per-stage latency, frame rate, and peak GPU memory.
 """
 
@@ -19,7 +19,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from neuropresence.capture import FaceTracker, FrameSource
-from neuropresence.capture.crop import square_face_crop
+from neuropresence.capture.crop import letterbox, square_face_crop
 from neuropresence.reenactment import ReenactmentEngine
 from neuropresence.reenactment.engine import OUTPUT_SIZE
 
@@ -52,7 +52,7 @@ def main():
 
     writer = cv2.VideoWriter(args.out, cv2.VideoWriter_fourcc(*"mp4v"), 25,
                              (OUTPUT_SIZE * 2, OUTPUT_SIZE))
-    timings = {"tracker": [], "motion": [], "render": [], "total": []}
+    timings = {"tracker": [], "motion": [], "render": [], "compose": [], "total": []}
     frames = skipped = 0
     with FrameSource(args.driving) as video, FaceTracker() as tracker:
         while (frame := video.read()) is not None:
@@ -70,9 +70,9 @@ def main():
                 timings["tracker"].append(result.latency_ms)
                 timings["motion"].append(engine.last_timing_ms["motion"])
                 timings["render"].append(engine.last_timing_ms["render"])
+                timings["compose"].append(engine.last_timing_ms["compose"])
                 timings["total"].append(total_ms)
-            left = cv2.resize(face, (OUTPUT_SIZE, OUTPUT_SIZE))
-            writer.write(np.hstack([left, output]))
+            writer.write(np.hstack([letterbox(frame, OUTPUT_SIZE), letterbox(output, OUTPUT_SIZE)]))
     writer.release()
 
     if not timings["total"]:

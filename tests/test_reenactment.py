@@ -47,13 +47,14 @@ def test_drive_returns_frame_and_timings(engine):
     source = cv2.imread(str(SAMPLE_SOURCE))
     engine.set_source(source)
     assert engine.source_crop.shape == (OUTPUT_SIZE, OUTPUT_SIZE, 3)
+    assert engine.source_frame.shape == source.shape
 
     driving = cv2.resize(engine.source_crop, (300, 300))  # any size is accepted
     out = engine.drive(driving)
-    assert out.shape == (OUTPUT_SIZE, OUTPUT_SIZE, 3)
+    assert out.shape == source.shape  # the full source frame, face blended in
     assert out.dtype == np.uint8
     assert out.std() > 10  # a real image, not a flat frame
-    assert set(engine.last_timing_ms) == {"motion", "render"}
+    assert set(engine.last_timing_ms) == {"motion", "render", "compose"}
     assert all(v > 0 for v in engine.last_timing_ms.values())
 
 
@@ -65,4 +66,19 @@ def test_reference_frame_reproduces_source(engine):
     first = engine.drive(face).astype(np.float32)
     again = engine.drive(face).astype(np.float32)
     assert np.abs(first - again).mean() < 1.0
-    assert np.abs(first - engine.source_crop.astype(np.float32)).mean() < 12.0
+    assert np.abs(first - engine.source_frame.astype(np.float32)).mean() < 8.0
+
+
+@needs_liveportrait
+def test_face_at_frame_edge_leaves_no_black_band(engine):
+    """A head touching the top of the frame used to drag a black band into view."""
+    source = cv2.imread(str(SAMPLE_SOURCE))[200:]  # cut so the forehead is at the top edge
+    engine.set_source(source)
+
+    def black_fraction(image):
+        return float((image.max(axis=2) < 12).mean())
+
+    assert black_fraction(engine.source_crop) <= black_fraction(source) + 0.01
+    out = engine.drive(engine.source_crop)
+    assert out.shape == source.shape
+    assert black_fraction(out) <= black_fraction(source) + 0.01

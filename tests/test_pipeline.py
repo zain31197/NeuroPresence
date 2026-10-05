@@ -17,13 +17,13 @@ class FakeTracker:
 
 class FakeEngine:
     def __init__(self):
-        self.source_crop = np.full((512, 512, 3), 50, dtype=np.uint8)
-        self.last_timing_ms = {"motion": 2.0, "render": 3.0}
+        self.source_frame = np.full((720, 1280, 3), 50, dtype=np.uint8)
+        self.last_timing_ms = {"motion": 2.0, "render": 3.0, "compose": 1.0}
         self.driven_shapes = []
 
     def drive(self, face):
         self.driven_shapes.append(face.shape)
-        return np.full((512, 512, 3), 200, dtype=np.uint8)
+        return np.full((720, 1280, 3), 200, dtype=np.uint8)
 
 
 FRAME = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -35,7 +35,7 @@ def test_one_face_is_reenacted():
     assert result.live
     assert result.output.mean() == 200
     assert engine.driven_shapes == [(256, 256, 3)]
-    assert set(result.timing_ms) == {"tracker", "motion", "render", "total"}
+    assert set(result.timing_ms) == {"tracker", "motion", "render", "compose", "total"}
 
 
 @pytest.mark.parametrize("status", [TrackStatus.NO_FACE, TrackStatus.MULTIPLE_FACES])
@@ -53,11 +53,11 @@ def test_fallback_frame_is_a_copy():
     engine = FakeEngine()
     result = Pipeline(FakeTracker(TrackStatus.NO_FACE), engine).step(FRAME)
     result.output[:] = 0
-    assert engine.source_crop.mean() == 50
+    assert engine.source_frame.mean() == 50
 
 
 def test_pipeline_requires_a_source():
     engine = FakeEngine()
-    engine.source_crop = None
+    engine.source_frame = None
     with pytest.raises(ValueError):
         Pipeline(FakeTracker(TrackStatus.OK), engine)

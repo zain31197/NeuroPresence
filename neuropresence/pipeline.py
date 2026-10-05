@@ -11,7 +11,7 @@ from .capture.crop import square_face_crop
 
 @dataclass
 class FrameResult:
-    output: np.ndarray  # 512x512 BGR frame to send onward
+    output: np.ndarray  # BGR frame to send onward, same size as the source image
     status: TrackStatus
     live: bool  # True if reenacted from this frame, False if the static fallback
     timing_ms: dict
@@ -25,7 +25,7 @@ class Pipeline:
     """
 
     def __init__(self, tracker, engine, crop_scale=2.0):
-        if engine.source_crop is None:
+        if engine.source_frame is None:
             raise ValueError("Call engine.set_source() before building the pipeline.")
         self.tracker = tracker
         self.engine = engine
@@ -40,6 +40,6 @@ class Pipeline:
             output = self.engine.drive(face)
             timing.update(self.engine.last_timing_ms)
         else:
-            output = self.engine.source_crop.copy()
+            output = self.engine.source_frame.copy()
         timing["total"] = (time.perf_counter() - start) * 1000
         return FrameResult(output, track.status, track.ok, timing)
