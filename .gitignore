@@ -1,0 +1,43 @@
+# Documents with personal details (phone numbers, CGPAs) - keep local
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Model weights and exported engines
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.onnx
+*.engine
+*.trt
+pretrained_weights/
+checkpoints/
+
+# Enrolled likeness, voice samples, and recordings - never commit
+captures/
+enrollment/
+data/
+*.mp4
+*.avi
+*.mov
+*.wav
+*.mp3
+
+# Secrets and local config
+.env
+*.local.yaml
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
