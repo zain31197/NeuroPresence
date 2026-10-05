@@ -55,7 +55,7 @@ Supervisor: Muhammad Aamir Gulzar
 | Stage | State |
 |---|---|
 | 1–2 Capture, tracking, driving signal | Working (`neuropresence/capture`) |
-| 3 Reenactment | Working offline from a video file (`neuropresence/reenactment`); live loop not started |
+| 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
 | 4 Identity preservation | Not started |
 | 5 Consent and disclosure | Not started |
 | 6 Virtual camera | Not started |
@@ -79,8 +79,11 @@ python scripts/setup_liveportrait.py     # LivePortrait code and weights, about 
 python scripts/demo_capture.py                 # live webcam, press q to quit
 python scripts/demo_capture.py --source clip.mp4
 python scripts/reenact_video.py --source me.jpg --driving clip.mp4 --out out.mp4
+python scripts/live.py --source-image me.jpg   # live reenactment; q quits, r resets the neutral pose
 python -m pytest
 ```
+
+`live.py` shows the camera with metrics on the left and the reenacted output on the right. With no face or more than one face in view, the output switches to the static enrolled frame. Add `--camera clip.mp4` to drive it from a file, and `--record out.mp4` to save the preview.
 
 `reenact_video.py` animates the source image with the motion in the driving video, writes a side-by-side result, and prints per-stage latency, frame rate, and peak GPU memory. The current measurement on Windows is in `results/baseline_windows_rtx5050.json`: 7.9 fps and 126 ms per frame, of which 93 ms is the warp-and-decode step.
 
