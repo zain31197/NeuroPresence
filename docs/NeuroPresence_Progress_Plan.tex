@@ -1,0 +1,409 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,hmargin=16mm,top=13mm,bottom=16mm]{geometry}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{pifont,longtable,booktabs,array,needspace}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\LTpre}{2pt}
+\setlength{\LTpost}{4pt}
+\renewcommand{\arraystretch}{1.12}
+
+% ---- Checkboxes: \cb is open, \cbdone is ticked. Each is a clickable PDF field.
+\newcounter{cbn}
+\newcommand{\cb}{\mbox{\stepcounter{cbn}\CheckBox[name=cb\thecbn,width=9pt,height=9pt,borderwidth=0.8pt,bordercolor=0 0 0,backgroundcolor=1 1 1,checkboxsymbol=\ding{51}]{}}}
+\newcommand{\cbdone}{\mbox{\stepcounter{cbn}\CheckBox[name=cb\thecbn,checked=true,width=9pt,height=9pt,borderwidth=0.8pt,bordercolor=0 0 0,backgroundcolor=1 1 1,checkboxsymbol=\ding{51}]{}}}
+
+% ---- Daily plan rows
+\newenvironment{days}{\begin{longtable}{@{}p{6mm}p{9mm}p{154mm}@{}}}{\end{longtable}}
+\newcommand{\dayrow}[1]{\midrule\multicolumn{3}{@{}l@{}}{\textbf{#1}}\\*}
+\newcommand{\task}[2]{\cb & #1 & #2 \\}
+\newcommand{\taskdone}[2]{\cbdone & #1 & #2 \\}
+\newcommand{\review}{\textbf{Sunday review:}\quad \cb~on track\qquad \cb~behind\qquad Recovery plan and owner: \hrulefill\par\medskip}
+\newcommand{\week}[2]{\needspace{9\baselineskip}\section*{#1}\vspace{-6pt}\textit{Goal: #2}\par}
+
+\begin{document}
+\begin{Form}
+
+\begin{center}
+{\LARGE\bfseries NeuroPresence -- FYP-I Progress Plan}\\[4pt]
+Daily checklist, 6 October to 7 December 2026\\[2pt]
+Zain Shahid (Z) \quad Muhammad Talha Arshad (T) \quad Sana Ullah Farooqi (S) \quad Supervisor: Muhammad Aamir Gulzar
+\end{center}
+\hrule\medskip
+
+\textbf{How to use this sheet.}
+Tick a box only when the work is pushed to GitHub and can be shown running or opened; a verbal ``done'' does not count.
+Boxes are clickable in Adobe Reader or Microsoft Edge (save the file after ticking), or print the sheet and tick by hand.
+Every Sunday, mark the week on track or behind and write the recovery plan with an owner.
+``All'' means the three members together. Items marked \emph{(stretch)} are dropped first if the week runs late.
+
+\textbf{Dates this plan assumes.}
+
+\begin{tabular}{@{}p{50mm}p{34mm}p{80mm}@{}}
+\toprule
+Event & Date & Basis \\
+\midrule
+FYP-I mid evaluation & Wed 28 Oct 2026 & Assumed by the team; change if the supervisor sets another date \\
+FYP-I final evaluation & Mon 7 Dec 2026 & Not announced; placeholder until the department publishes it \\
+\bottomrule
+\end{tabular}
+
+\textbf{Open decisions to close this week.}
+
+\begin{tabular}{@{}p{6mm}p{166mm}@{}}
+\cb & Development platform: Kubuntu (as in the proposal, v4l2loopback) or Windows (OBS virtual camera for now). \\
+\cb & How Talha and Sana get working time on the RTX 5050 machine (schedule or remote access). \\
+\cb & Repository visibility: it is public now; decide whether it stays public. \\
+\end{tabular}
+
+\section*{Milestones}
+
+\begin{longtable}{@{}p{6mm}p{10mm}p{118mm}p{28mm}@{}}
+\toprule
+ & No. & Milestone & Due \\
+\midrule
+\endhead
+\cbdone & M1 & Repository created; capture and tracking module with tests & Tue 6 Oct \\
+\cb & M2 & Baseline reproduced from the repository (7.7 fps, 130 ms, 1.57 GB) & Sun 11 Oct \\
+\cb & M3 & Live reenactment: webcam to tracker to LivePortrait to virtual camera & Sun 18 Oct \\
+\cb & M4 & Mid report, diagrams, test evidence, and action register complete & Sun 25 Oct \\
+\cb & M5 & \textbf{Mid evaluation} & Wed 28 Oct \\
+\cb & M6 & Robust core pipeline; optimization findings recorded & Sun 8 Nov \\
+\cb & M7 & SRS and SDS baselines with the supervisor (Gates 2 and 3) & Sun 15 Nov \\
+\cb & M8 & Clean-machine install and executed test plan; feature freeze & Sun 22 Nov \\
+\cb & M9 & FYP-I final report draft with the supervisor & Sun 29 Nov \\
+\cb & M10 & \textbf{FYP-I final evaluation}: working core system (Final-1) & Mon 7 Dec \\
+\bottomrule
+\end{longtable}
+
+\section*{Mid evaluation deliverables: demo and presentation (Form 2, 100 marks)}
+
+\begin{longtable}{@{}p{6mm}p{44mm}p{11mm}p{90mm}p{9mm}@{}}
+\toprule
+ & Criterion & Marks & What we show & Who \\
+\midrule
+\endhead
+\cb & 1. Proposal actions addressed & 10 & Panel Action Register: every change the proposal panel asked for, its status, and a link to the evidence & S \\
+\cb & 2. Iteration plan and progress & 10 & This sheet and the task log, with an owner per task and a recovery plan for anything late & All \\
+\cb & 3. Live core module demo & 25 & Webcam to tracking to reenactment to virtual camera, running live; then no face, two faces, face turned away, camera unplugged & All \\
+\cb & 4. Requirements quality & 10 & Numbered FRs and NFRs, each with a testable acceptance check and a pointer to the code or test & S \\
+\cb & 5. Design artefacts and evolution & 15 & Architecture, sequence, data-flow, and state diagrams that match the code, with changes since the proposal explained & All \\
+\cb & 6. Repository and member evidence & 10 & Regular commits from all three members with meaningful messages; tagged mid release & All \\
+\cb & 7. Testing and early validation & 10 & Tests run live with \texttt{pytest}; edge-case log; one failure case discussed & All \\
+\cb & 8. Presentation and ownership & 10 & Each member explains their own module at function level and defends any tool-assisted code & All \\
+\bottomrule
+\end{longtable}
+
+\section*{Mid evaluation deliverables: mid report (Form 3, 100 marks)}
+
+\begin{longtable}{@{}p{6mm}p{52mm}p{11mm}p{82mm}p{9mm}@{}}
+\toprule
+ & Section & Marks & Content & Who \\
+\midrule
+\endhead
+\cb & 1. Format and artefacts & 5 & Prescribed template, all required sections, signatures & S \\
+\cb & 2. Problem, R\&D, and gap analysis & 15 & Literature synthesis written in our own words; the gap and the complex computing challenge isolated & Z \\
+\cb & 3. Vision, scope, and success criteria & 10 & Scope table, module breakdown, measurable success criteria, consistent with the proposal & S \\
+\cb & 4. Requirements and acceptance criteria & 15 & Numbered FRs and NFRs with verifiable acceptance checks & S \\
+\cb & 5. Architecture and interface design & 15 & Layered architecture and component interfaces with data shapes, justified & T \\
+\cb & 6. Data, process, and behaviour design & 10 & Data-flow, sequence, and state diagrams, each explained in the text & Z \\
+\cb & 7. Implementation documentation & 15 & Reproducible setup, main files, classes, functions, and technical decisions & T \\
+\cb & 8. Test plan, tools, and risks & 15 & Test plan and early results; every external model, licence, and GenAI tool disclosed; risks & All \\
+\bottomrule
+\end{longtable}
+
+\newpage
+% =====================================================================
+\week{Week 1: Tue 6 Oct -- Sun 11 Oct. Setup and baseline}{everyone can run the code, and the proposal baseline is reproduced from the repository.}
+
+\begin{days}
+\dayrow{Tue 6 Oct}
+\taskdone{Z}{Create the GitHub repository with README and \texttt{.gitignore}}
+\taskdone{Z}{Capture and face-tracking module (stages 1--2) with 10 passing tests}
+\task{Z}{Push the two local commits to GitHub}
+\task{All}{Add Talha, Sana, and the supervisor as collaborators}
+\dayrow{Wed 7 Oct}
+\task{Z}{Run the capture demo on a real webcam; confirm landmarks and pose angles look right}
+\task{T}{Clone the repository; install GPU PyTorch, LivePortrait, and its weights on the RTX 5050 machine}
+\task{S}{Collect the proposal-defense feedback into a Panel Action Register in \texttt{docs/}}
+\dayrow{Thu 8 Oct}
+\task{T}{Commit the proposal benchmark script and \texttt{results/real\_run.json}; reproduce the baseline}
+\task{Z}{Record the source clip and two driving test clips of each member (kept out of the repository)}
+\task{S}{Get the mid-report template and FYP handbook Forms 2, 3, 10, and 11; create the report skeleton}
+\dayrow{Fri 9 Oct}
+\task{T}{LivePortrait offline: one source image plus a driving video file produces an output video}
+\task{Z}{Crop and align the tracked face to the reenactment input size}
+\task{S}{Task log in the repository with one entry per task, owner, and status}
+\dayrow{Sat 10 Oct}
+\task{T}{Split LivePortrait into ``prepare source once'' and ``drive one frame'' functions}
+\task{Z}{Tests for the crop, including a face at the frame edge}
+\task{S}{SRS draft: number the FYP-I requirements and write one acceptance check for each}
+\dayrow{Sun 11 Oct}
+\task{All}{Confirm every member has pushed at least one commit this week}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 2: Mon 12 Oct -- Sun 18 Oct. Live reenactment loop}{the full path from webcam to a meeting application runs live.}
+
+\begin{days}
+\dayrow{Mon 12 Oct}
+\task{T}{Live loop: webcam frame to LivePortrait to a preview window (first live reenactment)}
+\task{Z}{Gate the loop on tracker status: reenact only when exactly one face is found}
+\task{S}{Metrics module (FR-7): per-stage latency, fps, and peak VRAM, on screen and logged to file}
+\dayrow{Tue 13 Oct}
+\task{T}{Measure per-stage latency in the live loop and commit the numbers}
+\task{Z}{Smoothing filter on the driving signal, with an on/off switch}
+\task{S}{Virtual camera writer: reenacted frames to a virtual camera device}
+\dayrow{Wed 14 Oct}
+\task{T}{Fallback output when there is no usable face: hold the static enrolled frame}
+\task{Z}{Frame pacing: fixed deadline, drop late frames, never block}
+\task{S}{Test the virtual camera in Google Meet; start the compatibility matrix}
+\dayrow{Thu 15 Oct}
+\task{T}{Tests for the reenactment wrapper: output shape, source caching, bad input}
+\task{Z}{Tests for pacing and smoothing}
+\task{S}{Test the virtual camera in the Zoom desktop client; record client versions}
+\dayrow{Fri 16 Oct}
+\task{All}{Integration: webcam to tracker to reenactment to virtual camera to Google Meet, end to end}
+\task{S}{Update the architecture diagram to match the code as built}
+\dayrow{Sat 17 Oct}
+\task{T}{Ten-minute stability run; log latency and VRAM; fix crashes}
+\task{Z}{Edge-case log: no face, two faces, face turned away, low light, camera unplugged}
+\task{S}{Install ArcFace; measure CSIM between source and output on a recorded run}
+\dayrow{Sun 18 Oct}
+\task{All}{Record a short capture of the working pipeline as a reference (not a substitute for the live demo)}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 3: Mon 19 Oct -- Sun 25 Oct. Design evidence and mid report}{the report and diagrams are complete and match the code.}
+
+\begin{days}
+\dayrow{Mon 19 Oct}
+\task{S}{Sequence diagram of one frame through the pipeline; data-flow diagram}
+\task{Z}{State diagram: tracking OK, no face, multiple faces, fallback}
+\task{T}{Interface description for the reenactment component: inputs, outputs, tensor shapes}
+\dayrow{Tue 20 Oct}
+\task{Z}{Report section 2: problem, R\&D, and gap analysis, in our own words}
+\task{S}{Report section 3: vision, scope table, and success criteria}
+\task{T}{Report section 7: setup steps, main files, classes, and functions}
+\dayrow{Wed 21 Oct}
+\task{Z}{Fix the proposal inconsistencies in the report: watermark optional or always-on; scope modes and languages; fallback type; bandwidth claim}
+\task{S}{Report section 4: requirements traced to code and tests}
+\task{T}{Follow the setup steps from a clean clone and correct anything that fails}
+\dayrow{Thu 22 Oct}
+\task{T}{Report section 5: architecture and component interfaces}
+\task{Z}{Report section 6: explain each diagram in the text}
+\task{S}{Report section 8: test plan and early results table (latency, fps, VRAM, CSIM)}
+\dayrow{Fri 23 Oct}
+\task{All}{Tool and dependency disclosure: every external model, licence, and GenAI tool, and where each was used}
+\task{S}{Panel Action Register: status and evidence link for every action}
+\task{All}{Update the risk table with what the first three weeks showed}
+\dayrow{Sat 24 Oct}
+\task{All}{Assemble the report in the template; each member reads the other two members' sections}
+\task{All}{Send the report draft to the supervisor}
+\dayrow{Sun 25 Oct}
+\task{All}{Draft the presentation slides and the demo script}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 4: Mon 26 Oct -- Sun 1 Nov. Rehearsal, mid evaluation, feedback}{a clean live demo, then every piece of feedback turned into a task.}
+
+\begin{days}
+\dayrow{Mon 26 Oct}
+\task{All}{Rehearsal 1: happy path and four failure cases, timed}
+\task{All}{Each member explains their own module line by line to the other two}
+\task{All}{Fix what the rehearsal exposed}
+\dayrow{Tue 27 Oct}
+\task{All}{Rehearsal 2 on the actual demo machine with the actual webcam}
+\task{S}{Final report PDF and slides ready; task log up to date}
+\task{T}{Tag the release \texttt{v0.1-mid}; confirm the commit history shows all three members}
+\dayrow{Wed 28 Oct -- MID EVALUATION}
+\task{All}{Demo, presentation, and report evaluated}
+\task{S}{Write down every supervisor comment the same day}
+\dayrow{Thu 29 Oct}
+\task{All}{Enter each comment in the Panel Action Register with an owner and a due date}
+\task{All}{Adjust the rest of this plan for anything the feedback changes}
+\dayrow{Fri 30 Oct}
+\task{T}{Profile the live loop per module and rank the three largest costs}
+\task{Z}{Script to measure inter-frame warping error on a recorded run (temporal-stability baseline)}
+\task{S}{Move the source clip path, thresholds, and camera index into a config file}
+\dayrow{Sat 31 Oct}
+\task{T}{Persistent FP16 weights for the warping module and generator; re-measure}
+\task{Z}{Compare smoothing on and off with the warping-error script}
+\task{S}{Benchmark harness v1: fixed driving clips in; latency, fps, VRAM, and CSIM out as JSON}
+\dayrow{Sun 1 Nov}
+\task{All}{Confirm the feedback tasks all have owners and dates}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 5: Mon 2 Nov -- Sun 8 Nov. Robustness and optimization findings}{the pipeline survives real conditions, and we know what moves latency.}
+
+\begin{days}
+\dayrow{Mon 2 Nov}
+\task{T}{\texttt{torch.compile} on the warping module; record latency before and after}
+\task{Z}{Camera-loss recovery: detect an unplugged camera, retry, and show a clear message}
+\task{S}{Run the harness on the unoptimized baseline with team clips; commit the results}
+\dayrow{Tue 3 Nov}
+\task{T}{\texttt{torch.compile} on the generator; record latency before and after}
+\task{Z}{Find the yaw and pitch at which the output breaks; hold the last good frame beyond them}
+\task{S}{Complete the compatibility matrix for Meet, Zoom, and Teams with client versions}
+\dayrow{Wed 4 Nov}
+\task{T}{Resolution scheduling experiment: latency against image quality}
+\task{Z}{Tests for camera-loss and pose-limit handling}
+\task{S}{Pass-through fallback: switch to the real camera if reenactment fails or exceeds the budget}
+\dayrow{Thu 5 Nov}
+\task{T}{Findings note in \texttt{docs/}: what reduced latency and what did not}
+\task{Z}{Measure the offset between voice and reenacted lips in a recorded call}
+\task{S}{Tests for the fallback switch and config loading}
+\dayrow{Fri 6 Nov}
+\task{All}{Merge all branches; run the full pipeline for 15 minutes; log every failure}
+\dayrow{Sat 7 Nov}
+\task{All}{Fix the failures from the 15-minute run}
+\task{S}{Update the task log and milestone status}
+\dayrow{Sun 8 Nov}
+\task{All}{Decide which stretch items for Week 6 are kept}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 6: Mon 9 Nov -- Sun 15 Nov. SRS and SDS baselines}{requirements and design documents are with the supervisor (Gates 2 and 3).}
+
+\begin{days}
+\dayrow{Mon 9 Nov}
+\task{S}{SRS: all FRs and NFRs final, each marked FYP-I or FYP-II, each with an acceptance check}
+\task{Z}{SRS: user interactions (enrol the source clip, start a session, fallback prompts)}
+\task{T}{SRS: how each target is measured (42 ms, 24 fps, 8 GB, CSIM 0.80)}
+\dayrow{Tue 10 Nov}
+\task{T}{SDS: reenactment component design, interfaces, and data shapes}
+\task{Z}{SDS: capture, tracking, and pacing design; state diagram updated}
+\task{S}{SDS: architecture, deployment view, virtual camera, and safeguard design}
+\dayrow{Wed 11 Nov}
+\task{S}{\emph{(stretch)} Enrolment: save the enrolled face embedding; self-likeness check with a threshold}
+\task{T}{\emph{(stretch)} ONNX export of the motion extractor; verify its output matches PyTorch}
+\task{Z}{Update the sequence diagram to match the merged code}
+\dayrow{Thu 12 Nov}
+\task{S}{Always-on corner watermark on the output stream (FR-5)}
+\task{T}{Live CSIM readout every few frames in the metrics overlay}
+\task{Z}{Check every diagram against the code and fix mismatches}
+\dayrow{Fri 13 Nov}
+\task{All}{Send the SRS and SDS drafts to the supervisor}
+\dayrow{Sat 14 Nov}
+\task{T}{Thirty-minute endurance trial: log VRAM, latency, and CSIM over time (formal run stays in FYP-II)}
+\task{Z}{Tests for the watermark}
+\task{S}{Tests for the enrolment check, if built}
+\dayrow{Sun 15 Nov}
+\task{All}{Confirm the FYP-I final date and rubric with the supervisor; update this sheet}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 7: Mon 16 Nov -- Sun 22 Nov. Clean install, test execution, freeze}{someone who did not write the code can install and run it; features stop changing.}
+
+\begin{days}
+\dayrow{Mon 16 Nov}
+\task{T}{Documented install steps with pinned versions}
+\task{Z}{Test plan document: unit, integration, and edge cases with expected results}
+\task{S}{Install on a clean environment by a member who did not write the steps; record every gap}
+\dayrow{Tue 17 Nov}
+\task{T}{Fix the install gaps}
+\task{Z}{Execute the test plan; record a pass/fail table}
+\task{S}{Run the harness on the current pipeline; results table for the report}
+\dayrow{Wed 18 Nov}
+\task{T}{Fix defects from the test run (reenactment)}
+\task{Z}{Fix defects from the test run (capture and pacing)}
+\task{S}{Fix defects from the test run (output, fallback, config)}
+\dayrow{Thu 19 Nov}
+\task{All}{Apply the supervisor's feedback to the SRS and SDS}
+\dayrow{Fri 20 Nov}
+\task{All}{Feature freeze: only bug fixes from here; tag \texttt{v0.2-rc}}
+\dayrow{Sat 21 Nov}
+\task{Z}{Final report: update problem, R\&D, and gap analysis}
+\task{T}{Final report: implementation and measured results}
+\task{S}{Final report: requirements, design, and testing}
+\dayrow{Sun 22 Nov}
+\task{All}{Re-run the full test suite on the frozen code}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 8: Mon 23 Nov -- Sun 29 Nov. Final report and documents}{a complete FYP-I report draft is with the supervisor.}
+
+\begin{days}
+\dayrow{Mon 23 Nov}
+\task{Z}{Final report: data, process, and behaviour design with final diagrams}
+\task{T}{Final report: architecture and optimization findings}
+\task{S}{Final report: scope, success criteria, and what moved to FYP-II}
+\dayrow{Tue 24 Nov}
+\task{All}{Final report: test results, risks, tool and licence disclosure}
+\task{S}{Panel Action Register: close every item with evidence}
+\dayrow{Wed 25 Nov}
+\task{All}{Each member reads the full report and marks anything they cannot explain}
+\dayrow{Thu 26 Nov}
+\task{All}{Rewrite the marked passages; check every number against the committed results}
+\dayrow{Fri 27 Nov}
+\task{All}{Send the full report draft to the supervisor}
+\dayrow{Sat 28 Nov}
+\task{All}{Draft the final presentation slides and demo script}
+\dayrow{Sun 29 Nov}
+\task{All}{Write the FYP-II plan for the first four weeks of Spring 2027}
+\end{days}
+\review
+
+% =====================================================================
+\week{Week 9: Mon 30 Nov -- Mon 7 Dec. Rehearsal and FYP-I final}{a rehearsed live demo and submitted documents.}
+
+\begin{days}
+\dayrow{Mon 30 Nov}
+\task{All}{Apply the supervisor's feedback to the report}
+\dayrow{Tue 1 Dec}
+\task{All}{Rehearsal 1: full demo with failure cases, timed}
+\dayrow{Wed 2 Dec}
+\task{All}{Fix what the rehearsal exposed (bug fixes only)}
+\dayrow{Thu 3 Dec}
+\task{All}{Rehearsal 2 with mock panel questions; each member answers on their own module}
+\dayrow{Fri 4 Dec}
+\task{S}{Submit the final report, SRS, and SDS}
+\task{T}{Tag the release \texttt{v1.0-fyp1}}
+\dayrow{Sat 5 Dec}
+\task{All}{Dry run on the demo machine; check webcam, virtual camera, and meeting client}
+\dayrow{Sun 6 Dec}
+\task{All}{No changes to code; pack the demo equipment}
+\dayrow{Mon 7 Dec -- FYP-I FINAL EVALUATION (assumed date)}
+\task{All}{Panel defense and live demo}
+\task{S}{Record the panel's actions for FYP-II}
+\end{days}
+
+\section*{FYP-I final deliverables}
+
+The final rubric has not been released; this list follows the proposal timeline and should be updated when it is.
+
+\begin{longtable}{@{}p{6mm}p{124mm}p{38mm}@{}}
+\toprule
+ & Deliverable & Who \\
+\midrule
+\endhead
+\cb & Working core system: live webcam to reenactment to virtual camera in a meeting application (Final-1) & All \\
+\cb & Live metrics shown to the user: latency, fps, and GPU memory (FR-7) & S \\
+\cb & Fallbacks working: static enrolled frame, and pass-through camera on failure & T, S \\
+\cb & Always-on disclosure watermark on the output (FR-5) & S \\
+\cb & Measured results committed: baseline, optimization experiments, CSIM, temporal stability & T, Z, S \\
+\cb & SRS baseline (Gate 2) and SDS baseline (Gate 3) & All \\
+\cb & FYP-I final report in the prescribed template & All \\
+\cb & Test plan with executed results & Z \\
+\cb & Meeting-client compatibility matrix & S \\
+\cb & Install steps verified on a clean environment & T \\
+\cb & Panel Action Register closed with evidence & S \\
+\cb & Tagged release \texttt{v1.0-fyp1} with commits from all three members & All \\
+\bottomrule
+\end{longtable}
+
+\textbf{Deferred to FYP-II, as in the proposal:} reaching the 42 ms budget with TensorRT, the full consent gate and identity fallback, the offline audio and text mode, the live audio-driven mode with the phone relay, Urdu voice adaptation, the full benchmark, and the user-acceptance study.
+
+\end{Form}
+\end{document}

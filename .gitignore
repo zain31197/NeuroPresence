@@ -1,5 +1,6 @@
 # Documents with personal details (phone numbers, CGPAs) - keep local
 *.pdf
+!docs/NeuroPresence_Progress_Plan.pdf
 
 # Python
 __pycache__/
