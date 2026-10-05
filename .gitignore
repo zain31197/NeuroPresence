@@ -45,3 +45,6 @@ Thumbs.db
 
 # Downloaded models (fetch with scripts/download_models.py)
 models/
+
+# Upstream code cloned by setup (LivePortrait)
+third_party/

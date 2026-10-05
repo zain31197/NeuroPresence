@@ -52,3 +52,31 @@ def test_blank_frames_report_no_face():
         assert not result.ok
         assert result.landmarks is None
         assert result.latency_ms > 0
+
+
+def test_crop_is_square_and_centred():
+    from neuropresence.capture.crop import square_face_crop
+
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    frame[200:280, 280:360] = 255  # an 80x80 white "face" at the frame centre
+    crop = square_face_crop(frame, (280, 200, 80, 80), scale=2.0, out_size=256)
+    assert crop.shape == (256, 256, 3)
+    assert crop[128, 128].tolist() == [255, 255, 255]
+    assert crop[5, 5].tolist() == [0, 0, 0]
+
+
+def test_crop_pads_at_frame_edge():
+    from neuropresence.capture.crop import square_face_crop
+
+    frame = np.full((480, 640, 3), 200, dtype=np.uint8)
+    crop = square_face_crop(frame, (0, 0, 100, 100), scale=2.0, out_size=256)
+    assert crop.shape == (256, 256, 3)
+    assert crop[5, 5].tolist() == [0, 0, 0]  # outside the frame: padded
+    assert crop[250, 250].tolist() == [200, 200, 200]  # inside the frame
+
+
+def test_crop_rejects_empty_box():
+    from neuropresence.capture.crop import square_face_crop
+
+    with pytest.raises(ValueError):
+        square_face_crop(np.zeros((10, 10, 3), dtype=np.uint8), (0, 0, 0, 0))

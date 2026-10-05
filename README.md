@@ -55,7 +55,7 @@ Supervisor: Muhammad Aamir Gulzar
 | Stage | State |
 |---|---|
 | 1–2 Capture, tracking, driving signal | Working (`neuropresence/capture`) |
-| 3 Reenactment | Not started |
+| 3 Reenactment | Working offline from a video file (`neuropresence/reenactment`); live loop not started |
 | 4 Identity preservation | Not started |
 | 5 Consent and disclosure | Not started |
 | 6 Virtual camera | Not started |
@@ -67,8 +67,10 @@ Requires Python 3.12.
 ```
 python -m venv .venv
 .venv\Scripts\activate          # Linux: source .venv/bin/activate
+pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
-python scripts/download_models.py
+python scripts/download_models.py        # face landmark model, 4 MB
+python scripts/setup_liveportrait.py     # LivePortrait code and weights, about 700 MB
 ```
 
 ## Run
@@ -76,8 +78,11 @@ python scripts/download_models.py
 ```
 python scripts/demo_capture.py                 # live webcam, press q to quit
 python scripts/demo_capture.py --source clip.mp4
+python scripts/reenact_video.py --source me.jpg --driving clip.mp4 --out out.mp4
 python -m pytest
 ```
+
+`reenact_video.py` animates the source image with the motion in the driving video, writes a side-by-side result, and prints per-stage latency, frame rate, and peak GPU memory. The current measurement on Windows is in `results/baseline_windows_rtx5050.json`: 7.9 fps and 126 ms per frame, of which 93 ms is the warp-and-decode step.
 
 The demo overlays face landmarks, head pose (yaw, pitch, roll), jaw opening, frame rate, and tracker latency. With no face or more than one face in frame it shows a banner and reports the frame as not usable for reenactment.
 
