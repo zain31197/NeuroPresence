@@ -1,6 +1,7 @@
 """Live reenactment: webcam -> tracker -> LivePortrait -> preview window.
 
 Usage:
+    python scripts/live.py                          # source captured from the camera
     python scripts/live.py --source-image me.jpg
     python scripts/live.py --source-image me.jpg --camera 1
     python scripts/live.py --source-image me.jpg --camera clip.mp4 --record out.mp4
@@ -56,9 +57,22 @@ def draw_metrics(panel, result, fps, vram_gb):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, RED, 2)
 
 
+def capture_source(frames, tracker, max_frames=150, max_angle_deg=20):
+    """Take the source from the camera: the first frame with one roughly frontal face."""
+    for _ in range(max_frames):
+        frame = frames.read()
+        if frame is None:
+            break
+        track = tracker.process(frame)
+        if track.ok and all(abs(a) <= max_angle_deg for a in track.pose_deg):
+            return frame
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--source-image", required=True, help="photo of the user to animate")
+    parser.add_argument("--source-image", help="photo of the user to animate; "
+                        "if omitted, the source is captured from the camera at start")
     parser.add_argument("--camera", default="0", help="camera index or a video file path")
     parser.add_argument("--record", help="also save the preview to this video file")
     parser.add_argument("--no-window", action="store_true", help="run without a preview window")
@@ -66,18 +80,25 @@ def main():
     args = parser.parse_args()
     camera = int(args.camera) if args.camera.isdigit() else args.camera
 
-    source = cv2.imread(args.source_image)
-    if source is None:
-        sys.exit(f"Could not read source image: {args.source_image}")
+    try:
+        frames = FrameSource(camera, width=1280, height=720)
+    except FrameSourceError as err:
+        sys.exit(f"{err}\nCheck that a webcam is connected and not in use by another app.")
+    if args.source_image:
+        source = cv2.imread(args.source_image)
+        if source is None:
+            sys.exit(f"Could not read source image: {args.source_image}")
+    else:
+        print("Capturing the source from the camera: look straight at it with a relaxed face.")
+        with FaceTracker() as enrol_tracker:
+            source = capture_source(frames, enrol_tracker)
+        if source is None:
+            sys.exit("No single front-facing face seen by the camera. Try again or pass --source-image.")
     engine = ReenactmentEngine()
     try:
         engine.set_source(source)
     except SourceError as err:
         sys.exit(f"{err} Use a clear, front-facing photo.")
-    try:
-        frames = FrameSource(camera, width=1280, height=720)
-    except FrameSourceError as err:
-        sys.exit(f"{err}\nCheck that a webcam is connected and not in use by another app.")
 
     writer = None
     if args.record:
