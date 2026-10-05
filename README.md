@@ -28,7 +28,7 @@ The user records one presentable source clip of themselves. During a meeting, th
 | Identity similarity (CSIM) | ≥ 0.80 |
 | Consent gate true-accept | ≥ 95% |
 
-Target hardware: NVIDIA RTX 5050 (8 GB), Kubuntu Linux.
+Target hardware: NVIDIA RTX 5050 (8 GB). The code is developed and run on both Windows 11 and Kubuntu Linux; the virtual camera uses OBS Virtual Camera on Windows and v4l2loopback on Linux.
 
 ## Baseline (measured, unoptimized LivePortrait on the target GPU)
 

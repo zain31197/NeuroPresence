@@ -54,7 +54,7 @@ FYP-I final evaluation & Mon 7 Dec 2026 & Not announced; placeholder until the d
 \textbf{Open decisions to close this week.}
 
 \begin{tabular}{@{}p{6mm}p{166mm}@{}}
-\cb & Development platform: Kubuntu (as in the proposal, v4l2loopback) or Windows (OBS virtual camera for now). \\
+\cbdone & Development platform: both. Windows on Zain's PC and Kubuntu on a teammate's machine; all code must run on both. \\
 \cb & How Talha and Sana get working time on the RTX 5050 machine (schedule or remote access). \\
 \cb & Repository visibility: it is public now; decide whether it stays public. \\
 \end{tabular}
@@ -143,6 +143,7 @@ FYP-I final evaluation & Mon 7 Dec 2026 & Not announced; placeholder until the d
 \task{S}{SRS draft: number the FYP-I requirements and write one acceptance check for each}
 \dayrow{Sun 11 Oct}
 \task{All}{Confirm every member has pushed at least one commit this week}
+\task{All}{Run the test suite on both Windows and Kubuntu; fix anything that passes on only one}
 \end{days}
 \review
 
@@ -157,7 +158,7 @@ FYP-I final evaluation & Mon 7 Dec 2026 & Not announced; placeholder until the d
 \dayrow{Tue 13 Oct}
 \task{T}{Measure per-stage latency in the live loop and commit the numbers}
 \task{Z}{Smoothing filter on the driving signal, with an on/off switch}
-\task{S}{Virtual camera writer: reenacted frames to a virtual camera device}
+\task{S}{Virtual camera writer, one code path: OBS Virtual Camera on Windows, v4l2loopback on Kubuntu}
 \dayrow{Wed 14 Oct}
 \task{T}{Fallback output when there is no usable face: hold the static enrolled frame}
 \task{Z}{Frame pacing: fixed deadline, drop late frames, never block}
@@ -252,7 +253,7 @@ FYP-I final evaluation & Mon 7 Dec 2026 & Not announced; placeholder until the d
 \dayrow{Tue 3 Nov}
 \task{T}{\texttt{torch.compile} on the generator; record latency before and after}
 \task{Z}{Find the yaw and pitch at which the output breaks; hold the last good frame beyond them}
-\task{S}{Complete the compatibility matrix for Meet, Zoom, and Teams with client versions}
+\task{S}{Complete the compatibility matrix for Meet, Zoom, and Teams on Windows and Kubuntu, with client versions}
 \dayrow{Wed 4 Nov}
 \task{T}{Resolution scheduling experiment: latency against image quality}
 \task{Z}{Tests for camera-loss and pose-limit handling}
@@ -307,7 +308,7 @@ FYP-I final evaluation & Mon 7 Dec 2026 & Not announced; placeholder until the d
 
 \begin{days}
 \dayrow{Mon 16 Nov}
-\task{T}{Documented install steps with pinned versions}
+\task{T}{Documented install steps for Windows and Kubuntu with pinned versions}
 \task{Z}{Test plan document: unit, integration, and edge cases with expected results}
 \task{S}{Install on a clean environment by a member who did not write the steps; record every gap}
 \dayrow{Tue 17 Nov}
@@ -396,8 +397,8 @@ The final rubric has not been released; this list follows the proposal timeline 
 \cb & SRS baseline (Gate 2) and SDS baseline (Gate 3) & All \\
 \cb & FYP-I final report in the prescribed template & All \\
 \cb & Test plan with executed results & Z \\
-\cb & Meeting-client compatibility matrix & S \\
-\cb & Install steps verified on a clean environment & T \\
+\cb & Meeting-client compatibility matrix for Windows and Kubuntu & S \\
+\cb & Install steps verified on a clean environment on both Windows and Kubuntu & T \\
 \cb & Panel Action Register closed with evidence & S \\
 \cb & Tagged release \texttt{v1.0-fyp1} with commits from all three members & All \\
 \bottomrule
