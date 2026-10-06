@@ -1,0 +1,14 @@
+{
+  "description": "LivePortrait's bundled sample videos. 'first_frame' pairs are self-reenactment: the source is a frame of the driving video itself, which is how the system is used (a person drives their own picture).",
+  "max_frames": 150,
+  "pairs": [
+    {"name": "self_d0", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d0.mp4"},
+    {"name": "self_d3", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d3.mp4"},
+    {"name": "self_d6", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d6.mp4"},
+    {"name": "self_d9", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d9.mp4"},
+    {"name": "self_d10", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d10.mp4"},
+    {"name": "self_d13", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d13.mp4"},
+    {"name": "self_d18", "source": "first_frame", "driving": "third_party/LivePortrait/assets/examples/driving/d18.mp4"},
+    {"name": "cross_s9_d0", "source": "third_party/LivePortrait/assets/examples/source/s9.jpg", "driving": "third_party/LivePortrait/assets/examples/driving/d0.mp4"}
+  ]
+}

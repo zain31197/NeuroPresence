@@ -1,0 +1,831 @@
+{
+  "about": "Effect of the enrolled picture on output quality. Part A compares each output frame with the real frame of the same instant in self-reenactment; changes are against the neutral source of the same clip. Part B reproduces a still picture at several face sizes. Sharpness is the variance of the Laplacian on the face brought to a standard height of 256 pixels, the measure the Sharp check uses; detail_kept is output over source by that measure, and detail_kept_at_own_size is the same ratio at the picture's own resolution, where the frame around the face keeps all of its detail. generator_output_detail is the variance of the Laplacian inside the face of the generator's own 512-pixel picture, before it is resized into the frame; face_size_summary gives it as a multiple of what the same picture yields with a 260-pixel face, the size the generator draws.",
+  "generator_output_px": 512,
+  "source_faults_summary": {
+    "neutral": {
+      "clips": 6,
+      "csim_to_real": 0.8465,
+      "csim_to_real_change": 0.0,
+      "expression_error": 0.0196,
+      "expression_error_change": 0.0,
+      "pose_error_deg": 0.4717,
+      "pose_error_deg_change": 0.0,
+      "face_pixel_error": 6.84,
+      "face_pixel_error_change": 0.0,
+      "detail_kept": 0.4092,
+      "detail_kept_change": 0.0
+    },
+    "mouth open": {
+      "clips": 6,
+      "csim_to_real": 0.8238,
+      "csim_to_real_change": -0.0227,
+      "expression_error": 0.02,
+      "expression_error_change": 0.0004,
+      "pose_error_deg": 0.4633,
+      "pose_error_deg_change": -0.0083,
+      "face_pixel_error": 7.5383,
+      "face_pixel_error_change": 0.6983,
+      "detail_kept": 0.3983,
+      "detail_kept_change": -0.0108
+    },
+    "blurred": {
+      "clips": 6,
+      "csim_to_real": 0.7788,
+      "csim_to_real_change": -0.0677,
+      "expression_error": 0.0335,
+      "expression_error_change": 0.0138,
+      "pose_error_deg": 0.6517,
+      "pose_error_deg_change": 0.18,
+      "face_pixel_error": 9.3767,
+      "face_pixel_error_change": 2.5367,
+      "detail_kept": 0.125,
+      "detail_kept_change": -0.2842
+    },
+    "dark": {
+      "clips": 6,
+      "csim_to_real": 0.8067,
+      "csim_to_real_change": -0.0398,
+      "expression_error": 0.0232,
+      "expression_error_change": 0.0036,
+      "pose_error_deg": 0.5433,
+      "pose_error_deg_change": 0.0717,
+      "face_pixel_error": 70.33,
+      "face_pixel_error_change": 63.49,
+      "detail_kept": 0.1422,
+      "detail_kept_change": -0.267
+    },
+    "low resolution": {
+      "clips": 6,
+      "csim_to_real": 0.8252,
+      "csim_to_real_change": -0.0213,
+      "expression_error": 0.0257,
+      "expression_error_change": 0.0061,
+      "pose_error_deg": 0.5533,
+      "pose_error_deg_change": 0.0817,
+      "face_pixel_error": 8.115,
+      "face_pixel_error_change": 1.275,
+      "detail_kept": 0.1915,
+      "detail_kept_change": -0.2177
+    },
+    "eyes closed": {
+      "clips": 2,
+      "csim_to_real": 0.843,
+      "csim_to_real_change": -0.0025,
+      "expression_error": 0.0139,
+      "expression_error_change": -0.0001,
+      "pose_error_deg": 0.33,
+      "pose_error_deg_change": -0.055,
+      "face_pixel_error": 7.62,
+      "face_pixel_error_change": -0.13,
+      "detail_kept": 0.3645,
+      "detail_kept_change": 0.0045
+    },
+    "head turned": {
+      "clips": 1,
+      "csim_to_real": 0.781,
+      "csim_to_real_change": -0.015,
+      "expression_error": 0.0166,
+      "expression_error_change": 0.0004,
+      "pose_error_deg": 0.39,
+      "pose_error_deg_change": -0.07,
+      "face_pixel_error": 9.25,
+      "face_pixel_error_change": 0.98,
+      "detail_kept": 0.441,
+      "detail_kept_change": 0.056
+    }
+  },
+  "face_size_reference_px": 260,
+  "face_size_summary": {
+    "source/s7.jpg": {
+      "458": 1.7,
+      "378": 1.46,
+      "298": 1.21,
+      "258": 1.0,
+      "198": 0.61,
+      "148": 0.33,
+      "108": 0.17
+    },
+    "source/s1.jpg": {
+      "380": 1.23,
+      "300": 1.1,
+      "260": 1.0,
+      "199": 0.79,
+      "149": 0.58,
+      "109": 0.38
+    },
+    "driving/d13.mp4": {
+      "460": 1.71,
+      "380": 1.39,
+      "301": 1.16,
+      "260": 1.0,
+      "201": 0.61,
+      "151": 0.37,
+      "110": 0.18
+    }
+  },
+  "source_faults": [
+    {
+      "clip": "d0",
+      "source": "neutral",
+      "frames": 39,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": true,
+      "csim_to_real": 0.89,
+      "expression_error": 0.018,
+      "pose_error_deg": 0.28,
+      "face_pixel_error": 5.98,
+      "detail_kept": 0.323,
+      "source_measurements": {
+        "yaw_deg": -1.614,
+        "pitch_deg": 4.802,
+        "lip_gap": 0.005,
+        "eye_closed": 0.107,
+        "smile": 0.003
+      }
+    },
+    {
+      "clip": "d0",
+      "source": "mouth open",
+      "frames": 39,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.922,
+      "expression_error": 0.0118,
+      "pose_error_deg": 0.23,
+      "face_pixel_error": 5.07,
+      "detail_kept": 0.319,
+      "source_measurements": {
+        "yaw_deg": -2.26,
+        "pitch_deg": 3.477,
+        "lip_gap": 0.233,
+        "eye_closed": 0.122,
+        "smile": 0.869
+      }
+    },
+    {
+      "clip": "d0",
+      "source": "blurred",
+      "frames": 39,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.834,
+      "expression_error": 0.0225,
+      "pose_error_deg": 0.46,
+      "face_pixel_error": 7.26,
+      "detail_kept": 0.092
+    },
+    {
+      "clip": "d0",
+      "source": "dark",
+      "frames": 39,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.844,
+      "expression_error": 0.0199,
+      "pose_error_deg": 0.61,
+      "face_pixel_error": 73.47,
+      "detail_kept": 0.101
+    },
+    {
+      "clip": "d0",
+      "source": "low resolution",
+      "frames": 39,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.871,
+      "expression_error": 0.0227,
+      "pose_error_deg": 0.3,
+      "face_pixel_error": 6.82,
+      "detail_kept": 0.142
+    },
+    {
+      "clip": "d3",
+      "source": "neutral",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.796,
+      "expression_error": 0.0162,
+      "pose_error_deg": 0.46,
+      "face_pixel_error": 8.27,
+      "detail_kept": 0.385,
+      "source_measurements": {
+        "yaw_deg": 10.274,
+        "pitch_deg": -0.349,
+        "lip_gap": 0.003,
+        "eye_closed": 0.021,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d3",
+      "source": "mouth open",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.729,
+      "expression_error": 0.0183,
+      "pose_error_deg": 0.39,
+      "face_pixel_error": 9.61,
+      "detail_kept": 0.426,
+      "source_measurements": {
+        "yaw_deg": -10.659,
+        "pitch_deg": 0.188,
+        "lip_gap": 0.18,
+        "eye_closed": 0.514,
+        "smile": 0.448
+      }
+    },
+    {
+      "clip": "d3",
+      "source": "eyes closed",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.777,
+      "expression_error": 0.0172,
+      "pose_error_deg": 0.44,
+      "face_pixel_error": 8.06,
+      "detail_kept": 0.388,
+      "source_measurements": {
+        "yaw_deg": 8.129,
+        "pitch_deg": 4.772,
+        "lip_gap": 0.001,
+        "eye_closed": 0.761,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d3",
+      "source": "head turned",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.781,
+      "expression_error": 0.0166,
+      "pose_error_deg": 0.39,
+      "face_pixel_error": 9.25,
+      "detail_kept": 0.441,
+      "source_measurements": {
+        "yaw_deg": -13.761,
+        "pitch_deg": -1.245,
+        "lip_gap": 0.119,
+        "eye_closed": 0.151,
+        "smile": 0.001
+      }
+    },
+    {
+      "clip": "d3",
+      "source": "blurred",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.735,
+      "expression_error": 0.0232,
+      "pose_error_deg": 0.54,
+      "face_pixel_error": 9.7,
+      "detail_kept": 0.18
+    },
+    {
+      "clip": "d3",
+      "source": "dark",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.747,
+      "expression_error": 0.0217,
+      "pose_error_deg": 0.46,
+      "face_pixel_error": 47.8,
+      "detail_kept": 0.153
+    },
+    {
+      "clip": "d3",
+      "source": "low resolution",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.777,
+      "expression_error": 0.0173,
+      "pose_error_deg": 0.47,
+      "face_pixel_error": 8.4,
+      "detail_kept": 0.244
+    },
+    {
+      "clip": "d6",
+      "source": "neutral",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": true,
+      "csim_to_real": 0.761,
+      "expression_error": 0.0338,
+      "pose_error_deg": 0.71,
+      "face_pixel_error": 7.57,
+      "detail_kept": 0.54,
+      "source_measurements": {
+        "yaw_deg": 3.464,
+        "pitch_deg": -0.316,
+        "lip_gap": 0.025,
+        "eye_closed": 0.001,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d6",
+      "source": "mouth open",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.79,
+      "expression_error": 0.0306,
+      "pose_error_deg": 0.63,
+      "face_pixel_error": 8.37,
+      "detail_kept": 0.508,
+      "source_measurements": {
+        "yaw_deg": -2.247,
+        "pitch_deg": -6.347,
+        "lip_gap": 0.874,
+        "eye_closed": 0.001,
+        "smile": 0.029
+      }
+    },
+    {
+      "clip": "d6",
+      "source": "blurred",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.726,
+      "expression_error": 0.0527,
+      "pose_error_deg": 0.62,
+      "face_pixel_error": 9.91,
+      "detail_kept": 0.199
+    },
+    {
+      "clip": "d6",
+      "source": "dark",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.735,
+      "expression_error": 0.0414,
+      "pose_error_deg": 0.64,
+      "face_pixel_error": 82.89,
+      "detail_kept": 0.19
+    },
+    {
+      "clip": "d6",
+      "source": "low resolution",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.749,
+      "expression_error": 0.0474,
+      "pose_error_deg": 0.74,
+      "face_pixel_error": 9.16,
+      "detail_kept": 0.292
+    },
+    {
+      "clip": "d9",
+      "source": "neutral",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": true,
+      "csim_to_real": 0.895,
+      "expression_error": 0.0119,
+      "pose_error_deg": 0.31,
+      "face_pixel_error": 7.23,
+      "detail_kept": 0.335,
+      "source_measurements": {
+        "yaw_deg": -3.958,
+        "pitch_deg": 1.866,
+        "lip_gap": 0.007,
+        "eye_closed": 0.077,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d9",
+      "source": "mouth open",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.874,
+      "expression_error": 0.013,
+      "pose_error_deg": 0.22,
+      "face_pixel_error": 9.1,
+      "detail_kept": 0.33,
+      "source_measurements": {
+        "yaw_deg": -3.398,
+        "pitch_deg": 1.338,
+        "lip_gap": 0.333,
+        "eye_closed": 0.109,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d9",
+      "source": "eyes closed",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.909,
+      "expression_error": 0.0106,
+      "pose_error_deg": 0.22,
+      "face_pixel_error": 7.18,
+      "detail_kept": 0.341,
+      "source_measurements": {
+        "yaw_deg": -3.039,
+        "pitch_deg": 1.009,
+        "lip_gap": 0.006,
+        "eye_closed": 0.785,
+        "smile": 0.001
+      }
+    },
+    {
+      "clip": "d9",
+      "source": "blurred",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.833,
+      "expression_error": 0.0317,
+      "pose_error_deg": 0.42,
+      "face_pixel_error": 12.08,
+      "detail_kept": 0.029
+    },
+    {
+      "clip": "d9",
+      "source": "dark",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.867,
+      "expression_error": 0.0135,
+      "pose_error_deg": 0.24,
+      "face_pixel_error": 75.6,
+      "detail_kept": 0.101
+    },
+    {
+      "clip": "d9",
+      "source": "low resolution",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.869,
+      "expression_error": 0.0172,
+      "pose_error_deg": 0.38,
+      "face_pixel_error": 9.71,
+      "detail_kept": 0.081
+    },
+    {
+      "clip": "d10",
+      "source": "neutral",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": true,
+      "csim_to_real": 0.833,
+      "expression_error": 0.0201,
+      "pose_error_deg": 0.44,
+      "face_pixel_error": 7.12,
+      "detail_kept": 0.372,
+      "source_measurements": {
+        "yaw_deg": 0.303,
+        "pitch_deg": 1.103,
+        "lip_gap": 0.013,
+        "eye_closed": 0.004,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d10",
+      "source": "mouth open",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.786,
+      "expression_error": 0.021,
+      "pose_error_deg": 0.83,
+      "face_pixel_error": 8.45,
+      "detail_kept": 0.346,
+      "source_measurements": {
+        "yaw_deg": 0.869,
+        "pitch_deg": -6.934,
+        "lip_gap": 0.735,
+        "eye_closed": 0.001,
+        "smile": 0.002
+      }
+    },
+    {
+      "clip": "d10",
+      "source": "blurred",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.733,
+      "expression_error": 0.0388,
+      "pose_error_deg": 0.74,
+      "face_pixel_error": 10.31,
+      "detail_kept": 0.107
+    },
+    {
+      "clip": "d10",
+      "source": "dark",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.79,
+      "expression_error": 0.0227,
+      "pose_error_deg": 0.72,
+      "face_pixel_error": 68.73,
+      "detail_kept": 0.117
+    },
+    {
+      "clip": "d10",
+      "source": "low resolution",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.804,
+      "expression_error": 0.0274,
+      "pose_error_deg": 0.5,
+      "face_pixel_error": 8.39,
+      "detail_kept": 0.161
+    },
+    {
+      "clip": "d18",
+      "source": "neutral",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": true,
+      "csim_to_real": 0.904,
+      "expression_error": 0.0176,
+      "pose_error_deg": 0.63,
+      "face_pixel_error": 4.87,
+      "detail_kept": 0.5,
+      "source_measurements": {
+        "yaw_deg": 1.948,
+        "pitch_deg": 3.362,
+        "lip_gap": 0.006,
+        "eye_closed": 0.156,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d18",
+      "source": "mouth open",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.842,
+      "expression_error": 0.0252,
+      "pose_error_deg": 0.48,
+      "face_pixel_error": 4.63,
+      "detail_kept": 0.461,
+      "source_measurements": {
+        "yaw_deg": 3.723,
+        "pitch_deg": 3.648,
+        "lip_gap": 0.828,
+        "eye_closed": 0.104,
+        "smile": 0.0
+      }
+    },
+    {
+      "clip": "d18",
+      "source": "blurred",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.812,
+      "expression_error": 0.0318,
+      "pose_error_deg": 1.13,
+      "face_pixel_error": 7.0,
+      "detail_kept": 0.143
+    },
+    {
+      "clip": "d18",
+      "source": "dark",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.857,
+      "expression_error": 0.0202,
+      "pose_error_deg": 0.59,
+      "face_pixel_error": 73.49,
+      "detail_kept": 0.191
+    },
+    {
+      "clip": "d18",
+      "source": "low resolution",
+      "frames": 90,
+      "frames_without_a_face": 0,
+      "source_passes_every_check": false,
+      "csim_to_real": 0.881,
+      "expression_error": 0.0224,
+      "pose_error_deg": 0.93,
+      "face_pixel_error": 6.21,
+      "detail_kept": 0.229
+    }
+  ],
+  "face_size": [
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 458,
+      "stretch": 1.76,
+      "source_sharpness": 241.0,
+      "output_sharpness": 97.8,
+      "generator_output_detail": 253.2,
+      "detail_kept": 0.406,
+      "detail_kept_at_own_size": 0.206
+    },
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 378,
+      "stretch": 1.46,
+      "source_sharpness": 206.9,
+      "output_sharpness": 86.1,
+      "generator_output_detail": 217.2,
+      "detail_kept": 0.416,
+      "detail_kept_at_own_size": 0.244
+    },
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 298,
+      "stretch": 1.15,
+      "source_sharpness": 175.7,
+      "output_sharpness": 71.8,
+      "generator_output_detail": 179.3,
+      "detail_kept": 0.409,
+      "detail_kept_at_own_size": 0.283
+    },
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 258,
+      "stretch": 1.0,
+      "source_sharpness": 172.2,
+      "output_sharpness": 69.2,
+      "generator_output_detail": 148.7,
+      "detail_kept": 0.402,
+      "detail_kept_at_own_size": 0.309
+    },
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 198,
+      "stretch": 0.77,
+      "source_sharpness": 97.8,
+      "output_sharpness": 39.1,
+      "generator_output_detail": 90.0,
+      "detail_kept": 0.4,
+      "detail_kept_at_own_size": 0.337
+    },
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 148,
+      "stretch": 0.58,
+      "source_sharpness": 55.9,
+      "output_sharpness": 24.0,
+      "generator_output_detail": 49.2,
+      "detail_kept": 0.43,
+      "detail_kept_at_own_size": 0.389
+    },
+    {
+      "picture": "source/s7.jpg",
+      "face_height_px": 108,
+      "stretch": 0.42,
+      "source_sharpness": 28.5,
+      "output_sharpness": 13.6,
+      "generator_output_detail": 25.1,
+      "detail_kept": 0.477,
+      "detail_kept_at_own_size": 0.413
+    },
+    {
+      "picture": "source/s1.jpg",
+      "face_height_px": 380,
+      "stretch": 1.46,
+      "source_sharpness": 75.9,
+      "output_sharpness": 43.9,
+      "generator_output_detail": 42.2,
+      "detail_kept": 0.579,
+      "detail_kept_at_own_size": 0.463
+    },
+    {
+      "picture": "source/s1.jpg",
+      "face_height_px": 300,
+      "stretch": 1.15,
+      "source_sharpness": 71.0,
+      "output_sharpness": 39.5,
+      "generator_output_detail": 37.6,
+      "detail_kept": 0.556,
+      "detail_kept_at_own_size": 0.458
+    },
+    {
+      "picture": "source/s1.jpg",
+      "face_height_px": 260,
+      "stretch": 1.0,
+      "source_sharpness": 66.6,
+      "output_sharpness": 37.7,
+      "generator_output_detail": 34.2,
+      "detail_kept": 0.566,
+      "detail_kept_at_own_size": 0.457
+    },
+    {
+      "picture": "source/s1.jpg",
+      "face_height_px": 199,
+      "stretch": 0.77,
+      "source_sharpness": 51.1,
+      "output_sharpness": 27.5,
+      "generator_output_detail": 27.0,
+      "detail_kept": 0.539,
+      "detail_kept_at_own_size": 0.478
+    },
+    {
+      "picture": "source/s1.jpg",
+      "face_height_px": 149,
+      "stretch": 0.58,
+      "source_sharpness": 38.2,
+      "output_sharpness": 20.1,
+      "generator_output_detail": 19.9,
+      "detail_kept": 0.525,
+      "detail_kept_at_own_size": 0.491
+    },
+    {
+      "picture": "source/s1.jpg",
+      "face_height_px": 109,
+      "stretch": 0.42,
+      "source_sharpness": 25.4,
+      "output_sharpness": 13.7,
+      "generator_output_detail": 13.1,
+      "detail_kept": 0.541,
+      "detail_kept_at_own_size": 0.49
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 460,
+      "stretch": 1.78,
+      "source_sharpness": 211.8,
+      "output_sharpness": 81.2,
+      "generator_output_detail": 172.4,
+      "detail_kept": 0.383,
+      "detail_kept_at_own_size": 0.2
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 380,
+      "stretch": 1.47,
+      "source_sharpness": 197.3,
+      "output_sharpness": 70.6,
+      "generator_output_detail": 140.5,
+      "detail_kept": 0.358,
+      "detail_kept_at_own_size": 0.167
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 301,
+      "stretch": 1.16,
+      "source_sharpness": 166.6,
+      "output_sharpness": 62.8,
+      "generator_output_detail": 117.4,
+      "detail_kept": 0.377,
+      "detail_kept_at_own_size": 0.207
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 260,
+      "stretch": 1.01,
+      "source_sharpness": 129.0,
+      "output_sharpness": 52.7,
+      "generator_output_detail": 100.9,
+      "detail_kept": 0.408,
+      "detail_kept_at_own_size": 0.242
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 201,
+      "stretch": 0.78,
+      "source_sharpness": 99.6,
+      "output_sharpness": 35.6,
+      "generator_output_detail": 61.9,
+      "detail_kept": 0.357,
+      "detail_kept_at_own_size": 0.257
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 151,
+      "stretch": 0.58,
+      "source_sharpness": 54.0,
+      "output_sharpness": 23.1,
+      "generator_output_detail": 37.1,
+      "detail_kept": 0.427,
+      "detail_kept_at_own_size": 0.346
+    },
+    {
+      "picture": "driving/d13.mp4",
+      "face_height_px": 110,
+      "stretch": 0.43,
+      "source_sharpness": 25.0,
+      "output_sharpness": 12.7,
+      "generator_output_detail": 17.9,
+      "detail_kept": 0.507,
+      "detail_kept_at_own_size": 0.42
+    }
+  ]
+}

@@ -82,3 +82,16 @@ def test_face_at_frame_edge_leaves_no_black_band(engine):
     out = engine.drive(engine.source_crop)
     assert out.shape == source.shape
     assert black_fraction(out) <= black_fraction(source) + 0.01
+
+
+@needs_liveportrait
+def test_set_reference_fixes_the_neutral_pose(engine):
+    """With the source's own face as the neutral pose, driving with it gives back the source."""
+    engine.set_source(cv2.imread(str(SAMPLE_SOURCE)))
+    neutral = engine.source_crop
+    other = cv2.flip(neutral, 1)  # a different pose: the mirror image
+    engine.set_reference(neutral)
+    first = engine.drive(other).astype(np.float32)  # does not become the reference
+    back = engine.drive(neutral).astype(np.float32)
+    assert np.abs(back - engine.source_frame.astype(np.float32)).mean() < 8.0
+    assert np.abs(first - back).mean() > 0.2  # the other pose really moved the face

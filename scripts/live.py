@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from neuropresence.capture import FaceTracker, FrameSource, FrameSourceError, TrackStatus
 from neuropresence.capture.crop import letterbox
+from neuropresence.capture.enrol import first_frontal_frame
 from neuropresence.pipeline import Pipeline
 from neuropresence.reenactment import ReenactmentEngine, SourceError
 
@@ -47,18 +48,6 @@ def draw_metrics(panel, result, fps, vram_gb):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, RED, 2)
 
 
-def capture_source(frames, tracker, max_frames=150, max_angle_deg=20):
-    """Take the source from the camera: the first frame with one roughly frontal face."""
-    for _ in range(max_frames):
-        frame = frames.read()
-        if frame is None:
-            break
-        track = tracker.process(frame)
-        if track.ok and all(abs(a) <= max_angle_deg for a in track.pose_deg):
-            return frame
-    return None
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source-image", help="photo of the user to animate; "
@@ -81,7 +70,7 @@ def main():
     else:
         print("Capturing the source from the camera: look straight at it with a relaxed face.")
         with FaceTracker() as enrol_tracker:
-            source = capture_source(frames, enrol_tracker)
+            source = first_frontal_frame(frames, enrol_tracker)
         if source is None:
             sys.exit("No single front-facing face seen by the camera. Try again or pass --source-image.")
     engine = ReenactmentEngine()

@@ -1,0 +1,10 @@
+{
+  "images_compared": 36,
+  "image_pairs_compared": 630,
+  "point_offset_fraction_of_eye_distance_median": 0.037,
+  "same_image_similarity_between_alignments_median": 0.984,
+  "csim_difference_mean": -0.0013,
+  "csim_difference_mean_abs": 0.0145,
+  "csim_difference_max_abs": 0.077,
+  "csim_correlation": 0.993
+}

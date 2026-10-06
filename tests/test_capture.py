@@ -80,3 +80,49 @@ def test_crop_rejects_empty_box():
 
     with pytest.raises(ValueError):
         square_face_crop(np.zeros((10, 10, 3), dtype=np.uint8), (0, 0, 0, 0))
+
+
+@pytest.mark.skipif(not DEFAULT_MODEL.exists(), reason="run scripts/download_models.py first")
+def test_image_mode_treats_every_image_on_its_own():
+    blank = np.zeros((480, 640, 3), dtype=np.uint8)
+    with FaceTracker(video=False) as tracker:
+        assert [tracker.process(blank).status for _ in range(3)] == [TrackStatus.NO_FACE] * 3
+
+
+class _Frames:
+    def __init__(self, frames):
+        self._frames = list(frames)
+
+    def read(self):
+        return self._frames.pop(0) if self._frames else None
+
+
+class _PoseTracker:
+    """Reports the pose stored in each fake frame's first pixel as yaw."""
+
+    def process(self, frame):
+        from neuropresence.capture import TrackResult
+
+        yaw = float(frame[0, 0, 0])
+        if yaw == 255:
+            return TrackResult(TrackStatus.NO_FACE, 1.0)
+        return TrackResult(TrackStatus.OK, 1.0, pose_deg=(yaw, 0.0, 0.0))
+
+
+def _frame(value):
+    return np.full((4, 4, 3), value, dtype=np.uint8)
+
+
+def test_first_frontal_frame_skips_missing_and_turned_faces():
+    from neuropresence.capture.enrol import first_frontal_frame
+
+    frames = _Frames([_frame(255), _frame(60), _frame(10), _frame(0)])  # no face, turned 60, turned 10
+    chosen = first_frontal_frame(frames, _PoseTracker())
+    assert chosen[0, 0, 0] == 10
+
+
+def test_first_frontal_frame_gives_up():
+    from neuropresence.capture.enrol import first_frontal_frame
+
+    assert first_frontal_frame(_Frames([_frame(255)] * 3), _PoseTracker()) is None  # stream ends
+    assert first_frontal_frame(_Frames([_frame(60)] * 10), _PoseTracker(), max_frames=5) is None

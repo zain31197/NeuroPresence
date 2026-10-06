@@ -20,6 +20,8 @@ class FrameSource:
         if self.is_camera:
             self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        # Frames per second the source reports; 0 if it does not say.
+        self.fps = float(self._cap.get(cv2.CAP_PROP_FPS) or 0.0)
 
     def read(self):
         """Return the next frame, or None when the stream ends or a read fails."""

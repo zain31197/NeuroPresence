@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .capture import TrackStatus
+from .capture import TrackResult, TrackStatus
 from .capture.crop import square_face_crop
 
 
@@ -15,6 +15,8 @@ class FrameResult:
     status: TrackStatus
     live: bool  # True if reenacted from this frame, False if the static fallback
     timing_ms: dict
+    driving_face: np.ndarray | None = None  # the 256x256 face crop that drove this frame
+    track: TrackResult | None = None  # what the tracker found in this frame
 
 
 class Pipeline:
@@ -31,15 +33,19 @@ class Pipeline:
         self.engine = engine
         self.crop_scale = crop_scale
 
-    def step(self, frame_bgr):
+    def step(self, frame_bgr, reenact=True):
+        """Process one frame. With reenact=False the face is still tracked but
+        the output stays on the enrolled frame."""
         start = time.perf_counter()
         track = self.tracker.process(frame_bgr)
         timing = {"tracker": track.latency_ms}
-        if track.ok:
+        face = None
+        live = track.ok and reenact
+        if live:
             face = square_face_crop(frame_bgr, track.bbox, scale=self.crop_scale)
             output = self.engine.drive(face)
             timing.update(self.engine.last_timing_ms)
         else:
             output = self.engine.source_frame.copy()
         timing["total"] = (time.perf_counter() - start) * 1000
-        return FrameResult(output, track.status, track.ok, timing)
+        return FrameResult(output, track.status, live, timing, face, track)

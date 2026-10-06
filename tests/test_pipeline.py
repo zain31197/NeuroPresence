@@ -35,6 +35,7 @@ def test_one_face_is_reenacted():
     assert result.live
     assert result.output.mean() == 200
     assert engine.driven_shapes == [(256, 256, 3)]
+    assert result.driving_face.shape == (256, 256, 3)
     assert set(result.timing_ms) == {"tracker", "motion", "render", "compose", "total"}
 
 
@@ -46,6 +47,7 @@ def test_unusable_frame_falls_back_to_enrolled_frame(status):
     assert result.status is status
     assert result.output.mean() == 50
     assert engine.driven_shapes == []  # the GPU is not used for unusable frames
+    assert result.driving_face is None
     assert set(result.timing_ms) == {"tracker", "total"}
 
 

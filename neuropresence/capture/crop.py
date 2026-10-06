@@ -3,6 +3,8 @@
 import cv2
 import numpy as np
 
+MAX_PICTURE_DIM = 1280  # an enrolled picture is never stored larger than this on its longer side
+
 
 def square_face_crop(frame, bbox, scale=2.0, out_size=256):
     """Return an out_size x out_size crop centred on the face.
@@ -27,6 +29,15 @@ def square_face_crop(frame, bbox, scale=2.0, out_size=256):
     crop = cv2.copyMakeBorder(frame[sy0:sy1, sx0:sx1], sy0 - y0, y1 - sy1, sx0 - x0, x1 - sx1,
                               cv2.BORDER_REPLICATE)
     return cv2.resize(crop, (out_size, out_size), interpolation=cv2.INTER_AREA)
+
+
+def limit_size(image, max_dim):
+    """Shrink the image so that neither side is longer than max_dim. Never enlarges."""
+    h, w = image.shape[:2]
+    if max(h, w) <= max_dim:
+        return image
+    scale = max_dim / max(h, w)
+    return cv2.resize(image, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA)
 
 
 def letterbox(frame, size):

@@ -1,0 +1,602 @@
+{
+  "date": "2026-10-06T22:53:39",
+  "machine": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "gpu": "NVIDIA GeForce RTX 5050",
+    "python": "3.12.0",
+    "torch": "2.11.0+cu128"
+  },
+  "code": {
+    "neuropresence": "d862a76+uncommitted",
+    "liveportrait": "9b294b3"
+  },
+  "manifest": "samples.json",
+  "max_frames_per_pair": 150,
+  "targets": {
+    "render_ms": 42.0,
+    "fps": 24.0,
+    "end_to_end_ms": 150.0,
+    "vram_gb": 8.0,
+    "csim": 0.8
+  },
+  "summary": {
+    "pairs": 8,
+    "fps": 7.464,
+    "render_ms": 94.469,
+    "pipeline_ms": 134.035,
+    "peak_vram_gb": 1.17,
+    "csim_self_reenactment": 0.896,
+    "csim_real_video": 0.85,
+    "pose_error_deg": 0.536,
+    "pose_motion_deg": 1.393,
+    "expression_error": 0.026,
+    "expression_motion": 0.072,
+    "mouth_opening_correlation": 0.962,
+    "lag_frames": -0.005,
+    "warping_error_ratio": 0.892,
+    "jitter_ratio": 1.492
+  },
+  "notes": [
+    "pipeline_ms covers tracker, crop, motion, render and compose; it excludes camera capture and display.",
+    "peak_vram_gb is memory allocated by PyTorch for the pipeline, not memory reserved.",
+    "CSIM compares each output frame with the source image. A face that never moved would score 1.0, so read it together with the motion errors.",
+    "csim_real_video is the same CSIM measured on the real driving frames of the same person.",
+    "Pose and expression are read with MediaPipe from the driving and the output frame and compared as change since the first driven frame; *_motion is how much the driver itself moved.",
+    "lag_frames is positive when the output is late.",
+    "Ratios are output divided by real driving video; 1.0 means as steady as real video."
+  ],
+  "pairs": [
+    {
+      "name": "self_d0",
+      "kind": "self-reenactment",
+      "frames_driven": 78,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 10.56,
+          "p95": 11.4,
+          "p99": 12.02
+        },
+        "motion": {
+          "mean": 20.48,
+          "p95": 23.55,
+          "p99": 26.95
+        },
+        "render": {
+          "mean": 95.78,
+          "p95": 103.13,
+          "p99": 110.98
+        },
+        "compose": {
+          "mean": 4.98,
+          "p95": 5.64,
+          "p99": 5.85
+        },
+        "total": {
+          "mean": 133.5,
+          "p95": 143.15,
+          "p99": 154.59
+        }
+      },
+      "fps": 7.49,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.877,
+        "min": 0.785,
+        "p05": 0.807,
+        "share_at_or_above_threshold": 0.987,
+        "threshold": 0.8,
+        "frames": 78
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.898,
+        "min": 0.833,
+        "p05": 0.838,
+        "share_at_or_above_threshold": 1.0,
+        "threshold": 0.8,
+        "frames": 78
+      },
+      "motion": {
+        "pose_error_deg": 0.29,
+        "pose_motion_deg": 0.36,
+        "expression_error": 0.0165,
+        "expression_motion": 0.0909,
+        "mouth_opening_correlation": 0.978,
+        "lag_frames": -0.14
+      },
+      "warping_error_x1000": {
+        "output": 0.0474,
+        "driving": 0.0728,
+        "ratio": 0.651
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 0.8116,
+        "driving": 0.62,
+        "ratio": 1.309
+      }
+    },
+    {
+      "name": "self_d3",
+      "kind": "self-reenactment",
+      "frames_driven": 150,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 10.65,
+          "p95": 11.64,
+          "p99": 12.31
+        },
+        "motion": {
+          "mean": 20.79,
+          "p95": 24.61,
+          "p99": 41.8
+        },
+        "render": {
+          "mean": 94.57,
+          "p95": 100.02,
+          "p99": 100.85
+        },
+        "compose": {
+          "mean": 4.97,
+          "p95": 5.7,
+          "p99": 6.12
+        },
+        "total": {
+          "mean": 133.27,
+          "p95": 141.21,
+          "p99": 154.07
+        }
+      },
+      "fps": 7.5,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.889,
+        "min": 0.776,
+        "p05": 0.797,
+        "share_at_or_above_threshold": 0.933,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.826,
+        "min": 0.695,
+        "p05": 0.715,
+        "share_at_or_above_threshold": 0.673,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "motion": {
+        "pose_error_deg": 0.31,
+        "pose_motion_deg": 2.6,
+        "expression_error": 0.0207,
+        "expression_motion": 0.0864,
+        "mouth_opening_correlation": 0.917,
+        "lag_frames": -0.03
+      },
+      "warping_error_x1000": {
+        "output": 0.0994,
+        "driving": 0.1022,
+        "ratio": 0.973
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 1.1914,
+        "driving": 0.6061,
+        "ratio": 1.966
+      }
+    },
+    {
+      "name": "self_d6",
+      "kind": "self-reenactment",
+      "frames_driven": 150,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 10.78,
+          "p95": 12.07,
+          "p99": 12.84
+        },
+        "motion": {
+          "mean": 20.57,
+          "p95": 23.9,
+          "p99": 26.78
+        },
+        "render": {
+          "mean": 94.5,
+          "p95": 98.57,
+          "p99": 102.68
+        },
+        "compose": {
+          "mean": 4.77,
+          "p95": 5.95,
+          "p99": 6.96
+        },
+        "total": {
+          "mean": 132.62,
+          "p95": 141.51,
+          "p99": 149.11
+        }
+      },
+      "fps": 7.54,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.867,
+        "min": 0.732,
+        "p05": 0.763,
+        "share_at_or_above_threshold": 0.767,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.765,
+        "min": 0.607,
+        "p05": 0.627,
+        "share_at_or_above_threshold": 0.373,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "motion": {
+        "pose_error_deg": 0.52,
+        "pose_motion_deg": 1.81,
+        "expression_error": 0.0426,
+        "expression_motion": 0.09,
+        "mouth_opening_correlation": 0.962,
+        "lag_frames": -0.02
+      },
+      "warping_error_x1000": {
+        "output": 0.118,
+        "driving": 0.1641,
+        "ratio": 0.719
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 1.5841,
+        "driving": 1.2153,
+        "ratio": 1.303
+      }
+    },
+    {
+      "name": "self_d9",
+      "kind": "self-reenactment",
+      "frames_driven": 150,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 10.52,
+          "p95": 11.5,
+          "p99": 11.83
+        },
+        "motion": {
+          "mean": 20.63,
+          "p95": 23.72,
+          "p99": 36.66
+        },
+        "render": {
+          "mean": 94.96,
+          "p95": 101.08,
+          "p99": 102.51
+        },
+        "compose": {
+          "mean": 4.88,
+          "p95": 5.52,
+          "p99": 5.84
+        },
+        "total": {
+          "mean": 132.77,
+          "p95": 142.35,
+          "p99": 148.61
+        }
+      },
+      "fps": 7.53,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.949,
+        "min": 0.886,
+        "p05": 0.901,
+        "share_at_or_above_threshold": 1.0,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.906,
+        "min": 0.782,
+        "p05": 0.801,
+        "share_at_or_above_threshold": 0.953,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "motion": {
+        "pose_error_deg": 0.2,
+        "pose_motion_deg": 0.52,
+        "expression_error": 0.0121,
+        "expression_motion": 0.0309,
+        "mouth_opening_correlation": 0.998,
+        "lag_frames": 0.02
+      },
+      "warping_error_x1000": {
+        "output": 0.0618,
+        "driving": 0.0869,
+        "ratio": 0.711
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 0.7117,
+        "driving": 0.523,
+        "ratio": 1.361
+      }
+    },
+    {
+      "name": "self_d10",
+      "kind": "self-reenactment",
+      "frames_driven": 150,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 10.66,
+          "p95": 11.43,
+          "p99": 14.22
+        },
+        "motion": {
+          "mean": 20.01,
+          "p95": 22.51,
+          "p99": 27.47
+        },
+        "render": {
+          "mean": 93.36,
+          "p95": 100.49,
+          "p99": 103.34
+        },
+        "compose": {
+          "mean": 5.17,
+          "p95": 6.06,
+          "p99": 6.71
+        },
+        "total": {
+          "mean": 131.18,
+          "p95": 141.7,
+          "p99": 152.05
+        }
+      },
+      "fps": 7.62,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.879,
+        "min": 0.765,
+        "p05": 0.785,
+        "share_at_or_above_threshold": 0.9,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.813,
+        "min": 0.672,
+        "p05": 0.712,
+        "share_at_or_above_threshold": 0.64,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "motion": {
+        "pose_error_deg": 0.64,
+        "pose_motion_deg": 3.34,
+        "expression_error": 0.0217,
+        "expression_motion": 0.0608,
+        "mouth_opening_correlation": 0.959,
+        "lag_frames": -0.04
+      },
+      "warping_error_x1000": {
+        "output": 0.1784,
+        "driving": 0.1757,
+        "ratio": 1.015
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 2.0349,
+        "driving": 1.9074,
+        "ratio": 1.067
+      }
+    },
+    {
+      "name": "self_d13",
+      "kind": "self-reenactment",
+      "frames_driven": 150,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 11.61,
+          "p95": 12.82,
+          "p99": 14.56
+        },
+        "motion": {
+          "mean": 19.84,
+          "p95": 22.09,
+          "p99": 26.14
+        },
+        "render": {
+          "mean": 93.43,
+          "p95": 97.39,
+          "p99": 100.12
+        },
+        "compose": {
+          "mean": 13.03,
+          "p95": 15.21,
+          "p99": 16.39
+        },
+        "total": {
+          "mean": 142.24,
+          "p95": 147.75,
+          "p99": 155.19
+        }
+      },
+      "fps": 7.03,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.943,
+        "min": 0.902,
+        "p05": 0.91,
+        "share_at_or_above_threshold": 1.0,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.901,
+        "min": 0.836,
+        "p05": 0.852,
+        "share_at_or_above_threshold": 1.0,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "motion": {
+        "pose_error_deg": 0.33,
+        "pose_motion_deg": 0.89,
+        "expression_error": 0.0153,
+        "expression_motion": 0.0431,
+        "mouth_opening_correlation": 0.967,
+        "lag_frames": 0.03
+      },
+      "warping_error_x1000": {
+        "output": 0.0797,
+        "driving": 0.1224,
+        "ratio": 0.651
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 0.7942,
+        "driving": 0.4664,
+        "ratio": 1.703
+      }
+    },
+    {
+      "name": "self_d18",
+      "kind": "self-reenactment",
+      "frames_driven": 150,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 10.76,
+          "p95": 11.92,
+          "p99": 14.18
+        },
+        "motion": {
+          "mean": 20.5,
+          "p95": 22.81,
+          "p99": 26.56
+        },
+        "render": {
+          "mean": 94.75,
+          "p95": 100.15,
+          "p99": 106.62
+        },
+        "compose": {
+          "mean": 4.94,
+          "p95": 5.76,
+          "p99": 6.03
+        },
+        "total": {
+          "mean": 133.0,
+          "p95": 141.58,
+          "p99": 147.68
+        }
+      },
+      "fps": 7.52,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.867,
+        "min": 0.774,
+        "p05": 0.785,
+        "share_at_or_above_threshold": 0.847,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "output_frames_without_one_face": 0,
+      "csim_real_video": {
+        "mean": 0.841,
+        "min": 0.741,
+        "p05": 0.754,
+        "share_at_or_above_threshold": 0.707,
+        "threshold": 0.8,
+        "frames": 150
+      },
+      "motion": {
+        "pose_error_deg": 0.79,
+        "pose_motion_deg": 1.26,
+        "expression_error": 0.0165,
+        "expression_motion": 0.0829,
+        "mouth_opening_correlation": 0.994,
+        "lag_frames": 0.11
+      },
+      "warping_error_x1000": {
+        "output": 0.0478,
+        "driving": 0.0309,
+        "ratio": 1.547
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 0.7308,
+        "driving": 0.4438,
+        "ratio": 1.647
+      }
+    },
+    {
+      "name": "cross_s9_d0",
+      "kind": "cross-identity",
+      "frames_driven": 78,
+      "frames_fallback": 0,
+      "latency_ms": {
+        "tracker": {
+          "mean": 11.13,
+          "p95": 12.08,
+          "p99": 12.54
+        },
+        "motion": {
+          "mean": 21.24,
+          "p95": 23.79,
+          "p99": 24.06
+        },
+        "render": {
+          "mean": 94.4,
+          "p95": 99.89,
+          "p99": 101.46
+        },
+        "compose": {
+          "mean": 5.09,
+          "p95": 5.94,
+          "p99": 6.12
+        },
+        "total": {
+          "mean": 133.7,
+          "p95": 140.2,
+          "p99": 143.25
+        }
+      },
+      "fps": 7.48,
+      "peak_vram_gb": 1.17,
+      "csim": {
+        "mean": 0.826,
+        "min": 0.723,
+        "p05": 0.723,
+        "share_at_or_above_threshold": 0.397,
+        "threshold": 0.8,
+        "frames": 78
+      },
+      "output_frames_without_one_face": 0,
+      "motion": {
+        "pose_error_deg": 1.21,
+        "pose_motion_deg": 0.36,
+        "expression_error": 0.0614,
+        "expression_motion": 0.0909,
+        "mouth_opening_correlation": 0.917,
+        "lag_frames": 0.03
+      },
+      "warping_error_x1000": {
+        "output": 0.0631,
+        "driving": 0.0728,
+        "ratio": 0.867
+      },
+      "jitter_percent_of_eye_span": {
+        "output": 0.9779,
+        "driving": 0.62,
+        "ratio": 1.577
+      }
+    }
+  ]
+}

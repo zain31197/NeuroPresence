@@ -60,17 +60,23 @@ def classify_face_count(count):
 
 
 class FaceTracker:
-    """Wraps MediaPipe FaceLandmarker and returns one TrackResult per frame."""
+    """Wraps MediaPipe FaceLandmarker and returns one TrackResult per frame.
 
-    def __init__(self, model_path=DEFAULT_MODEL):
+    video=True (default) is for a live stream: the face is followed from one
+    frame to the next. video=False treats every image on its own, which is
+    what measurements on unrelated images need.
+    """
+
+    def __init__(self, model_path=DEFAULT_MODEL, video=True):
         model_path = Path(model_path)
         if not model_path.exists():
             raise FileNotFoundError(
                 f"Face model not found at {model_path}. Run: python scripts/download_models.py"
             )
+        self._video = video
         options = vision.FaceLandmarkerOptions(
             base_options=mp_tasks.BaseOptions(model_asset_path=str(model_path)),
-            running_mode=vision.RunningMode.VIDEO,
+            running_mode=vision.RunningMode.VIDEO if video else vision.RunningMode.IMAGE,
             num_faces=2,  # 2 so a second person is detected, not silently ignored
             output_face_blendshapes=True,
             output_facial_transformation_matrixes=True,
@@ -82,10 +88,13 @@ class FaceTracker:
         start = time.perf_counter()
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        # VIDEO mode requires strictly increasing timestamps.
-        ts_ms = max(int(start * 1000), self._last_ts_ms + 1)
-        self._last_ts_ms = ts_ms
-        raw = self._landmarker.detect_for_video(image, ts_ms)
+        if self._video:
+            # VIDEO mode requires strictly increasing timestamps.
+            ts_ms = max(int(start * 1000), self._last_ts_ms + 1)
+            self._last_ts_ms = ts_ms
+            raw = self._landmarker.detect_for_video(image, ts_ms)
+        else:
+            raw = self._landmarker.detect(image)
 
         status = classify_face_count(len(raw.face_landmarks))
         if status is not TrackStatus.OK:

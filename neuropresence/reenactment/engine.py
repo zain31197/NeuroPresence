@@ -13,23 +13,18 @@ import cv2
 import numpy as np
 import torch
 
+from ..capture.crop import MAX_PICTURE_DIM, limit_size
+
 LIVEPORTRAIT_DIR = Path(__file__).resolve().parents[2] / "third_party" / "LivePortrait"
 INPUT_SIZE = 256  # LivePortrait network input
 OUTPUT_SIZE = 512  # LivePortrait generator output
-MAX_SOURCE_DIM = 1280  # larger source images are scaled down to this
+MAX_SOURCE_DIM = MAX_PICTURE_DIM  # larger source images are scaled down to this
 
 
 class SourceError(ValueError):
     """The source image cannot be used (no face found)."""
 
 
-def _limit_size(image, max_dim):
-    h, w = image.shape[:2]
-    if max(h, w) <= max_dim:
-        return image
-    scale = max_dim / max(h, w)
-    return cv2.resize(image, (int(round(w * scale)), int(round(h * scale))),
-                      interpolation=cv2.INTER_AREA)
 
 
 def _load_liveportrait(root):
@@ -56,18 +51,21 @@ class ReenactmentEngine:
         )
         self._crop_cfg = CropConfig()
         self._wrapper = Wrapper(InferenceConfig(flag_use_half_precision=half_precision))
-        self._cropper = Cropper(crop_cfg=self._crop_cfg)
+        # The cropper runs once per source, so the CPU is fast enough, and it
+        # avoids ONNX Runtime's GPU build, which needs CUDA libraries PyTorch lacks.
+        self._cropper = Cropper(crop_cfg=self._crop_cfg, flag_force_cpu=True)
         self._source = None
         self._reference = None
         self._paste = None
         self.source_frame = None  # the full source image, shown as the static fallback frame
         self.source_crop = None  # 512x512 BGR face crop that the networks animate
+        self.last_crop = None  # 512x512 BGR network output for the latest driven frame
         self.last_timing_ms = {}
         self.last_motion = {}
 
     def set_source(self, image_bgr):
         """Crop the source face and cache everything that does not change per frame."""
-        image_bgr = _limit_size(image_bgr, MAX_SOURCE_DIM)
+        image_bgr = limit_size(image_bgr, MAX_SOURCE_DIM)
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         found = self._cropper.crop_source_image(rgb, self._crop_cfg)
         if found is None:
@@ -126,9 +124,30 @@ class ReenactmentEngine:
         frame[y0:y1, x0:x1] = (p["mask"] * warped + p["background"]).astype(np.uint8)
         return frame
 
+    def clear_source(self):
+        """Forget the source picture. drive() cannot be used until set_source() is called again."""
+        self._source = self._paste = self._reference = None
+        self.source_frame = self.source_crop = self.last_crop = None
+
     def reset_reference(self):
         """Forget the neutral driving pose; the next driven frame becomes the new neutral."""
         self._reference = None
+
+    def set_reference(self, driving_face_bgr):
+        """Declare this cropped driving face to be the neutral pose.
+
+        When the source picture was taken from the camera, passing the same
+        frame here makes the output start exactly on the source: every later
+        movement is then measured from the pose the picture itself shows.
+        """
+        info, rotation = self._read_motion(driving_face_bgr)
+        self._reference = {"info": info, "rotation": rotation}
+
+    def _read_motion(self, driving_face_bgr):
+        w = self._wrapper
+        face = cv2.resize(driving_face_bgr, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_AREA)
+        info = w.get_kp_info(w.prepare_source(cv2.cvtColor(face, cv2.COLOR_BGR2RGB)))
+        return info, self._rotation(info["pitch"], info["yaw"], info["roll"])
 
     def drive(self, driving_face_bgr):
         """Animate the source with one cropped driving face.
@@ -143,9 +162,7 @@ class ReenactmentEngine:
         w, s = self._wrapper, self._source
 
         start = self._now()
-        face = cv2.resize(driving_face_bgr, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_AREA)
-        driving = w.get_kp_info(w.prepare_source(cv2.cvtColor(face, cv2.COLOR_BGR2RGB)))
-        rotation = self._rotation(driving["pitch"], driving["yaw"], driving["roll"])
+        driving, rotation = self._read_motion(driving_face_bgr)
         if self._reference is None:
             self._reference = {"info": driving, "rotation": rotation}
         ref = self._reference
@@ -171,7 +188,8 @@ class ReenactmentEngine:
         crop_rgb = w.parse_output(out)[0]
         render_done = self._now()
 
-        frame = self._paste_back(cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2BGR))
+        self.last_crop = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2BGR)
+        frame = self._paste_back(self.last_crop)
         self.last_timing_ms = {
             "motion": (motion_done - start) * 1000,
             "render": (render_done - motion_done) * 1000,

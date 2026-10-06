@@ -2,6 +2,9 @@
 *.pdf
 !docs/NeuroPresence_Progress_Plan.pdf
 
+# Mid-evaluation report: the university's LaTeX template and the report text - keep local
+F26_FYP1_Mid_Report_LaTeX_Complete/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -26,7 +29,9 @@ checkpoints/
 # Enrolled likeness, voice samples, and recordings - never commit
 captures/
 enrollment/
-data/
+# Only the project's own data folder. A bare "data/" also hid web/src/data,
+# which holds a file the web app needs to build.
+/data/
 *.mp4
 *.avi
 *.mov
@@ -48,3 +53,7 @@ models/
 
 # Upstream code cloned by setup (LivePortrait)
 third_party/
+
+# Web app: installed packages and the built site
+web/node_modules/
+web/dist/

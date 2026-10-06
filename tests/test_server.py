@@ -1,0 +1,710 @@
+"""The web server, run with stand-ins for the camera, the tracker and the engine."""
+
+import json
+import time
+
+import cv2
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
+
+from neuropresence.capture import TrackResult, TrackStatus
+from neuropresence.capture.feed import FeedFrame
+from neuropresence.enrolment import checks as limits
+from neuropresence.server import create_app
+from neuropresence.server.metrics import MetricsWindow
+from neuropresence.server.runtime import Runtime
+from neuropresence.server.session import FramePair, SessionError
+from neuropresence.server.stream import pack_frame, unpack_frame
+
+FACE_BOX = (220, 75, 200, 215)  # x, y, w, h: one well-placed face in a 640 x 360 picture
+
+
+def well_lit_picture(seed=0):
+    """A stand-in for a good camera frame: broad light and shade with fine detail on top."""
+    ys, xs = np.mgrid[0:360, 0:640]
+    grey = 128 + 45 * np.sin(xs / 10.0) * np.cos(ys / 12.0) + np.random.default_rng(seed).integers(-20, 21, (360, 640))
+    return np.repeat(np.clip(grey, 0, 255).astype(np.uint8)[:, :, None], 3, axis=2)
+
+
+FRAME = well_lit_picture()
+FLAT = np.full((360, 640, 3), 120, dtype=np.uint8)  # no detail at all: fails the light and sharpness checks
+
+
+class FakeFeed:
+    """Hands out a new frame every few milliseconds."""
+
+    is_camera = True
+
+    def __init__(self):
+        self.index = -1
+        self.ended = False
+        self.closed = False
+
+    def read(self, after_index=-1, timeout=1.0):
+        time.sleep(0.005)
+        self.index += 2  # every other frame is "dropped"
+        return FeedFrame(FRAME.copy(), self.index, time.perf_counter())
+
+    def close(self):
+        self.closed = True
+
+
+class FakeTracker:
+    """Always finds the same well-placed face, unless told otherwise."""
+
+    status = TrackStatus.OK
+    yaw = 0.0
+    blink = 0.1
+
+    def process(self, frame):
+        if self.status is not TrackStatus.OK:
+            return TrackResult(self.status, 1.0)
+        x, y, w, h = FACE_BOX
+        rng = np.random.default_rng(1)
+        points = np.column_stack([rng.uniform(x, x + w, 478), rng.uniform(y, y + h, 478)]).astype(np.float32)
+        points[:4] = [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+        middle = x + w / 2
+        points[limits.UPPER_LIP], points[limits.LOWER_LIP] = (middle, y + 120), (middle, y + 122)
+        points[limits.MOUTH_LEFT], points[limits.MOUTH_RIGHT] = (middle - 30, y + 121), (middle + 30, y + 121)
+        return TrackResult(self.status, 1.0, landmarks=points, bbox=FACE_BOX, pose_deg=(self.yaw, 0.0, 0.0),
+                           blendshapes={"jawOpen": 0.25, "eyeBlinkLeft": self.blink, "eyeBlinkRight": self.blink})
+
+    def close(self):
+        pass
+
+
+class FakeEngine:
+    reject = False  # set to make the animation model refuse the next picture
+
+    def __init__(self):
+        self.source_frame = None
+        self.source_crop = None
+        self.last_timing_ms = {"motion": 2.0, "render": 3.0, "compose": 1.0}
+        self.resets = 0
+        self.neutral_faces = []
+
+    def set_source(self, image):
+        if self.reject:
+            raise ValueError("No face found in the source image.")
+        self.source_frame = image.copy()
+        self.source_crop = image[:64, :64].copy()
+
+    def clear_source(self):
+        self.source_frame = self.source_crop = None
+
+    def drive(self, face):
+        return np.full_like(self.source_frame, 200)
+
+    def reset_reference(self):
+        self.resets += 1
+
+    def set_reference(self, face):
+        self.neutral_faces.append(face.shape)
+
+
+class FakeScorer:
+    def embed(self, image, landmarks=None):
+        return np.array([1.0, 0.0])
+
+    def similarity(self, a, b):
+        return 0.9
+
+
+def make_runtime(tmp_path, parts):
+    def make_feed(source):
+        parts["sources"].append(source)
+        parts["feeds"].append(FakeFeed())
+        return parts["feeds"][-1]
+
+    def make_engine():
+        parts["engines"].append(FakeEngine())
+        return parts["engines"][-1]
+
+    def read_gpu():
+        parts["gpu_reads"].append(len(parts["engines"]))
+        return {"name": "Test GPU", "total_gb": 8.0, "allocated_gb": 0.5, "peak_gb": 1.0}
+
+    samples = tmp_path / "samples"
+    samples.mkdir(exist_ok=True)
+    (samples / "d0.mp4").touch()  # the fake feed never opens it; it only has to be listed
+    return Runtime(engine_factory=make_engine, feed_factory=make_feed,
+                   tracker_factory=lambda video=True: parts["tracker"], scorer_factory=FakeScorer,
+                   gpu_probe=read_gpu, data_dir=tmp_path / "data", results_dir=tmp_path / "results",
+                   sample_dir=samples)
+
+
+@pytest.fixture
+def parts(tmp_path):
+    parts = {"feeds": [], "sources": [], "engines": [], "gpu_reads": [], "tracker": FakeTracker(), "tmp": tmp_path}
+    parts["runtime"] = make_runtime(tmp_path, parts)
+    with TestClient(create_app(parts["runtime"], web_dist=tmp_path / "no-web-build")) as client:
+        parts["client"] = client
+        yield parts
+
+
+def wait_for(condition, seconds=3.0):
+    deadline = time.perf_counter() + seconds
+    while time.perf_counter() < deadline:
+        if condition():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def status(parts):
+    return parts["client"].get("/api/status").json()
+
+
+def png(image):
+    return cv2.imencode(".png", image)[1].tobytes()
+
+
+def upload(parts, image=FRAME):
+    return parts["client"].post("/api/enrolment/upload", files={"file": ("me.png", png(image), "image/png")})
+
+
+def enrol(parts, image=FRAME):
+    assert upload(parts, image).json()["passed"]
+    reply = parts["client"].post("/api/enrolment/confirm")
+    assert reply.status_code == 200, reply.text
+    return reply.json()
+
+
+def start(parts, input_id="camera:0"):
+    """Start a session and wait until frames flow. A camera session needs an enrolled picture."""
+    if input_id.startswith("camera") and status(parts)["enrolment"]["record"] is None:
+        enrol(parts)
+    reply = parts["client"].post("/api/session/start", json={"input": input_id})
+    assert reply.status_code == 200, reply.text
+    assert wait_for(lambda: status(parts)["session"]["state"] == "running")
+    assert wait_for(lambda: parts["runtime"].session.latest_pair() is not None)
+
+
+def events(parts):
+    return [event["message"] for event in parts["runtime"].events.since(0)]
+
+
+# ------------------------------------------------------------------ status
+
+
+def test_status_when_nothing_has_happened(parts):
+    found = status(parts)
+    assert found["session"]["state"] == "idle" and found["session"]["metrics"] is None
+    assert found["enrolment"] == {"record": None, "candidate": None,
+                                  "preview": {"state": "idle", "message": "", "input": None, "checks": None,
+                                              "hint": "", "tip": "", "ready": False, "outline": None,
+                                              "taking": False}}
+    assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "tracking_overlay": False}
+    assert [i["id"] for i in found["inputs"]] == ["camera:0", "camera:1", "camera:2", "sample:d0"]
+    assert found["targets"]["fps"] == 24.0
+    assert parts["engines"] == []  # the models are not loaded until they are needed
+    # The GPU is not asked about before the engine exists: PyTorch may still be loading.
+    assert found["gpu"] is None and parts["gpu_reads"] == []
+
+
+def test_capabilities_list_the_six_stages(parts):
+    reply = parts["client"].get("/api/capabilities").json()
+    stages = reply["stages"]
+    assert [s["key"] for s in stages] == ["capture", "motion", "reenactment", "identity", "consent",
+                                          "virtual_camera"]
+    assert {s["status"] for s in stages} <= {"working", "partial", "planned"}
+    assert reply["enrolment"]["key"] == "enrolment" and reply["enrolment"]["status"] == "working"
+
+
+def test_the_enrolment_guide_gives_the_limits_and_the_study_behind_them(parts):
+    client = parts["client"]
+    guide = client.get("/api/enrolment/guide").json()
+    assert guide["study"] is None  # the study has not been run in this results folder
+    assert guide["limits"]["min_face_height_px"] == limits.MIN_FACE_HEIGHT_PX
+    assert guide["limits"]["good_face_height_px"] == limits.GOOD_FACE_HEIGHT_PX
+    assert guide["limits"]["min_sharpness"] == limits.MIN_SHARPNESS
+
+    results = parts["tmp"] / "results"
+    results.mkdir(exist_ok=True)
+    (results / "enrolment_study.json").write_text(json.dumps({
+        "face_size_reference_px": 260,
+        "source_faults_summary": {
+            "neutral": {"clips": 6, "csim_to_real": 0.85, "csim_to_real_change": 0.0, "detail_kept": 0.41},
+            "dark": {"clips": 6, "csim_to_real": 0.81, "csim_to_real_change": -0.04, "detail_kept": 0.14},
+            "blurred": {"clips": 6, "csim_to_real": 0.78, "csim_to_real_change": -0.07, "detail_kept": 0.12},
+        },
+        "face_size_summary": {"source/s7.jpg": {"458": 1.7, "148": 0.33, "258": 1.0}},
+    }))
+    study = client.get("/api/enrolment/guide").json()["study"]
+    assert study["clips"] == 6 and study["good_picture"] == {"csim": 0.85, "detail_kept": 0.41}
+    assert [fault["name"] for fault in study["faults"]] == ["blurred", "dark"]  # the costliest first
+    assert study["faults"][0] == {"name": "blurred", "clips": 6, "csim_change": -0.07, "detail_kept": 0.12}
+    assert study["face_size"] == {"reference_px": 260, "pictures": [{"name": "s7", "points": [
+        {"face_height_px": 148, "detail": 0.33}, {"face_height_px": 258, "detail": 1.0},
+        {"face_height_px": 458, "detail": 1.7}]}]}
+
+    (results / "enrolment_study.json").write_text("not json")
+    assert client.get("/api/enrolment/guide").json()["study"] is None  # unreadable is the same as not run
+
+
+def test_latest_benchmark(parts):
+    assert parts["client"].get("/api/benchmarks/latest").status_code == 404
+    results = parts["tmp"] / "results"
+    results.mkdir()
+    (results / "benchmark_old.json").write_text(json.dumps({"date": "2026-10-01T10:00:00", "summary": {"fps": 5}}))
+    (results / "benchmark_new.json").write_text(json.dumps({"date": "2026-10-06T10:00:00", "summary": {"fps": 7.5, "pairs": 8}}))
+    (results / "benchmark_broken.json").write_text("{not json")
+    latest = parts["client"].get("/api/benchmarks/latest").json()
+    assert latest["file"] == "benchmark_new.json"
+    assert latest["summary"]["fps"] == 7.5
+    assert latest["clips"] == 8
+
+
+# --------------------------------------------------------------- enrolment
+
+
+def test_an_uploaded_picture_is_checked_then_enrolled_on_confirmation(parts):
+    client = parts["client"]
+    candidate = upload(parts).json()
+    assert candidate["passed"] and candidate["origin"] == "upload" and candidate["hint"] == ""
+    assert (candidate["width"], candidate["height"]) == (640, 360)
+    assert [check["key"] for check in candidate["checks"]] == ["face", "facing", "size", "framing", "light", "sharp", "expression"]
+    assert status(parts)["enrolment"]["record"] is None  # checked, not yet enrolled
+    shown = client.get("/api/enrolment/candidate/picture")
+    assert cv2.imdecode(np.frombuffer(shown.content, np.uint8), cv2.IMREAD_COLOR).shape == FRAME.shape
+    assert parts["engines"] == []  # checking a picture does not need the animation model
+
+    record = client.post("/api/enrolment/confirm").json()
+    assert record["origin"] == "upload" and record["has_signature"] is True
+    assert (record["width"], record["height"]) == (640, 360)
+    found = status(parts)["enrolment"]
+    assert found["record"]["id"] == record["id"] and found["candidate"] is None
+    stored = parts["tmp"] / "data" / "enrolment"
+    assert sorted(p.name for p in stored.iterdir()) == ["neutral.png", "picture.png", "record.json", "signature.npy"]
+    assert parts["engines"][0].source_frame.shape == FRAME.shape
+    assert parts["engines"][0].neutral_faces == [(256, 256, 3)]  # the picture's own face is the neutral pose
+    assert client.get("/api/enrolment/picture").headers["content-type"] == "image/jpeg"
+    assert client.get("/api/enrolment/candidate/picture").status_code == 404
+    assert "Picture enrolled from an uploaded file." in events(parts)
+
+
+def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
+    client = parts["client"]
+    candidate = upload(parts, FLAT).json()
+    assert candidate["passed"] is False
+    failed = {check["key"] for check in candidate["checks"] if not check["passed"]}
+    assert failed == {"light", "sharp"}
+    assert candidate["hint"] == "There is not enough light on the face. Face a lamp or a window."
+    assert client.get("/api/enrolment/candidate/picture").status_code == 200  # so the person can see why
+    refused = client.post("/api/enrolment/confirm")
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "This picture did not pass every check, so it cannot be enrolled."
+    assert client.delete("/api/enrolment/candidate").json() == {"ok": True}
+    assert status(parts)["enrolment"] == {**status(parts)["enrolment"], "record": None, "candidate": None}
+    assert client.post("/api/enrolment/confirm").status_code == 409  # nothing left to confirm
+
+
+def test_uploads_that_are_not_usable_pictures(parts):
+    client = parts["client"]
+    not_image = client.post("/api/enrolment/upload", files={"file": ("notes.txt", b"hello", "text/plain")})
+    assert not_image.status_code == 422 and "not a picture" in not_image.json()["detail"]
+    parts["tracker"].status = TrackStatus.NO_FACE
+    no_face = upload(parts).json()
+    assert no_face["passed"] is False
+    assert no_face["hint"] == "No face was found. Sit in front of the camera."
+    parts["tracker"].status = TrackStatus.MULTIPLE_FACES
+    assert upload(parts).json()["hint"] == "More than one face was found. Only you should be in the picture."
+
+
+def test_a_picture_the_animation_model_cannot_use_is_refused_and_nothing_changes(parts):
+    enrol(parts)
+    before = status(parts)["enrolment"]["record"]["id"]
+    upload(parts, well_lit_picture(seed=5))
+    parts["engines"][0].reject = True
+    refused = parts["client"].post("/api/enrolment/confirm")
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "No face found in the source image. Try a clearer, front-facing picture."
+    assert status(parts)["enrolment"]["record"]["id"] == before
+
+
+def test_large_uploads_are_stored_at_the_working_size(parts):
+    big = cv2.resize(FRAME, (2560, 1440), interpolation=cv2.INTER_NEAREST)
+    # The stand-in tracker reports the face for a 640 x 360 picture, so only the size is checked here.
+    assert (upload(parts, big).json()["width"], upload(parts, big).json()["height"]) == (1280, 720)
+
+
+def test_preview_shows_the_checks_and_takes_the_picture(parts):
+    client = parts["client"]
+    reply = client.post("/api/enrolment/preview/start", json={"input": "camera:1"})
+    assert reply.status_code == 200
+    assert parts["sources"] == [1]
+    assert wait_for(lambda: status(parts)["enrolment"]["preview"]["ready"])
+    preview = status(parts)["enrolment"]["preview"]
+    assert preview["state"] == "running" and preview["input"] == "Camera 1" and preview["hint"] == ""
+    assert all(check["passed"] for check in preview["checks"])
+    assert preview["outline"] == limits.outline_for(640, 360)  # where the face should be, for the app to draw
+    assert parts["engines"] == []  # the preview needs no animation model
+
+    with client.websocket_connect("/api/stream") as socket:
+        frame = None
+        for _ in range(50):
+            message = socket.receive()
+            if message.get("bytes"):
+                frame = message["bytes"]
+                break
+    header, camera, output = unpack_frame(frame)
+    assert header["kind"] == "preview" and header["output_bytes"] == 0 and output == b""
+    assert cv2.imdecode(np.frombuffer(camera, np.uint8), cv2.IMREAD_COLOR).shape == FRAME.shape
+
+    taken = client.post("/api/enrolment/take").json()
+    assert taken["passed"] and taken["origin"] == "camera"
+    assert status(parts)["enrolment"]["preview"]["state"] == "running"  # still open, for a retake
+    record = client.post("/api/enrolment/confirm").json()
+    assert record["origin"] == "camera"
+    assert status(parts)["enrolment"]["preview"]["state"] == "idle"  # the camera is released
+    assert parts["feeds"][0].closed
+    assert "Picture enrolled from the camera." in events(parts)
+
+
+def test_a_picture_is_not_taken_while_a_check_fails(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.preview.TAKE_TIMEOUT_SECONDS", 0.3)
+    client = parts["client"]
+    assert client.post("/api/enrolment/take").status_code == 409  # the camera is not open
+    parts["tracker"].yaw = 40.0
+    client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
+    assert wait_for(lambda: status(parts)["enrolment"]["preview"]["checks"] is not None)
+    preview = status(parts)["enrolment"]["preview"]
+    assert preview["ready"] is False and preview["hint"] == "The head is turned to one side. Face the camera."
+    refused = client.post("/api/enrolment/take")
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "The head is turned to one side. Face the camera."
+    assert status(parts)["enrolment"]["candidate"] is None
+    assert status(parts)["enrolment"]["preview"]["taking"] is False
+    parts["tracker"].yaw = 0.0
+    assert client.post("/api/enrolment/take").json()["passed"]  # once the fault is fixed it works
+
+
+def test_the_preview_closes_the_camera_when_nobody_is_watching(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.preview.UNWATCHED_SECONDS", 0.3)
+    client = parts["client"]
+    client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
+    assert wait_for(lambda: status(parts)["enrolment"]["preview"]["state"] == "running")
+    watched_until = time.perf_counter() + 0.8
+    while time.perf_counter() < watched_until:  # a page is showing the preview: frames are being fetched
+        parts["runtime"].latest_pair()
+        time.sleep(0.02)
+    assert status(parts)["enrolment"]["preview"]["state"] == "running"
+    assert not parts["feeds"][0].closed
+    assert wait_for(lambda: parts["feeds"][0].closed)  # the page is gone: the camera is released by itself
+    assert wait_for(lambda: status(parts)["enrolment"]["preview"]["state"] == "idle")
+    assert "The camera was closed because the Enrolment screen is no longer open." in events(parts)
+
+
+def test_the_best_frame_of_the_burst_is_kept():
+    from neuropresence.server.preview import BURST_SECONDS, EnrolmentPreview
+
+    class Frame:
+        def __init__(self, passed, score):
+            self.passed, self.score = passed, score
+
+        def summary(self):
+            return {"hint": "Hold still."}
+
+    def served(frames):
+        preview = EnrolmentPreview(runtime=None)
+        request = {"future": __import__("concurrent.futures").futures.Future(), "best": None, "first_good_at": None,
+                   "deadline": 100.0}
+        preview._taking = request
+        for at, frame in frames:
+            if preview._taking is not None:
+                preview._serve(request, frame, at)
+        return request["future"]
+
+    blink, sharp, late = Frame(True, 10.0), Frame(True, 50.0), Frame(True, 99.0)
+    result = served([(0.0, Frame(False, 0)), (0.1, blink), (0.2, sharp), (0.1 + BURST_SECONDS, blink), (5.0, late)])
+    assert result.result(timeout=0) is sharp  # the best of the burst, not the first and not a later one
+    with pytest.raises(ValueError, match="Hold still."):
+        served([(0.0, Frame(False, 0)), (100.0, Frame(False, 0))]).result(timeout=0)  # nothing passed in time
+
+
+def test_only_cameras_can_enrol_and_only_one_thing_uses_the_camera(parts):
+    client = parts["client"]
+    sample = client.post("/api/enrolment/preview/start", json={"input": "sample:d0"})
+    assert sample.status_code == 409 and "camera or an uploaded file" in sample.json()["detail"]
+    client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
+    assert client.post("/api/enrolment/preview/start", json={"input": "camera:0"}).status_code == 409  # already open
+    start(parts)  # starting a session takes the camera over
+    assert status(parts)["enrolment"]["preview"]["state"] == "idle" and parts["feeds"][0].closed
+    busy = client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
+    assert busy.status_code == 409 and busy.json()["detail"] == "Stop the live session first. The camera is in use."
+
+
+def test_removing_the_picture(parts):
+    client = parts["client"]
+    start(parts)
+    assert client.delete("/api/enrolment").status_code == 409  # not while it is being animated
+    client.post("/api/session/stop")
+    assert client.delete("/api/enrolment").json() == {"ok": True}
+    assert status(parts)["enrolment"]["record"] is None
+    assert list((parts["tmp"] / "data" / "enrolment").iterdir()) == []
+    assert parts["engines"][0].source_frame is None  # the model forgets it too
+    assert client.get("/api/enrolment/picture").status_code == 404
+    assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 409
+    assert "Enrolled picture removed." in events(parts)
+
+
+def test_the_enrolment_survives_a_restart(parts):
+    record = enrol(parts)
+    again = {"feeds": [], "sources": [], "engines": [], "gpu_reads": [], "tracker": FakeTracker()}
+    restarted = make_runtime(parts["tmp"], again)
+    found = restarted.status()["enrolment"]["record"]
+    assert found == record  # known at once, before any model is loaded
+    assert again["engines"] == []
+    restarted.load_enrolment()
+    assert again["engines"][0].source_frame.shape == FRAME.shape
+    assert again["engines"][0].neutral_faces == [(256, 256, 3)]
+
+
+# ----------------------------------------------------------------- session
+
+
+def test_a_camera_session_needs_an_enrolled_picture(parts):
+    refused = parts["client"].post("/api/session/start", json={"input": "camera:0"})
+    assert refused.status_code == 409 and refused.json()["detail"] == "Enrol a picture first."
+    assert status(parts)["session"]["state"] == "idle" and parts["feeds"] == []
+
+
+def test_a_camera_session_animates_the_enrolled_picture(parts):
+    start(parts)
+    client = parts["client"]
+    # Enough frames that the averages no longer depend on the very first one.
+    assert wait_for(lambda: status(parts)["session"]["frames"] >= 30)
+    found = status(parts)
+    session = found["session"]
+    assert session["input"] == "Camera 0" and session["source"] == "enrolment"
+    assert session["metrics"]["stages_ms"] == {"tracker": 1.0, "motion": 2.0, "render": 3.0, "compose": 1.0}
+    assert session["metrics"]["dropped_share"] == pytest.approx(0.5, abs=0.1)
+    assert session["metrics"]["live_share"] == 1.0
+    assert session["tracking"] == {"status": "ok", "pose_deg": [0.0, 0.0, 0.0], "mouth_open": 0.25}
+    assert found["gpu"]["name"] == "Test GPU"
+    # Enrolled once, and its neutral pose set again when the session began.
+    assert parts["engines"][0].neutral_faces == [(256, 256, 3), (256, 256, 3)]
+    assert len(parts["engines"]) == 1
+    assert client.get("/api/enrolment/picture").status_code == 200
+
+
+def test_a_sample_clip_animates_its_own_frame_and_enrols_nothing(parts):
+    start(parts, "sample:d0")
+    assert status(parts)["session"]["source"] == "sample"
+    assert parts["sources"] == [str(parts["tmp"] / "samples" / "d0.mp4")]
+    assert parts["runtime"].engine_holds[0] == "sample"
+    assert status(parts)["enrolment"]["record"] is None
+    assert not (parts["tmp"] / "data" / "enrolment").exists()  # nothing was stored
+    assert "Session started on Sample clip d0." in events(parts)
+    upload(parts)
+    busy = parts["client"].post("/api/enrolment/confirm")
+    assert busy.status_code == 409 and busy.json()["detail"] == "Stop the sample session first."
+    parts["client"].post("/api/session/stop")
+    start(parts)  # a camera session afterwards puts the enrolled picture back into the model
+    assert parts["runtime"].engine_holds[0] == "enrolment"
+
+
+def test_the_picture_can_be_replaced_during_a_camera_session(parts):
+    start(parts)
+    first = status(parts)["enrolment"]["record"]["id"]
+    brighter = np.clip(well_lit_picture(seed=7).astype(np.int16) + 30, 0, 255).astype(np.uint8)
+    record = enrol(parts, brighter)
+    assert record["id"] != first
+    assert status(parts)["session"]["state"] == "running"
+    assert parts["engines"][0].source_frame.mean() == pytest.approx(brighter.mean(), abs=0.5)
+
+
+def test_identity_is_scored_while_live(parts):
+    start(parts)
+    parts["runtime"].identity._interval = 0.02
+    assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.9, seconds=4.0)
+
+
+def test_starting_twice_and_unknown_inputs_are_refused(parts):
+    start(parts)
+    twice = parts["client"].post("/api/session/start", json={"input": "camera:0"})
+    assert twice.status_code == 409 and twice.json()["detail"] == "A session is already running."
+    assert parts["client"].post("/api/session/start", json={"input": "camera:9"}).status_code == 409
+
+
+def test_stop_returns_to_idle_and_releases_the_camera(parts):
+    start(parts)
+    assert parts["client"].post("/api/session/stop").json()["session"]["state"] == "idle"
+    assert parts["feeds"][0].closed
+    assert parts["runtime"].latest_pair() is None
+    start(parts)  # and it can be started again
+    assert len(parts["feeds"]) == 2 and len(parts["engines"]) == 1  # the models are loaded once
+
+
+def test_camera_failure_is_reported_and_recoverable(parts):
+    enrol(parts)
+    runtime = parts["runtime"]
+    good_feed = runtime.make_feed
+
+    def broken(source):
+        raise SessionError("Camera 0 could not be opened. Check that it is connected and not in use by another app.")
+
+    runtime.make_feed = broken
+    parts["client"].post("/api/session/start", json={"input": "camera:0"})
+    assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+    assert status(parts)["session"]["message"].startswith("Camera 0 could not be opened")
+    runtime.make_feed = good_feed
+    start(parts)
+
+
+def test_a_sample_clip_without_a_front_facing_face_is_an_error(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.session.SAMPLE_SOURCE_SECONDS", 0.2)
+    parts["tracker"].yaw = 45.0
+    parts["client"].post("/api/session/start", json={"input": "sample:d0"})
+    assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+    assert "front-facing" in status(parts)["session"]["message"]
+    assert parts["feeds"][0].closed
+
+
+def test_lost_face_falls_back_and_is_logged(parts):
+    start(parts)
+    parts["tracker"].status = TrackStatus.NO_FACE
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().live is False)
+    pair = parts["runtime"].session.latest_pair()
+    assert pair.status == "no_face"
+    assert pair.output.mean() == pytest.approx(FRAME.mean())  # the enrolled picture, unchanged
+    parts["tracker"].status = TrackStatus.OK
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().live is True)
+    assert "No face in view. Showing the enrolled picture." in events(parts)
+    assert "Face found. Reenactment resumed." in events(parts)
+
+
+def test_neutral_reset(parts):
+    assert parts["client"].post("/api/session/neutral").status_code == 409
+    start(parts)
+    assert parts["client"].post("/api/session/neutral").json() == {"ok": True}
+    assert parts["engines"][0].resets == 1
+
+
+# ---------------------------------------------------------------- features
+
+
+def test_reenactment_switch(parts):
+    start(parts)
+    client = parts["client"]
+    reply = client.patch("/api/features/reenactment", json={"enabled": False})
+    assert reply.json()["enabled"] is False
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().live is False)
+    assert parts["runtime"].session.latest_pair().status == "ok"  # still tracked, just not animated
+    client.patch("/api/features/reenactment", json={"enabled": True})
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().live is True)
+    assert "Reenactment turned off." in events(parts)
+
+
+def test_unknown_feature(parts):
+    assert parts["client"].patch("/api/features/teleport", json={"enabled": True}).status_code == 404
+
+
+# ------------------------------------------------------------------ stream
+
+
+def test_stream_sends_status_then_frames(parts):
+    start(parts)
+    with parts["client"].websocket_connect("/api/stream") as socket:
+        first = json.loads(socket.receive_text())
+        assert first["status"]["session"]["state"] == "running"
+        assert any(e["message"] == "Session started on Camera 0." for e in first["events"])
+        frame = None
+        for _ in range(50):
+            message = socket.receive()
+            if message.get("bytes"):
+                frame = message["bytes"]
+                break
+        assert frame is not None
+    header, camera, output = unpack_frame(frame)
+    assert header["kind"] == "live" and header["live"] is True and header["status"] == "ok"
+    assert cv2.imdecode(np.frombuffer(camera, np.uint8), cv2.IMREAD_COLOR).shape == FRAME.shape
+    assert cv2.imdecode(np.frombuffer(output, np.uint8), cv2.IMREAD_COLOR).mean() == pytest.approx(200, abs=2)
+
+
+def test_stream_survives_a_failing_status_reading(parts):
+    start(parts)
+    runtime = parts["runtime"]
+    real_status, calls = runtime.status, []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) == 1:
+            raise AttributeError("partially initialized module")
+        return real_status()
+
+    runtime.status = flaky
+    with parts["client"].websocket_connect("/api/stream") as socket:
+        texts = 0
+        for _ in range(200):
+            message = socket.receive()
+            if message.get("text"):
+                texts += 1
+                break
+        assert texts == 1  # the stream is still open and sent the next reading
+    assert len(calls) >= 2
+
+
+def test_frame_packing_round_trip_and_overlay():
+    camera = np.zeros((720, 1280, 3), dtype=np.uint8)
+    output = np.full((720, 1280, 3), 90, dtype=np.uint8)
+    landmarks = np.array([[640.0, 360.0]], dtype=np.float32)
+    pair = FramePair(7, camera, output, True, "ok", landmarks)
+    header, plain, _ = unpack_frame(pack_frame(pair, overlay=False))
+    assert header == {"id": 7, "kind": "live", "live": True, "status": "ok", "camera_bytes": len(plain),
+                      "output_bytes": header["output_bytes"]}
+    plain = cv2.imdecode(np.frombuffer(plain, np.uint8), cv2.IMREAD_COLOR)
+    assert plain.shape == (360, 640, 3)  # the camera preview is shrunk; the output is not
+    assert plain.max() < 10
+    _, marked, big = unpack_frame(pack_frame(pair, overlay=True))
+    marked = cv2.imdecode(np.frombuffer(marked, np.uint8), cv2.IMREAD_COLOR)
+    assert marked[180, 320].max() > 100  # the landmark, at half scale
+    assert cv2.imdecode(np.frombuffer(big, np.uint8), cv2.IMREAD_COLOR).shape == (720, 1280, 3)
+    assert camera.max() == 0  # the frame itself is never drawn on
+
+
+def test_a_preview_frame_has_no_output_and_a_larger_camera_picture():
+    pair = FramePair(3, np.zeros((720, 1280, 3), dtype=np.uint8), None, False, "ok", None, kind="preview")
+    header, camera, output = unpack_frame(pack_frame(pair))
+    assert header["kind"] == "preview" and header["output_bytes"] == 0 and output == b""
+    assert cv2.imdecode(np.frombuffer(camera, np.uint8), cv2.IMREAD_COLOR).shape == (540, 960, 3)
+
+
+# ----------------------------------------------------------------- metrics
+
+
+def test_metrics_window_averages_recent_frames_only():
+    window = MetricsWindow(seconds=2.0)
+    assert window.summary(now=0.0)["fps"] is None
+    timing = {"tracker": 10.0, "motion": 20.0, "render": 90.0, "compose": 5.0, "total": 125.0}
+    window.add(0.0, {"tracker": 500.0, "total": 500.0}, 600.0, False, 0)  # will be too old
+    for i in range(11):
+        window.add(10.0 + i * 0.1, timing, 140.0, True, 2)
+    summary = window.summary(now=11.0)
+    assert summary["fps"] == pytest.approx(10.0)
+    assert summary["pipeline_ms"] == 125.0
+    assert summary["end_to_end_ms"] == 140.0
+    assert summary["stages_ms"] == {"tracker": 10.0, "motion": 20.0, "render": 90.0, "compose": 5.0}
+    assert summary["render_ms"] == 90.0
+    assert summary["dropped_share"] == pytest.approx(2 / 3, abs=0.001)
+    assert summary["live_share"] == 1.0
+    assert window.total_frames == 12
+    assert window.summary(now=20.0)["fps"] is None  # nothing recent
+
+
+def test_metrics_separate_render_time_from_the_average_frame():
+    """With half the frames not reenacted, the render time per reenacted frame stays the
+    same while the average frame spends half as long rendering."""
+    window = MetricsWindow(seconds=5.0)
+    live = {"tracker": 10.0, "motion": 20.0, "render": 90.0, "compose": 5.0, "total": 125.0}
+    fallback = {"tracker": 10.0, "total": 10.0}
+    for i in range(10):
+        window.add(i * 0.1, live if i % 2 == 0 else fallback, 100.0, i % 2 == 0, 0)
+    summary = window.summary(now=1.0)
+    assert summary["render_ms"] == 90.0
+    assert summary["stages_ms"] == {"tracker": 10.0, "motion": 10.0, "render": 45.0, "compose": 2.5}
+    assert summary["live_share"] == 0.5
+    for i in range(10, 20):
+        window.add(i * 0.1, fallback, 100.0, False, 0)
+    assert window.summary(now=7.0)["render_ms"] is None  # nothing was reenacted lately
