@@ -7,8 +7,8 @@ A running record of what was built, what was decided and why, what was measured,
 | Stage | State |
 |---|---|
 | Enrolment (once, before any session) | Working, in two steps: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
-| 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing |
-| 2. Motion encoding | Working: head pose, expression signals, face crop |
+| 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing, a face crop that holds still while the head does |
+| 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
 | 3. Reenactment | Working, about 7.5 frames per second against a target of 24 |
 | 4. Identity | Partly built: similarity to the enrolled picture is measured live; no automatic fallback yet |
 | 5. Consent and disclosure | Partly built: a meeting picture must match the face verified live. The check of the live face before each session, and the mark on the output, are not built |
@@ -16,20 +16,20 @@ A running record of what was built, what was decided and why, what was measured,
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
-Measured against the targets (benchmark of 6 October 2026, RTX 5050, eight sample clips):
+Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sample clips; the first benchmark, of 6 October, is in brackets where the figure changed):
 
 | Measurement | Measured | Target |
 |---|---|---|
-| Frame rate | 7.5 fps | at least 24 fps |
-| Render time per frame | 94 ms | at most 42 ms |
-| Whole pipeline per frame | 134 ms | at most 150 ms end to end |
+| Frame rate | 7.3 fps | at least 24 fps |
+| Render time per frame | 93 ms | at most 42 ms |
+| Whole pipeline per frame | 138 ms | at most 150 ms end to end |
 | Peak GPU memory | 1.17 GB | at most 8 GB |
 | Identity match (CSIM), self-reenactment | 0.90 | at least 0.80 |
-| Lag behind the driving face | 0.0 frames | none |
-| Flicker, against real video | 0.89 times | at most 1 time |
-| Head jitter, against real video | 1.49 times | at most 1 time |
+| Lag behind the driving face | 0.07 frames | none |
+| Flicker, against real video | 0.73 times (0.89) | at most 1 time |
+| Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 
-Tests: 172 for the engine and server, 29 for the web app, all passing.
+Tests: 181 for the engine and server, 29 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -50,8 +50,8 @@ Agreed on 6 and 7 October 2026.
 Proposed and approved on 7 October 2026:
 
 1. Enrolment (built on 7 October 2026)
-2. Capture and tracking (next)
-3. Reenactment
+2. Capture and tracking (built on 8 October 2026)
+3. Reenactment (next)
 4. Identity
 5. Consent and disclosure
 6. Virtual camera and meeting apps
@@ -169,6 +169,33 @@ This also closed a gap in the first version, where any picture could be uploaded
 
 What this leaves for the consent stage: the same comparison on the live face before each session, and the measurement repeated on the team's own pictures, where a picture from another day and camera will score lower than frames of one clip do.
 
+### 8 October 2026: capture and tracking, the second feature
+
+Approved by Zain with the instruction to keep the focus on quality. The aim was a steady signal driving the picture: the output's head trembled 1.49 times as much as real video.
+
+**Where the tremble came from, measured** on four sample clips before anything was changed:
+
+| Face crop made this way | Tremble against real video |
+|---|---|
+| As it was: cut fresh around the tracked box of every frame | 1.50 |
+| The same, placed in fractions of a pixel | 1.47 |
+| One fixed window for the whole clip | 1.41 |
+| A window built from the eye corners | 1.93 |
+| The tracked box, filtered | 1.08 to 1.14 |
+
+So rounding was not the cause, and a crop that never moves still trembled: part of it is the model's own reading. Two things were then tried on top of the filtered crop. Filtering the pose angles the model reads made it worse (1.19 to 1.24, with half a frame of delay). Filtering the keypoints given to the generator worked: 0.76 with settings that cost three quarters of a frame, and 0.96 with settings that let go as soon as anything moves.
+
+**What was built**
+
+- **Steady crop** (`neuropresence/capture/steady.py`). The crop window's position and size go through a One Euro filter, which holds hard when the head is still and follows when it moves. Readings carry their own time, so it behaves the same at the live loop's 7 frames a second and a clip's 30.
+- **Steady head.** The same filter on the keypoints the engine gives the generator.
+- **Hold and fade.** When the face is lost, the last live frame is held for a quarter of a second, because the tracker often misses a single frame, and then fades to the still picture over a third of a second. When the face returns the output fades in. Before, it snapped.
+- **In the web app.** A switch for each of the two filters, so each can be seen on and off; a Tracking panel in the Live Studio with head turn, head nod and mouth opening as live traces; and the tracking overlay now draws the window the face crop is cut from.
+
+**Result, full benchmark on eight clips** (`results/benchmark_steady_windows_rtx5050.json`): head tremble 1.49 to 0.99 of real video, flicker 0.89 to 0.75. Nothing else moved: identity 0.896, pose error 0.53 degrees, expression error 0.026, mouth correlation 0.96, delay 0.07 of a frame, 7.4 frames a second. Five of the eight clips are now steadier than their real video; three are not (1.36, 1.15 and 1.20).
+
+**The head thrown far back, the same day.** The rule for a head turned too far had been left out of this step, because where the output breaks had not been looked at. Zain then leaned his head back 46 degrees on his camera: the output followed all the way, with the head enlarged and distorted on a body that stayed still. The same picture was rendered with the head turned in steps: natural up to about 12 degrees of nod and 18 of turn, the face stretching from 20 degrees of nod, distorted at 30 to 45. A real head goes further only because the neck and shoulders go with it. The engine now keeps the head to that range (`POSE_RANGE_DEG` in `reenactment/engine.py`): movement is followed exactly up to 8 degrees of nod, 12 of turn and 8 of tilt, then eases toward 15, 22 and 15, which it never passes, and the head keeps its size against the body within 7%. It has its own switch, "Natural head range". Rendered again with the head back 36 degrees: a gentle tilt at normal size. The benchmark is unchanged by it (pose error 0.53 degrees, tremble 0.98, flicker 0.73), because the sample clips stay inside the free range.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -193,6 +220,9 @@ What this leaves for the consent stage: the same comparison on the live face bef
 | The enrolment preview closes the camera when no page is showing it | A camera left on with nobody watching is filming for nothing |
 | The camera picture is used for the face signature only; the meeting picture is uploaded and must match it (Zain, 7 October 2026) | The person in front of the camera proves who they are, and chooses separately what people see; nobody else's picture can be animated |
 | Two faces count as the same person from a similarity of 0.35 | Measured: different people scored at most 0.27, the same person at least 0.42 |
+| The neutral pose is the person's resting face at their camera, not the picture's pose | A picture from another camera came out with the head resized and turned while the person sat still |
+| Tremble is removed at its two sources, the crop and the keypoints, with a filter that lets movement through | Each was measured separately; filtering the pose angles instead added delay and made it worse |
+| The head keeps to a range of movement and to its size | The body in the picture stays still; beyond about 15 degrees of nod or 22 of turn the head looks wrong on it |
 
 ## Problems found and how they were fixed
 
@@ -219,6 +249,9 @@ What this leaves for the consent stage: the same comparison on the live face bef
 - The enrolment study is small: six clips and three pictures. A turned head was found in one clip and closed eyes in two.
 - Even from a good picture the output keeps about 0.4 of the fine detail, and the generator's output is sharper from a larger picture although its network reads the face at a fixed 256 px input. Both point at how the face crop is resampled on the way in. To be looked at under Reenactment.
 - The studio measures a little slower than the benchmark while the page is open.
+- Three of the eight benchmark clips still tremble more than their real video (1.36, 1.15, 1.20). The filters were tuned on four clips and at 25 to 30 frames a second; the live loop runs at about 7, where they have not been measured.
+- The natural head range was set by looking at one picture turned in steps, not by a measurement over many faces, and it has not been watched on a real camera yet.
+- The hold and fade have been tested with stand-ins, not watched on a real camera.
 - The progress plan does not yet list the web app.
 - The proposal inconsistencies listed under 5 October are still to be settled in the mid report.
 - The mid report is being written from the university's LaTeX template in a local folder that git ignores, by Zain's decision on 7 October 2026. The design diagrams and the panel action register are not in this repository yet.

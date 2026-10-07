@@ -25,9 +25,29 @@ DEFAULTS = (
         True,
     ),
     Feature(
+        "steady_crop",
+        "Steady crop",
+        "Hold the face crop still while the head is still, so the tracker's small errors are not read as movement.",
+        True,
+    ),
+    Feature(
+        "steady_keypoints",
+        "Steady head",
+        "Smooth the animation's keypoints while the face is nearly still, so a still head is drawn still. "
+        "Movement passes straight through.",
+        True,
+    ),
+    Feature(
+        "natural_range",
+        "Natural head range",
+        "Keep the head within the range that looks right on a body that stays still. Small movements are followed "
+        "exactly; a head thrown far back or turned far to the side eases to a stop.",
+        True,
+    ),
+    Feature(
         "tracking_overlay",
         "Tracking overlay",
-        "Draw the tracked face landmarks on the camera preview.",
+        "Draw the tracked face landmarks, and the window the face crop is cut from, on the camera preview.",
         False,
     ),
 )

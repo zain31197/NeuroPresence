@@ -14,6 +14,7 @@ import { EventsPanel } from './EventsPanel'
 import { LatencyBreakdown } from './LatencyBreakdown'
 import { MetricTiles } from './MetricTiles'
 import { Monitors } from './Monitors'
+import { TrackingPanel } from './TrackingPanel'
 
 function SessionPill({ session }: { session: Session }) {
   if (session.state === 'running') {
@@ -148,6 +149,7 @@ export function LiveStudio() {
       <div className="mt-5 grid gap-5">
         <Monitors />
         <MetricTiles benchmark={benchmark} />
+        <TrackingPanel />
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
           <LatencyBreakdown />
           <EventsPanel />

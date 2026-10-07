@@ -12,6 +12,10 @@ export interface Sample {
   endToEnd: number | null
   render: number | null
   csim: number | null
+  /** Head turn and nod in degrees, and mouth opening from 0 to 1, as the tracker reads them. */
+  yaw: number | null
+  pitch: number | null
+  mouth: number | null
 }
 
 /** `output` is null for a frame of the enrolment preview, which has none. */
@@ -81,6 +85,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             endToEnd: session.metrics.end_to_end_ms ?? null,
             render: session.metrics.render_ms ?? null,
             csim: identity.csim ?? null,
+            yaw: session.tracking?.pose_deg?.[0] ?? null,
+            pitch: session.tracking?.pose_deg?.[1] ?? null,
+            mouth: session.tracking?.mouth_open ?? null,
           }
           return [...samples, sample].slice(-HISTORY_SAMPLES)
         })

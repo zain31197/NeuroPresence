@@ -95,3 +95,20 @@ def test_set_reference_fixes_the_neutral_pose(engine):
     back = engine.drive(neutral).astype(np.float32)
     assert np.abs(back - engine.source_frame.astype(np.float32)).mean() < 8.0
     assert np.abs(first - back).mean() > 0.2  # the other pose really moved the face
+
+
+def test_the_head_range_is_followed_exactly_inside_and_eases_to_a_stop_outside():
+    import torch
+
+    from neuropresence.reenactment.engine import POSE_RANGE_DEG, soft_limit
+
+    free, most = POSE_RANGE_DEG["pitch"]
+    angles = torch.tensor([0.0, 3.0, -free, free + 4.0, -36.0, 90.0, -200.0])
+    limited = soft_limit(angles, free, most)
+    assert torch.equal(limited[:3], angles[:3])  # small movements are not touched at all
+    assert free < float(limited[3]) < free + 4.0  # past the free range it follows, but less and less
+    assert -most < float(limited[4]) < -free  # the head thrown back 36 degrees, as on a real camera on 8 October 2026
+    assert float(limited[5]) <= most and float(limited[6]) >= -most  # and never past the most that looks right
+    steps = soft_limit(torch.linspace(-60, 60, 241), free, most)
+    assert torch.all(steps[1:] >= steps[:-1])  # no jump anywhere: more movement in never gives less out
+    assert float((steps[1:] - steps[:-1]).max()) <= 0.5 + 1e-4

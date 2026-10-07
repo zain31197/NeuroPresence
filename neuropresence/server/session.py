@@ -50,6 +50,7 @@ class FramePair:
     status: str
     landmarks: np.ndarray | None
     kind: str = "live"  # "live" or "preview"
+    crop_window: tuple | None = None  # where the driving face crop was cut, as (x, y, side) in the camera frame
 
 
 def is_frontal(track):
@@ -224,7 +225,10 @@ class LiveSession:
             dropped = item.index - last - 1 if last >= 0 else 0
             last = item.index
             with rt.engine_lock:
-                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment"))
+                pipeline.steady_crop = rt.features.enabled("steady_crop")
+                pipeline.steady_keypoints = rt.features.enabled("steady_keypoints")
+                pipeline.natural_range = rt.features.enabled("natural_range")
+                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment"), at=item.captured_at)
                 self._run_commands(item.image, result.track)
                 if rt.engine_holds != held:  # the picture was replaced while running: a new picture, a new neutral pose
                     held = rt.engine_holds
@@ -248,7 +252,8 @@ class LiveSession:
                 tracking["mouth_open"] = round(float(track.blendshapes.get("jawOpen", 0.0)), 3)
             with self._lock:
                 self._pair = FramePair(pair_id, item.image, result.output, result.live,
-                                       result.status.value, track.landmarks if track.ok else None)
+                                       result.status.value, track.landmarks if track.ok else None,
+                                       crop_window=result.crop_window)
                 self._tracking = tracking
 
     def _run_commands(self, frame, track):

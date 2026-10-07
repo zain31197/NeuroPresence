@@ -3,10 +3,12 @@
 import time
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 from .capture import TrackResult, TrackStatus
 from .capture.crop import square_face_crop
+from .capture.steady import SteadyCrop
 
 # The neutral pose is the person's own resting face at their camera: all movement is measured
 # from it. It is not the enrolled picture's pose. That picture may come from another camera, and
@@ -18,6 +20,12 @@ NEUTRAL_MAX_ROLL_DEG = 10.0  # ... with the head upright ...
 NEUTRAL_MAX_JAW_OPEN = 0.15  # ... the mouth closed ...
 NEUTRAL_MAX_EYE_CLOSED = 0.5  # ... and the eyes open. Pitch is left out: it depends on how high the camera sits.
 NEUTRAL_WAIT_SECONDS = 3.0  # after this long the current frame is taken, at rest or not
+
+# When the face is lost the output does not snap to the still picture. The last live frame is held
+# for a moment, because the tracker often misses a single frame, and then fades to the still
+# picture. When the face comes back the output fades in the same way.
+HOLD_SECONDS = 0.25
+FADE_SECONDS = 0.3
 
 
 def at_rest(track):
@@ -38,6 +46,7 @@ class FrameResult:
     live: bool  # True if reenacted from this frame, False if the static fallback
     timing_ms: dict
     driving_face: np.ndarray | None = None  # the 256x256 face crop that drove this frame
+    crop_window: tuple | None = None  # where that crop was cut from the camera frame, as (x, y, side)
     track: TrackResult | None = None  # what the tracker found in this frame
 
 
@@ -54,6 +63,13 @@ class Pipeline:
         self.tracker = tracker
         self.engine = engine
         self.crop_scale = crop_scale
+        self.steady_crop = True  # hold the crop window still while the head is still
+        self.steady_keypoints = True  # filter the keypoints given to the generator
+        self.natural_range = True  # keep the head to the range that looks right on a body that stays still
+        self._crop = SteadyCrop()
+        self._level = None  # how much of the output is live: 1 live, 0 the still picture, between while fading
+        self._last_live = None  # the newest live output and when it was made
+        self._last_at = None
         self._neutral_deadline = None  # set while waiting to see the person at rest
         self.neutral_taken = 0  # how many times a neutral pose has been taken from the camera
 
@@ -66,16 +82,23 @@ class Pipeline:
     def waiting_for_neutral(self):
         return self._neutral_deadline is not None
 
-    def step(self, frame_bgr, reenact=True):
+    def step(self, frame_bgr, reenact=True, at=None):
         """Process one frame. With reenact=False the face is still tracked but
-        the output stays on the enrolled frame."""
+        the output stays on the enrolled frame. `at` is when the frame was taken,
+        in seconds on any clock; it is what the steadying and the fades are timed by."""
         start = time.perf_counter()
+        at = start if at is None else at
         track = self.tracker.process(frame_bgr)
         timing = {"tracker": track.latency_ms}
         face = None
         live = track.ok and reenact
+        window = None
         if live:
-            face = square_face_crop(frame_bgr, track.bbox, scale=self.crop_scale)
+            if self.steady_crop and track.landmarks is not None:
+                face, window = self._crop(frame_bgr, track.landmarks, at, self.crop_scale)
+            else:
+                self._crop.reset()
+                face = square_face_crop(frame_bgr, track.bbox, scale=self.crop_scale)
             if self._neutral_deadline is not None:
                 if at_rest(track) or time.perf_counter() >= self._neutral_deadline:
                     self.engine.set_reference(face)
@@ -84,9 +107,36 @@ class Pipeline:
                 else:
                     live = False  # not at rest yet: keep showing the still picture
         if live:
-            output = self.engine.drive(face)
+            output = self.engine.drive(face, at=at, steady=self.steady_keypoints, limit=self.natural_range)
             timing.update(self.engine.last_timing_ms)
         else:
-            output = self.engine.source_frame.copy()
+            self._crop.reset()
+            output = None
+        output = self._settle(output, at)
         timing["total"] = (time.perf_counter() - start) * 1000
-        return FrameResult(output, track.status, live, timing, face, track)
+        return FrameResult(output, track.status, live, timing, face, crop_window=window, track=track)
+
+    def _settle(self, live_output, at):
+        """Hold and fade between the live output and the still picture, so the two never snap."""
+        still = self.engine.source_frame
+        elapsed = 0.0 if self._last_at is None else max(0.0, at - self._last_at)
+        self._last_at = at
+        if self._level is None:  # the very first frame: nothing to fade from
+            self._level = 1.0 if live_output is not None else 0.0
+        if live_output is not None:
+            self._last_live = (live_output, at)
+            self._level = min(1.0, self._level + elapsed / FADE_SECONDS)
+            shown = live_output
+        elif self._last_live is None:
+            return still.copy()
+        else:
+            shown, since = self._last_live
+            if at - since <= HOLD_SECONDS:
+                return shown  # one missed frame is not a lost face: keep the last live frame for a moment
+            self._level = max(0.0, self._level - elapsed / FADE_SECONDS)
+            if self._level == 0.0:
+                self._last_live = None
+                return still.copy()
+        if self._level >= 1.0 or shown.shape != still.shape:
+            return shown
+        return cv2.addWeighted(shown, self._level, still, 1.0 - self._level, 0.0)

@@ -53,6 +53,20 @@ Mean over the eight clips in `benchmarks/samples.json` (LivePortrait's sample vi
 
 What this says: speed is about three times short of the target and is the main optimization work; identity is already above its target and has to stay there as the pipeline is optimized; the output follows the driver with no measurable lag; it flickers no more than real video but its head position trembles about 1.5 times as much, which is the first quality defect to fix.
 
+**After the driving signal was steadied (8 October 2026).** The face crop now holds still while the head does, the keypoints given to the generator are filtered so a still head is drawn still, and a lost face fades to the still picture instead of snapping. Each has its own switch in the Live Studio. Full results: `results/benchmark_steady_windows_rtx5050.json`.
+
+| Measurement | Baseline | Now | Target |
+|---|---|---|---|
+| Head jitter relative to real video | 1.49x | 0.98x | at most 1x |
+| Flicker relative to real video | 0.89x | 0.73x | at most 1x |
+| Lag behind the driver | 0.0 frames | 0.07 frames | lower is better |
+| Identity, pose error, expression error, mouth correlation | 0.896, 0.54°, 0.026, 0.96 | 0.896, 0.53°, 0.026, 0.96 | unchanged |
+| Frame rate | 7.5 fps | 7.3 fps | ≥ 24 fps |
+
+The head also keeps to the range of movement that looks right on a body that stays still: small movements are followed exactly, and a head thrown far back or turned far aside eases to a stop ("Natural head range" in the Live Studio).
+
+Speed is now the open problem: it is the next step.
+
 These clips are studio recordings, not webcam footage of the team, so the numbers will be repeated on the team's own recordings. The proposal-stage measurement of the same unoptimized model was 7.7 fps and 130 ms per frame.
 
 ## Team
@@ -70,7 +84,7 @@ Supervisor: Muhammad Aamir Gulzar
 | Stage | State |
 |---|---|
 | Enrolment | Working: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face (`neuropresence/enrolment`) |
-| 1–2 Capture, tracking, driving signal | Working (`neuropresence/capture`) |
+| 1–2 Capture, tracking, driving signal | Working, with the crop and keypoints steadied (`neuropresence/capture`, `neuropresence/capture/steady.py`) |
 | 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
 | 4 Identity preservation | Identity similarity (CSIM) is measured (`neuropresence/identity`); the live monitor and fallback are not started |
 | 5 Consent and disclosure | Partly built: a meeting picture must match the face verified live. Checking the live face before each session, and the mark on the output, are not started |

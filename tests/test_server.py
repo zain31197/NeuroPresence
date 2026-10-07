@@ -94,7 +94,7 @@ class FakeEngine:
     def clear_source(self):
         self.source_frame = self.source_crop = None
 
-    def drive(self, face):
+    def drive(self, face, at=None, steady=False, limit=False):
         return np.full_like(self.source_frame, 200)
 
     def reset_reference(self):
@@ -222,7 +222,9 @@ def test_status_when_nothing_has_happened(parts):
                                   "preview": {"state": "idle", "message": "", "input": None, "checks": None,
                                               "hint": "", "tip": "", "ready": False, "outline": None,
                                               "taking": False}}
-    assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "tracking_overlay": False}
+    assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
+                                                                "steady_keypoints": True, "natural_range": True,
+                                                                "tracking_overlay": False}
     assert [i["id"] for i in found["inputs"]] == ["camera:0", "camera:1", "camera:2", "sample:d0"]
     assert found["targets"]["fps"] == 24.0
     assert parts["engines"] == []  # the models are not loaded until they are needed
@@ -664,7 +666,8 @@ def test_lost_face_falls_back_and_is_logged(parts):
     assert wait_for(lambda: parts["runtime"].session.latest_pair().live is False)
     pair = parts["runtime"].session.latest_pair()
     assert pair.status == "no_face"
-    assert pair.output.mean() == pytest.approx(FRAME.mean())  # the enrolled picture, unchanged
+    # Not at once: the last live frame is held for a moment, then fades into the enrolled picture.
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().output.mean() == pytest.approx(FRAME.mean()))
     parts["tracker"].status = TrackStatus.OK
     assert wait_for(lambda: parts["runtime"].session.latest_pair().live is True)
     assert "No face in view. Showing the enrolled picture." in events(parts)

@@ -43,6 +43,9 @@ def pack_frame(pair, overlay=False):
         camera = camera.copy()
         for x, y in pair.landmarks * scale:
             cv2.circle(camera, (int(x), int(y)), 1, OVERLAY_COLOR, -1, cv2.LINE_AA)
+        if pair.crop_window is not None:  # the window the driving face crop is cut from
+            x, y, side = (value * scale for value in pair.crop_window)
+            cv2.rectangle(camera, (int(round(x)), int(round(y))), (int(round(x + side)), int(round(y + side))), OVERLAY_COLOR, 1, cv2.LINE_AA)
     camera_jpeg = _jpeg(camera)
     output_jpeg = b"" if pair.output is None else _jpeg(_fit_width(pair.output, OUTPUT_WIDTH)[0])
     header = json.dumps({

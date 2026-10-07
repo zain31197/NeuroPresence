@@ -116,7 +116,7 @@ def run_pair(pair, engine, scorer, measure, max_frames, video_dir):
         index = -1
         while len(raw["index"]) < max_frames and (frame := video.read()) is not None:
             index += 1
-            result = pipeline.step(frame)
+            result = pipeline.step(frame, at=index / (video.fps or 25.0))  # timed by the clip, so a run repeats exactly
             if not result.live:
                 fallback += 1
                 continue

@@ -14,11 +14,31 @@ import numpy as np
 import torch
 
 from ..capture.crop import MAX_PICTURE_DIM, limit_size
+from ..capture.steady import OneEuro
 
 LIVEPORTRAIT_DIR = Path(__file__).resolve().parents[2] / "third_party" / "LivePortrait"
 INPUT_SIZE = 256  # LivePortrait network input
 OUTPUT_SIZE = 512  # LivePortrait generator output
 MAX_SOURCE_DIM = MAX_PICTURE_DIM  # larger source images are scaled down to this
+# The keypoints given to the generator are filtered so a still head is drawn still (see capture/steady.py
+# for the measurements). The filter lets go as soon as anything moves: mouth sync was unchanged.
+KEYPOINT_MIN_CUTOFF_HZ = 2.0
+KEYPOINT_BETA = 400.0  # speeds are in keypoint units per second, which are small numbers
+
+# How far the head may turn from its neutral pose. The body in the picture stays still, so a head
+# that turns as far as a real one can looks wrong on it: a real neck and shoulders would follow.
+# Looked at on a picture turned in steps (8 October 2026): natural up to about 12 degrees of nod
+# and 18 of turn; the face stretches from 20 degrees of nod and is distorted at 30 to 45. Movement
+# is followed exactly up to the first number, then eases toward the second, which it never passes.
+POSE_RANGE_DEG = {"pitch": (8.0, 15.0), "yaw": (12.0, 22.0), "roll": (8.0, 15.0)}
+SCALE_RANGE = (0.03, 0.07)  # the same for the size of the head: it does not grow or shrink against the body
+
+
+def soft_limit(value, free, most):
+    """`value` unchanged while within `free` of zero, then easing toward `most`, which it never passes."""
+    over = value.abs() - free
+    eased = free + (most - free) * torch.tanh(over.clamp(min=0.0) / (most - free))
+    return torch.where(over > 0, eased * value.sign(), value)
 
 
 class SourceError(ValueError):
@@ -62,6 +82,7 @@ class ReenactmentEngine:
         self.last_crop = None  # 512x512 BGR network output for the latest driven frame
         self.last_timing_ms = {}
         self.last_motion = {}
+        self._steady = OneEuro(KEYPOINT_MIN_CUTOFF_HZ, KEYPOINT_BETA)
 
     def set_source(self, image_bgr):
         """Crop the source face and cache everything that does not change per frame."""
@@ -132,6 +153,7 @@ class ReenactmentEngine:
     def reset_reference(self):
         """Forget the neutral driving pose; the next driven frame becomes the new neutral."""
         self._reference = None
+        self._steady.reset()
 
     def set_reference(self, driving_face_bgr):
         """Declare this cropped driving face to be the neutral pose.
@@ -142,6 +164,7 @@ class ReenactmentEngine:
         """
         info, rotation = self._read_motion(driving_face_bgr)
         self._reference = {"info": info, "rotation": rotation}
+        self._steady.reset()
 
     def _read_motion(self, driving_face_bgr):
         w = self._wrapper
@@ -149,13 +172,18 @@ class ReenactmentEngine:
         info = w.get_kp_info(w.prepare_source(cv2.cvtColor(face, cv2.COLOR_BGR2RGB)))
         return info, self._rotation(info["pitch"], info["yaw"], info["roll"])
 
-    def drive(self, driving_face_bgr):
+    def drive(self, driving_face_bgr, at=None, steady=False, limit=False):
         """Animate the source with one cropped driving face.
 
         Returns the source frame (same size as the source image, BGR) with the
         animated face blended in. Motion is relative: the source moves by how
         much the driving face has moved since the reference frame, so the two
         faces need not match in pose or framing.
+
+        With steady=True the keypoints are filtered over time, so a head that is
+        still is drawn still; `at` is when the frame was taken, in seconds.
+        With limit=True the head keeps to the range that looks right on a still
+        body (POSE_RANGE_DEG): inside it nothing changes.
         """
         if self._source is None:
             raise RuntimeError("Call set_source() before drive().")
@@ -167,9 +195,15 @@ class ReenactmentEngine:
             self._reference = {"info": driving, "rotation": rotation}
         ref = self._reference
 
+        size = driving["scale"] / ref["info"]["scale"]
+        if limit:
+            turned = {axis: ref["info"][axis] + soft_limit(driving[axis] - ref["info"][axis], *POSE_RANGE_DEG[axis])
+                      for axis in POSE_RANGE_DEG}
+            rotation = self._rotation(turned["pitch"], turned["yaw"], turned["roll"])
+            size = 1.0 + soft_limit(size - 1.0, *SCALE_RANGE)
         rotation_new = (rotation @ ref["rotation"].permute(0, 2, 1)) @ s["rotation"]
         expression_new = s["info"]["exp"] + (driving["exp"] - ref["info"]["exp"])
-        scale_new = s["info"]["scale"] * (driving["scale"] / ref["info"]["scale"])
+        scale_new = s["info"]["scale"] * size
         shift_new = s["info"]["t"] + (driving["t"] - ref["info"]["t"])
         shift_new[..., 2] = 0
         # How far the driving face has moved from its neutral pose (for logs and limits).
@@ -182,6 +216,9 @@ class ReenactmentEngine:
         }
         kp_driving = scale_new * (s["canonical_kp"] @ rotation_new + expression_new) + shift_new
         kp_driving = w.stitching(s["kp"], kp_driving)
+        if steady:
+            held = self._steady(kp_driving.detach().float().cpu().numpy(), time.perf_counter() if at is None else at)
+            kp_driving = torch.as_tensor(held, dtype=kp_driving.dtype, device=kp_driving.device)
         motion_done = self._now()
 
         out = w.warp_decode(s["feature"], s["kp"], kp_driving)["out"]

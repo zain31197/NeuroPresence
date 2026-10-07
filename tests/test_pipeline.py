@@ -30,7 +30,7 @@ class FakeEngine:
     def set_reference(self, face):
         self.neutral_faces.append(face.shape)
 
-    def drive(self, face):
+    def drive(self, face, at=None, steady=False, limit=False):
         self.driven_shapes.append(face.shape)
         return np.full((720, 1280, 3), 200, dtype=np.uint8)
 
@@ -132,3 +132,58 @@ def test_a_pipeline_that_was_not_asked_to_wait_drives_from_the_first_frame():
     engine = FakeEngine()
     assert Pipeline(Scripted(face(jaw=0.5)), engine).step(FRAME).live is True
     assert engine.neutral_faces == [] and engine.resets == 0  # the engine takes its own first frame, as before
+
+
+# ------------------------------------------------------------ hold and fade
+
+
+class Switchable:
+    """A tracker whose face can be taken away and given back."""
+
+    def __init__(self):
+        self.track = face()
+
+    def process(self, frame):
+        return self.track
+
+
+def test_a_lost_face_is_held_for_a_moment_then_fades_to_the_still_picture():
+    engine, tracker = FakeEngine(), Switchable()
+    pipeline = Pipeline(tracker, engine)
+    assert pipeline.step(FRAME, at=0.0).output.mean() == 200  # live from the first frame, with no fade in
+    tracker.track = TrackResult(TrackStatus.NO_FACE, 1.0)
+    held = pipeline.step(FRAME, at=0.1)
+    assert held.live is False and held.output.mean() == 200  # one missed frame does not show
+    fading = pipeline.step(FRAME, at=0.3)  # past the hold: part of the way to the still picture
+    assert 50 < fading.output.mean() < 200
+    assert pipeline.step(FRAME, at=1.0).output.mean() == 50  # and then the still picture, exactly
+    tracker.track = face()
+    back = pipeline.step(FRAME, at=1.1)  # the face returns: the live output fades in, it does not snap
+    assert back.live is True and 50 < back.output.mean() < 200
+    assert pipeline.step(FRAME, at=2.0).output.mean() == 200
+
+
+def test_the_crop_window_is_reported_and_holds_still_against_tracker_noise():
+    engine, tracker = FakeEngine(), Switchable()
+    pipeline = Pipeline(tracker, engine)
+    rng = np.random.default_rng(0)
+    still = np.column_stack([rng.uniform(200, 400, 478), rng.uniform(100, 340, 478)]).astype(np.float32)
+    windows = {True: [], False: []}
+    for steady in (True, False):
+        pipeline.steady_crop = steady
+        for index in range(40):  # a head that does not move, tracked with an error of about a pixel
+            noisy = still + rng.normal(0, 1.0, still.shape).astype(np.float32)
+            noisy[0], noisy[1] = (200 + rng.normal(0, 3), 100), (400 + rng.normal(0, 3), 340)  # the box edges wobble most
+            tracker.track = TrackResult(TrackStatus.OK, 1.0, landmarks=noisy, pose_deg=(0.0, 0.0, 0.0), blendshapes={},
+                                        bbox=(int(noisy[:, 0].min()), int(noisy[:, 1].min()),
+                                              int(np.ptp(noisy[:, 0])), int(np.ptp(noisy[:, 1]))))
+            result = pipeline.step(np.zeros((480, 640, 3), np.uint8), at=10.0 * steady + index / 30)
+            if steady:
+                windows[True].append(result.crop_window)
+            else:
+                x, y, w, h = tracker.track.bbox
+                windows[False].append((x + w / 2 - max(w, h), y + h / 2 - max(w, h), 2.0 * max(w, h)))
+                assert result.crop_window is None  # only the steady crop has a window of its own to report
+    wobble = {key: float(np.std(np.array(value)[10:, 0])) for key, value in windows.items()}
+    assert wobble[True] < 0.35 * wobble[False]  # the steady window moves far less than the tracked box does
+    assert engine.driven_shapes and set(engine.driven_shapes) == {(256, 256, 3)}
