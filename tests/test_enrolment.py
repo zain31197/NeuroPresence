@@ -309,7 +309,8 @@ def test_store_round_trip(tmp_path):
     assert np.array_equal(loaded.neutral_face, saved.neutral_face)
     assert np.allclose(loaded.signature, saved.signature)
     assert loaded.summary() == {"id": saved.id, "enrolled_at": saved.enrolled_at, "origin": "camera", "width": 640,
-                                "height": 360, "checks": [{"key": "face", "passed": True}], "has_signature": True}
+                                "height": 360, "checks": [{"key": "face", "passed": True}], "has_signature": True,
+                                "match": None}
 
 
 def test_store_keeps_one_enrolment_and_replaces_it(tmp_path):
@@ -333,3 +334,41 @@ def test_store_remove_and_unfinished_saves(tmp_path):
     assert store.load() is None
     assert list(tmp_path.iterdir()) == []
     store.remove()  # removing nothing is not an error
+
+
+def test_the_face_signature_is_kept_apart_from_the_meeting_picture(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    assert store.load_identity() is None
+    vector = np.linspace(0, 1, 512, dtype=np.float32)
+    face = store.save_identity(vector, [{"key": "face", "passed": True}])
+    loaded = store.load_identity()
+    assert loaded.id == face.id and loaded.verified_at == face.verified_at
+    assert np.allclose(loaded.signature, vector)
+    assert loaded.summary() == {"id": face.id, "verified_at": face.verified_at, "checks": [{"key": "face", "passed": True}]}
+    # Only the signature and its record are on disk: no picture of the face is kept.
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["identity.json", "identity.npy"]
+
+    picture = store.save(np.full((360, 640, 3), 90, np.uint8), np.full((256, 256, 3), 40, np.uint8), vector, "upload",
+                         [{"key": "identity", "passed": True}], match=0.62)
+    assert store.load().match == 0.62 and store.load().summary()["match"] == 0.62
+    store.remove()  # removing the meeting picture leaves the face
+    assert store.load() is None and store.load_identity().id == face.id
+    store.remove_identity()
+    assert store.load_identity() is None and list(tmp_path.iterdir()) == []
+    assert picture.match == 0.62
+
+
+def test_a_picture_enrolled_from_the_camera_before_the_change_becomes_the_face(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    older = enrol(store, origin="camera")  # taken live, with its own signature, as enrolment first worked
+    face = store.load_identity()
+    assert face.id == older.id and face.verified_at == older.enrolled_at
+    assert np.allclose(face.signature, older.signature)
+    store.remove()  # ... and it no longer depends on that picture
+    assert store.load_identity().id == older.id
+
+
+def test_an_uploaded_picture_from_before_the_change_is_not_taken_for_the_face(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    enrol(store, origin="upload")  # nobody sat in front of the camera for this one
+    assert store.load_identity() is None

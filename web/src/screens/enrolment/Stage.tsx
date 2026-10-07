@@ -29,10 +29,12 @@ interface Props {
   shots: number
   /** What to offer when the camera could not be opened. */
   retry: ReactNode
+  /** What to say when there is no picture to show yet. */
+  empty: { title: string; hint: string }
 }
 
 /** The one large picture of the Enrolment screen. */
-export function Stage({ mode, preview, candidate, record, count, taking, shots, retry }: Props) {
+export function Stage({ mode, preview, candidate, record, count, taking, shots, retry, empty }: Props) {
   const { onFrame } = useStudio()
   const canvas = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -71,7 +73,7 @@ export function Stage({ mode, preview, candidate, record, count, taking, shots, 
 
   return (
     <Monitor
-      label={camera ? 'Camera' : enrolled ? 'Enrolled picture' : 'Picture'}
+      label={camera ? 'Camera' : enrolled ? 'Meeting picture' : 'Picture'}
       detail={showing ? 'Mirrored' : reviewing ? (candidate.origin === 'camera' ? 'Just taken' : 'Uploaded') : undefined}
       lit={showing || reviewing || enrolled}
       chip={
@@ -81,7 +83,7 @@ export function Stage({ mode, preview, candidate, record, count, taking, shots, 
           candidate.passed ? (
             <Pill tone="good">Passed every check</Pill>
           ) : (
-            <Pill tone="serious">Cannot be enrolled</Pill>
+            <Pill tone="serious">Cannot be used</Pill>
           )
         ) : undefined
       }
@@ -117,11 +119,7 @@ export function Stage({ mode, preview, candidate, record, count, taking, shots, 
       )}
       {enrolled && <img src={enrolledPictureUrl(record.id)} alt="Your enrolled picture" className="absolute inset-0 size-full object-contain" />}
       {mode === 'empty' && (
-        <Empty
-          icon={<UserRound className="size-5" />}
-          title="No picture enrolled yet"
-          hint="Open the camera and follow the checks, or upload a picture you already have."
-        />
+        <Empty icon={<UserRound className="size-5" />} title={empty.title} hint={empty.hint} />
       )}
 
       {showing && preview && <Guidance preview={preview} taking={taking} place="over" />}
@@ -182,7 +180,8 @@ export function Guidance({ preview, taking, place }: { preview: Preview; taking:
   const quiet = over ? 'text-white/75' : 'text-ink-600'
   let mark: ReactNode
   let line: ReactNode
-  let tip = ''
+  // No advice on making the picture better: only a face signature is kept from it.
+  const tip = ''
   if (taking) {
     mark = <Spinner className="mt-0.5 size-4 shrink-0" />
     line = <span className="font-semibold">Hold still.</span>
@@ -202,7 +201,6 @@ export function Guidance({ preview, taking, place }: { preview: Preview; taking:
         <span className="font-semibold">Ready.</span> <span className={quiet}>Look at the camera and take the picture.</span>
       </>
     )
-    tip = preview.tip
   } else {
     mark = <ScanFace className={cn('mt-0.5 size-4 shrink-0', over ? 'text-white/70' : 'text-ink-500')} />
     line = <span className="font-semibold">Hold still.</span>

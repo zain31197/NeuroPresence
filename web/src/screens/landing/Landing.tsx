@@ -204,7 +204,7 @@ const STAGE_OUTLINE = [
 
 // The same, for the step that comes before the stages.
 const ENROLMENT_OUTLINE =
-  'You take one picture of yourself. It is checked for sharpness, light, framing and a relaxed, front-facing face, because every output frame is made from it.'
+  'Your face is verified live with the camera, and only its signature is kept. Then you upload the picture you want people to see: it is checked for quality, and accepted only if it shows the same face.'
 
 function HowItWorks({ stages, enrolment }: { stages: PipelineStage[] | null; enrolment: PipelineStage | null }) {
   const list = stages ?? STAGE_OUTLINE.map((stage) => ({ ...stage, status: null, note: null }))

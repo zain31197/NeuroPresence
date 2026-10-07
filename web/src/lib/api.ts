@@ -34,7 +34,8 @@ export interface Session {
   tracking: Tracking | null
 }
 
-export type CheckKey = 'face' | 'facing' | 'size' | 'framing' | 'light' | 'sharp' | 'expression'
+/** 'identity' is the extra check an uploaded picture gets: does it show the verified face? */
+export type CheckKey = 'face' | 'facing' | 'size' | 'framing' | 'light' | 'sharp' | 'expression' | 'identity'
 export type PictureOrigin = 'camera' | 'upload'
 
 /** One enrolment check and what it found (neuropresence/enrolment/checks.py). */
@@ -50,7 +51,14 @@ export interface Check {
   tip?: string
 }
 
-/** The enrolled picture's record. The picture itself is fetched from enrolledPictureUrl. */
+/** Who the user is: the face verified live with the camera. Only its signature is kept, never the picture. */
+export interface FaceIdentity {
+  id: string
+  verified_at: string // local time, ISO format
+  checks: Check[]
+}
+
+/** The meeting picture's record. The picture itself is fetched from enrolledPictureUrl. */
 export interface EnrolmentRecord {
   id: string
   enrolled_at: string // local time, ISO format
@@ -60,6 +68,8 @@ export interface EnrolmentRecord {
   checks: Check[]
   /** Whether a face signature was saved with it, for the identity check. */
   has_signature: boolean
+  /** How alike its face is to the verified face (CSIM). Absent on a picture enrolled before that check existed. */
+  match?: number | null
 }
 
 /** A picture that has been checked and is waiting to be kept or discarded. */
@@ -99,6 +109,9 @@ export interface Preview {
 }
 
 export interface Enrolment {
+  /** Step one: the face, verified with the camera. */
+  face: FaceIdentity | null
+  /** Step two: the meeting picture, uploaded and matched against that face. */
   record: EnrolmentRecord | null
   candidate: Candidate | null
   preview: Preview
@@ -193,6 +206,8 @@ export interface EnrolmentLimits {
   min_sharpness: number
   good_sharpness: number
   min_bright_level: number
+  /** Two faces at least this alike (CSIM) count as the same person. */
+  same_person_csim: number
 }
 
 /** What scripts/study_enrolment.py measured, in the shape the Enrolment screen draws. */
@@ -266,10 +281,16 @@ export const api = {
     form.append('file', file)
     return request<Candidate>('/api/enrolment/upload', { method: 'POST', body: form })
   },
-  /** Enrols the candidate. The first time, this loads the animation model, which takes a few seconds. */
-  confirmPicture: () => request<EnrolmentRecord>('/api/enrolment/confirm', { method: 'POST' }),
+  /**
+   * Keeps the candidate: a camera picture as the face signature (the picture is dropped), an uploaded
+   * one as the meeting picture. The first upload loads the animation model, which takes a few seconds.
+   */
+  confirmPicture: () => request<{ face: FaceIdentity | null; record: EnrolmentRecord | null }>('/api/enrolment/confirm', { method: 'POST' }),
   discardCandidate: () => request<{ ok: boolean }>('/api/enrolment/candidate', { method: 'DELETE' }),
+  /** Removes the meeting picture. The verified face stays. */
   removeEnrolment: () => request<{ ok: boolean }>('/api/enrolment', { method: 'DELETE' }),
+  /** Removes the face signature and the meeting picture with it. */
+  forgetFace: () => request<{ ok: boolean }>('/api/enrolment/face', { method: 'DELETE' }),
 
   startSession: (input: string) => request<Status>('/api/session/start', { method: 'POST', ...json({ input }) }),
   stopSession: () => request<Status>('/api/session/stop', { method: 'POST' }),

@@ -122,7 +122,10 @@ def create_app(runtime=None, web_dist=WEB_DIST):
 
     @app.post("/api/enrolment/confirm")
     def confirm():
-        """Enrol the candidate. This loads the animation model the first time, which takes a few seconds."""
+        """Keep the candidate: a camera picture as the face signature, an uploaded one as the meeting picture.
+
+        An uploaded picture loads the animation model the first time, which takes a few seconds.
+        """
         try:
             return attempt(runtime.confirm_candidate)
         except ValueError as err:  # the animation model found no usable face
@@ -135,7 +138,14 @@ def create_app(runtime=None, web_dist=WEB_DIST):
 
     @app.delete("/api/enrolment")
     def remove_enrolment():
+        """Remove the meeting picture. The verified face stays."""
         attempt(runtime.remove_enrolment)
+        return {"ok": True}
+
+    @app.delete("/api/enrolment/face")
+    def forget_face():
+        """Remove the face signature and the meeting picture with it."""
+        attempt(runtime.forget_face)
         return {"ok": True}
 
     @app.get("/api/enrolment/picture")

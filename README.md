@@ -69,11 +69,11 @@ Supervisor: Muhammad Aamir Gulzar
 
 | Stage | State |
 |---|---|
-| Enrolment | Working: a picture from the camera or a file, seven checks, stored with its face signature (`neuropresence/enrolment`) |
+| Enrolment | Working: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face (`neuropresence/enrolment`) |
 | 1–2 Capture, tracking, driving signal | Working (`neuropresence/capture`) |
 | 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
 | 4 Identity preservation | Identity similarity (CSIM) is measured (`neuropresence/identity`); the live monitor and fallback are not started |
-| 5 Consent and disclosure | Not started |
+| 5 Consent and disclosure | Partly built: a meeting picture must match the face verified live. Checking the live face before each session, and the mark on the output, are not started |
 | 6 Virtual camera | Not started |
 | Evaluation | Benchmark of speed, identity and temporal stability (`scripts/benchmark.py`, `neuropresence/evaluation`) |
 | Web app | Landing page, Enrolment and Live Studio (`web/`, `neuropresence/server`); Test Lab, Benchmarks and System screens come with the features they belong to |
@@ -97,7 +97,7 @@ The first benchmark run also downloads the RAFT optical-flow weights (21 MB) thr
 
 The web app is the place to run the system and to test each feature. It has a landing page and two screens, in the order they are used:
 
-- **Enrolment**: take or upload the one picture that gets animated. The camera is shown with a face outline and seven checks that update as you move; the picture tells you the one thing to fix next.
+- **Enrolment**: verify your face with the camera, then upload the picture people will see. The camera is shown with a face outline and seven checks that update as you move; the picture tells you the one thing to fix next. An uploaded picture is refused if it is not of the same person.
 - **Live Studio**: camera and output side by side, the live figures against their targets, where each frame's time goes, an event list, and a switch for every feature.
 
 Build it once (this needs Node.js; it was built and tested with version 24), then start the engine:
@@ -120,7 +120,18 @@ Every figure in the app comes from the running pipeline or from a saved result f
 
 ## Enrolment
 
-Every output frame is made from the enrolled picture, so a fault in it shows in all of them. The picture is therefore checked before it is kept. On the Enrolment screen the camera runs with seven checks on every frame. The picture is taken after a count of three, as the sharpest open-eyed frame of a half-second burst, and is shown for review, not mirrored, before it is kept. An uploaded picture goes through the same checks. What is stored, as plain files in `data/enrolment/`: the picture, its face crop (which sets the neutral pose), its face signature (ArcFace embedding), and a record of when it was enrolled and what the checks found.
+Enrolment has two steps, and they answer two different questions.
+
+1. **Who are you? Verify your face with the camera.** The camera runs with seven checks on every frame. The picture is taken after a count of three, as the sharpest open-eyed frame of a half-second burst. It is used only to make a face signature (an ArcFace embedding, 512 numbers) and is not stored.
+2. **What should people see? Upload your meeting picture.** A picture you choose, with the light and background you want. It goes through the same seven checks and one more: its face is compared with the signature from step 1, and it is accepted only if they are the same person. This is the picture a camera session animates.
+
+When a session starts, the still picture is shown until you are seen at rest (facing the camera, mouth closed, eyes open; three seconds at most). That frame is the neutral pose, and all movement is measured from it, so a photograph from another camera keeps its proportions. "Reset neutral pose" in the Live Studio takes a new one.
+
+So nobody's picture can be animated except that of the person who sat in front of the camera. Every output frame is made from the meeting picture, so a fault in it shows in all of them, which is why it is checked before it is kept.
+
+What is stored, as plain files in `data/enrolment/`: the face signature and its record (`identity.npy`, `identity.json`), and the meeting picture with its face crop (which sets the neutral pose), its own signature, and a record of what the checks found and how well it matched the face. "Remove picture" deletes the picture and leaves the face; "Forget my face" deletes everything.
+
+**How alike is the same person?** `python scripts/study_same_person.py` measured the similarity of face signatures on the sample material (`results/same_person_study.json`). Of 300 pairs of different people none scored above 0.27; of 550 pairs of the same person none scored below 0.42. The limit is 0.35. Two limits of this measurement: the same-person pairs are frames of one clip, so a picture from another day and camera will score lower than they do, and 25 people is a small set. It will be repeated on the team's own pictures when the consent gate is built.
 
 | Check | Passes when |
 |---|---|
@@ -177,6 +188,7 @@ python scripts/reenact_video.py --source me.jpg --driving clip.mp4 --out out.mp4
 python scripts/live.py --source-image me.jpg   # live reenactment; q quits, r resets the neutral pose
 python scripts/benchmark.py                    # speed, identity, motion and stability on the sample clips
 python scripts/study_enrolment.py              # what the enrolled picture's faults and face size cost (about 15 minutes)
+python scripts/study_same_person.py            # how alike two faces must be to count as the same person
 python -m pytest                               # engine and server tests
 cd web && npm test                             # front-end tests
 ```

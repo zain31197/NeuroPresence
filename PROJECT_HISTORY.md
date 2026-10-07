@@ -6,12 +6,12 @@ A running record of what was built, what was decided and why, what was measured,
 
 | Stage | State |
 |---|---|
-| Enrolment (once, before any session) | Working: a picture from the camera or a file, seven checks set by measurement, stored with its face signature |
+| Enrolment (once, before any session) | Working, in two steps: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
 | 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing |
 | 2. Motion encoding | Working: head pose, expression signals, face crop |
 | 3. Reenactment | Working, about 7.5 frames per second against a target of 24 |
 | 4. Identity | Partly built: similarity to the enrolled picture is measured live; no automatic fallback yet |
-| 5. Consent and disclosure | Not built |
+| 5. Consent and disclosure | Partly built: a meeting picture must match the face verified live. The check of the live face before each session, and the mark on the output, are not built |
 | 6. Virtual camera (meeting apps) | Not built |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
@@ -29,7 +29,7 @@ Measured against the targets (benchmark of 6 October 2026, RTX 5050, eight sampl
 | Flicker, against real video | 0.89 times | at most 1 time |
 | Head jitter, against real video | 1.49 times | at most 1 time |
 
-Tests: 162 for the engine and server, 29 for the web app, all passing.
+Tests: 172 for the engine and server, 29 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -153,6 +153,22 @@ Face size. Three sharp pictures, each enrolled at seven sizes. Detail in the gen
 
 Sharpness 31 on the real camera is above the limit of 18 but below the 45 at which the output face itself still counts as sharp. Four of the sample clips score in the same range (22 to 35), so the limit does not need changing for it, and on this camera it is the camera, not the checks, that limits how sharp the output can be.
 
+### 7 October 2026, evening: the face and the meeting picture separated
+
+Zain's instruction, after trying enrolment on his own camera: the picture taken with the camera should be used for the face embedding only, the picture for meetings should be one the person uploads (a good one, with the background they want), and it should be used only if its embedding matches the face from the camera.
+
+This also closed a gap in the first version, where any picture could be uploaded and animated, of anyone.
+
+- **Step 1, the face.** The camera, the outline and the seven checks are as before, but confirming the picture now stores only its face signature (`identity.npy`, with a record of the checks). The picture is dropped. The animation model is not needed for this step.
+- **Step 2, the meeting picture.** Upload only, and only once a face has been verified. It gets the seven checks and an eighth, "Same person as your face": the similarity of its signature to the verified one has to reach the limit. A picture that fails is shown with the reason and cannot be used.
+- **The limit, measured** (`scripts/study_same_person.py`, `results/same_person_study.json`). On 25 people from the sample clips and photographs: 300 pairs of different people, highest similarity 0.27; 550 pairs of the same person, lowest 0.42. The limit is 0.35. A first run put dogs and a monkey from the sample set among the "people" and scored them as alike (up to 0.74), and counted a child's clip and a photograph of the same child as two people (0.90); both were found by looking at the most alike pairs and are now handled in the script.
+- **Kept consistent.** Verifying a different face removes a meeting picture that no longer matches it. Removing the picture leaves the face; "Forget my face" removes both. A picture enrolled from the camera under the first version is kept, and its signature, which was taken live, becomes the verified face.
+- **Checked** on the real engine and identity model with sample material: a face verified from one clip, a picture of another person refused at a similarity of 0.02, and a picture of the same person accepted at 0.98 and enrolled as the meeting picture. It has not been tried yet with Zain's own camera and photograph.
+
+**8 October 2026: an uploaded picture came out with the head too large.** Zain enrolled an upright photograph and ran a session from his camera: the head was enlarged and the body looked thin beside it. Cause: movement was still measured from the picture's own pose, which was right while the picture came from the same camera and seat, and wrong for a photograph from another camera. The difference between the two was applied as if it were movement. Reproduced on sample material: a photograph driven from a differently framed camera came out with the head 0.87 times its size and turned 14 degrees while the person sat still. The neutral pose is now the person's own resting face at their camera: when a session starts the still picture is shown until a frame is seen with the face to the camera, mouth closed and eyes open (three seconds at most), and all movement is measured from that frame. With that, the same test gives the picture unchanged at rest, and the head stays within 1% of its size while the person moves. Checked on the real engine with an upright picture and a camera of another framing: normal proportions, identity match 0.95.
+
+What this leaves for the consent stage: the same comparison on the live face before each session, and the measurement repeated on the team's own pictures, where a picture from another day and camera will score lower than frames of one clip do.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -175,6 +191,8 @@ Sharpness 31 on the real camera is above the limit of 18 but below the 45 at whi
 | A camera session needs an enrolled picture; a sample clip animates its own frame and is never enrolled | The user's picture and the test material stay apart |
 | The picture is the best frame of a short burst, taken after a count of three | A single frame can catch a blink or movement; the count gives time to look from the button to the camera |
 | The enrolment preview closes the camera when no page is showing it | A camera left on with nobody watching is filming for nothing |
+| The camera picture is used for the face signature only; the meeting picture is uploaded and must match it (Zain, 7 October 2026) | The person in front of the camera proves who they are, and chooses separately what people see; nobody else's picture can be animated |
+| Two faces count as the same person from a similarity of 0.35 | Measured: different people scored at most 0.27, the same person at least 0.42 |
 
 ## Problems found and how they were fixed
 
@@ -188,6 +206,7 @@ Sharpness 31 on the real camera is above the limit of 18 but below the 45 at whi
 | The plan to shrink large enrolled pictures would have softened the output | It assumed the generator's 512 px output caps the detail that is of any use; the first measure compared sizes after resizing, which hid the difference | Measured on the generator's own output before any resizing, and by eye; the plan was dropped and the minimum face size raised |
 | On a narrow screen the guidance line covered the lower half of the face | The line is drawn on the picture, which is small at phone width | Below 640 px the same line is shown under the picture |
 | On a real camera the face outline was smaller and narrower than a well-placed face, and the hint said to move back | The outline's size was chosen by eye in the web app, apart from the checks, for a face 47% of the picture's height; the measurements say a larger face is better | The outline is worked out beside the check limits and tested against them; the hint tells a well-sized face to shift, not to move back |
+| With an uploaded photograph the head came out too large for the body | Movement was measured from the photograph's own pose, so the difference between the photograph and how the person sits at the camera was applied as movement | The neutral pose is taken from the camera, from the first frame at rest when a session starts; tests for the waiting logic |
 | A fresh copy of the repository could not have built the web app | The ignore rule `data/`, meant for the enrolled picture, also hid `web/src/data/faceMesh.json`, which the landing page needs. Found on 7 October 2026, before the web app was first committed | The rule now names only the project's own data folder (`/data/`) |
 
 ## Open items

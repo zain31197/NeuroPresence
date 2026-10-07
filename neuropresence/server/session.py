@@ -158,6 +158,9 @@ class LiveSession:
                 self._progress("Waiting for a front-facing frame")
                 self._borrow_source(feed, tracker)
             pipeline = Pipeline(tracker, engine)
+            if self.uses_enrolment:
+                # The picture may come from another camera: measure movement from how the person sits at this one.
+                pipeline.wait_for_neutral()
             with self._lock:
                 self.state, self.message = SessionState.RUNNING, ""
                 self._started_at = time.perf_counter()
@@ -211,6 +214,7 @@ class LiveSession:
     def _loop(self, feed, pipeline):
         rt = self._rt
         last, pair_id, status = -1, 0, None
+        held, neutrals = rt.engine_holds, pipeline.neutral_taken
         while not self._stop.is_set():
             item = feed.read(after_index=last, timeout=0.5)
             if item is None:
@@ -222,6 +226,12 @@ class LiveSession:
             with rt.engine_lock:
                 result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment"))
                 self._run_commands(item.image, result.track)
+                if rt.engine_holds != held:  # the picture was replaced while running: a new picture, a new neutral pose
+                    held = rt.engine_holds
+                    pipeline.wait_for_neutral()
+            if pipeline.neutral_taken != neutrals:
+                neutrals = pipeline.neutral_taken
+                rt.events.add("info", "Neutral pose taken from the camera. Movement is measured from how you sit now.")
             finished = time.perf_counter()
             self._metrics.add(finished, result.timing_ms, (finished - item.captured_at) * 1000,
                               result.live, dropped)

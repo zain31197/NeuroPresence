@@ -21,6 +21,7 @@ const READOUT: Partial<Record<CheckKey, (value: number) => string>> = {
   size: (value) => `${Math.round(value)} px`,
   light: (value) => `${Math.round(value)}`,
   sharp: (value) => `${Math.round(value)}`,
+  identity: (value) => value.toFixed(2),
 }
 
 /** What a check asks for, with the limit it applies. */
@@ -48,6 +49,10 @@ function about(key: CheckKey, limits: EnrolmentLimits | null): string {
         : 'Fine detail on the face: no blur from movement or focus.'
     case 'expression':
       return 'Mouth closed, eyes open, no broad smile. This is the face people see whenever tracking is lost.'
+    case 'identity':
+      return limits
+        ? `How alike the face in this picture is to the face you verified with the camera, from 0 to 1. ${limits.same_person_csim} or more counts as the same person.`
+        : 'The face in this picture is compared with the face you verified with the camera.'
   }
 }
 
@@ -87,9 +92,11 @@ interface Props {
 
 export function Checklist({ checks, limits, detail, advice = true }: Props) {
   const found = new Map(checks?.map((check) => [check.key, check]))
+  // An uploaded picture has one check more than the seven every picture gets: it is listed after them.
+  const extra = (checks ?? []).filter((check) => !LABELS.some(([key]) => key === check.key)).map((check): [CheckKey, string] => [check.key, check.label])
   return (
     <ul className="divide-y divide-line" aria-label="Enrolment checks">
-      {LABELS.map(([key, fallback]) => {
+      {[...LABELS, ...extra].map(([key, fallback]) => {
         const check = found.get(key)
         const state = stateOf(check)
         const lamp = LAMPS[state]

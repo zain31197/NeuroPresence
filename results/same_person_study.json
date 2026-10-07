@@ -1,0 +1,98 @@
+{
+  "about": "Similarity of ArcFace embeddings (CSIM) for same-person and different-person pairs on the sample clips and photographs. Same-person pairs are frames of one clip, so they share camera and light: a picture from another day will score lower than these.",
+  "people": 25,
+  "left_out_as_not_people": [
+    "s22",
+    "s25",
+    "s30",
+    "s31",
+    "s32"
+  ],
+  "same_person": {
+    "pairs": 550,
+    "lowest": 0.423,
+    "p5": 0.614,
+    "median": 0.816
+  },
+  "different_people": {
+    "pairs": 300,
+    "median": 0.007,
+    "p95": 0.13,
+    "p99": 0.224,
+    "highest": 0.272,
+    "most_alike": [
+      {
+        "csim": 0.272,
+        "a": "s1",
+        "b": "s3"
+      },
+      {
+        "csim": 0.256,
+        "a": "s8",
+        "b": "s9"
+      },
+      {
+        "csim": 0.246,
+        "a": "s10",
+        "b": "s8"
+      },
+      {
+        "csim": 0.223,
+        "a": "s3",
+        "b": "s5"
+      },
+      {
+        "csim": 0.217,
+        "a": "s10",
+        "b": "s9"
+      },
+      {
+        "csim": 0.211,
+        "a": "s5",
+        "b": "s7"
+      },
+      {
+        "csim": 0.186,
+        "a": "s10",
+        "b": "s4"
+      },
+      {
+        "csim": 0.182,
+        "a": "d14",
+        "b": "s8"
+      }
+    ]
+  },
+  "by_limit": [
+    {
+      "limit": 0.25,
+      "same_person_accepted": 1.0,
+      "different_people_accepted": 0.0067
+    },
+    {
+      "limit": 0.3,
+      "same_person_accepted": 1.0,
+      "different_people_accepted": 0.0
+    },
+    {
+      "limit": 0.35,
+      "same_person_accepted": 1.0,
+      "different_people_accepted": 0.0
+    },
+    {
+      "limit": 0.4,
+      "same_person_accepted": 1.0,
+      "different_people_accepted": 0.0
+    },
+    {
+      "limit": 0.45,
+      "same_person_accepted": 0.9964,
+      "different_people_accepted": 0.0
+    },
+    {
+      "limit": 0.5,
+      "same_person_accepted": 0.9891,
+      "different_people_accepted": 0.0
+    }
+  ]
+}

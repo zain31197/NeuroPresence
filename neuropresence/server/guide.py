@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ..capture.crop import MAX_PICTURE_DIM
 from ..enrolment import checks
+from ..identity import SAME_PERSON_CSIM
 
 STUDY_FILE = "enrolment_study.json"
 
@@ -22,6 +23,7 @@ def limits():
         "min_sharpness": checks.MIN_SHARPNESS,
         "good_sharpness": checks.GOOD_SHARPNESS,
         "min_bright_level": checks.MIN_BRIGHT_LEVEL,
+        "same_person_csim": SAME_PERSON_CSIM,
     }
 
 

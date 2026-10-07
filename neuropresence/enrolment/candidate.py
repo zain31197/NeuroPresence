@@ -18,6 +18,7 @@ class Candidate:
     landmarks: np.ndarray | None  # of the one face, if there is exactly one
     neutral_face: np.ndarray | None  # that face's driving crop: the neutral pose for this picture
     score: float = 0.0  # higher is better; used to pick the best of several good frames
+    signature: np.ndarray | None = None  # of an uploaded picture, once it has been compared with the verified face
 
     @property
     def passed(self):

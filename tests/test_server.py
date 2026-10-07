@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from neuropresence.capture import TrackResult, TrackStatus
 from neuropresence.capture.feed import FeedFrame
 from neuropresence.enrolment import checks as limits
+from neuropresence.identity import SAME_PERSON_CSIM
 from neuropresence.server import create_app
 from neuropresence.server.metrics import MetricsWindow
 from neuropresence.server.runtime import Runtime
@@ -104,11 +105,15 @@ class FakeEngine:
 
 
 class FakeScorer:
+    """Gives every face the same signature. `alike` is how alike it says any two faces are."""
+
+    alike = 0.9
+
     def embed(self, image, landmarks=None):
         return np.array([1.0, 0.0])
 
     def similarity(self, a, b):
-        return 0.9
+        return self.alike
 
 
 def make_runtime(tmp_path, parts):
@@ -143,6 +148,12 @@ def parts(tmp_path):
         yield parts
 
 
+@pytest.fixture(autouse=True)
+def neutral_pose_at_once(monkeypatch):
+    """The stand-in face talks all the time, so do not wait to see it at rest: take the first frame."""
+    monkeypatch.setattr("neuropresence.pipeline.NEUTRAL_WAIT_SECONDS", 0.0)
+
+
 def wait_for(condition, seconds=3.0):
     deadline = time.perf_counter() + seconds
     while time.perf_counter() < deadline:
@@ -164,11 +175,27 @@ def upload(parts, image=FRAME):
     return parts["client"].post("/api/enrolment/upload", files={"file": ("me.png", png(image), "image/png")})
 
 
+def verify_face(parts, camera="camera:0"):
+    """Verify the face with the camera: open it, take a picture, keep it. Only its signature stays."""
+    client = parts["client"]
+    assert client.post("/api/enrolment/preview/start", json={"input": camera}).status_code == 200
+    assert wait_for(lambda: status(parts)["enrolment"]["preview"]["ready"])
+    assert client.post("/api/enrolment/take").json()["passed"]
+    reply = client.post("/api/enrolment/confirm")
+    assert reply.status_code == 200, reply.text
+    return reply.json()["face"]
+
+
 def enrol(parts, image=FRAME):
+    """Verify the face if that has not been done, then upload a meeting picture and keep it."""
+    if status(parts)["enrolment"]["face"] is None:
+        verify_face(parts)
+        parts["feeds"].clear()  # the camera opened for that is not what the tests go on to look at
+        parts["sources"].clear()
     assert upload(parts, image).json()["passed"]
     reply = parts["client"].post("/api/enrolment/confirm")
     assert reply.status_code == 200, reply.text
-    return reply.json()
+    return reply.json()["record"]
 
 
 def start(parts, input_id="camera:0"):
@@ -191,7 +218,7 @@ def events(parts):
 def test_status_when_nothing_has_happened(parts):
     found = status(parts)
     assert found["session"]["state"] == "idle" and found["session"]["metrics"] is None
-    assert found["enrolment"] == {"record": None, "candidate": None,
+    assert found["enrolment"] == {"face": None, "record": None, "candidate": None,
                                   "preview": {"state": "idle", "message": "", "input": None, "checks": None,
                                               "hint": "", "tip": "", "ready": False, "outline": None,
                                               "taking": False}}
@@ -259,33 +286,82 @@ def test_latest_benchmark(parts):
 # --------------------------------------------------------------- enrolment
 
 
-def test_an_uploaded_picture_is_checked_then_enrolled_on_confirmation(parts):
+def test_the_camera_picture_becomes_the_face_signature_and_nothing_else(parts):
     client = parts["client"]
+    early = upload(parts)  # there is no verified face to compare an upload with yet
+    assert early.status_code == 409 and early.json()["detail"].startswith("Verify your face with the camera first.")
+    face = verify_face(parts)
+    found = status(parts)["enrolment"]
+    assert found["face"]["id"] == face["id"] and found["record"] is None and found["candidate"] is None
+    assert [check["key"] for check in face["checks"]] == ["face", "facing", "size", "framing", "light", "sharp", "expression"]
+    stored = parts["tmp"] / "data" / "enrolment"
+    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy"]  # no picture of the face is kept
+    assert parts["engines"] == []  # verifying a face does not need the animation model
+    assert client.get("/api/enrolment/picture").status_code == 404
+    assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 409  # a face is not a meeting picture
+    assert "Face verified from the camera. Only its signature was kept." in events(parts)
+
+
+def test_an_uploaded_picture_of_the_same_person_becomes_the_meeting_picture(parts):
+    client = parts["client"]
+    verify_face(parts)
     candidate = upload(parts).json()
     assert candidate["passed"] and candidate["origin"] == "upload" and candidate["hint"] == ""
     assert (candidate["width"], candidate["height"]) == (640, 360)
-    assert [check["key"] for check in candidate["checks"]] == ["face", "facing", "size", "framing", "light", "sharp", "expression"]
+    assert [check["key"] for check in candidate["checks"]] == ["face", "facing", "size", "framing", "light", "sharp",
+                                                               "expression", "identity"]
+    same = candidate["checks"][-1]
+    assert same["label"] == "Same person as your face" and same["passed"] and same["value"] == 0.9
     assert status(parts)["enrolment"]["record"] is None  # checked, not yet enrolled
     shown = client.get("/api/enrolment/candidate/picture")
     assert cv2.imdecode(np.frombuffer(shown.content, np.uint8), cv2.IMREAD_COLOR).shape == FRAME.shape
     assert parts["engines"] == []  # checking a picture does not need the animation model
 
-    record = client.post("/api/enrolment/confirm").json()
-    assert record["origin"] == "upload" and record["has_signature"] is True
+    record = client.post("/api/enrolment/confirm").json()["record"]
+    assert record["origin"] == "upload" and record["has_signature"] is True and record["match"] == 0.9
     assert (record["width"], record["height"]) == (640, 360)
     found = status(parts)["enrolment"]
     assert found["record"]["id"] == record["id"] and found["candidate"] is None
     stored = parts["tmp"] / "data" / "enrolment"
-    assert sorted(p.name for p in stored.iterdir()) == ["neutral.png", "picture.png", "record.json", "signature.npy"]
+    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy", "neutral.png", "picture.png",
+                                                        "record.json", "signature.npy"]
     assert parts["engines"][0].source_frame.shape == FRAME.shape
-    assert parts["engines"][0].neutral_faces == [(256, 256, 3)]  # the picture's own face is the neutral pose
+    assert parts["engines"][0].neutral_faces == []  # the neutral pose comes from the camera, when a session starts
     assert client.get("/api/enrolment/picture").headers["content-type"] == "image/jpeg"
     assert client.get("/api/enrolment/candidate/picture").status_code == 404
-    assert "Picture enrolled from an uploaded file." in events(parts)
+    assert "Meeting picture enrolled. Its face matches the verified face." in events(parts)
+
+
+def test_a_picture_of_someone_else_is_refused(parts, monkeypatch):
+    client = parts["client"]
+    verify_face(parts)
+    monkeypatch.setattr(FakeScorer, "alike", 0.2)  # a different person: no two different people scored above 0.27
+    candidate = upload(parts).json()
+    assert candidate["passed"] is False
+    assert [check["key"] for check in candidate["checks"] if not check["passed"]] == ["identity"]
+    assert candidate["checks"][-1]["value"] == 0.2
+    assert candidate["hint"] == "This is not the face you verified with the camera. Upload a picture of yourself."
+    assert client.get("/api/enrolment/candidate/picture").status_code == 200  # shown, with the reason
+    assert client.post("/api/enrolment/confirm").status_code == 409
+    assert status(parts)["enrolment"]["record"] is None and parts["engines"] == []
+    monkeypatch.setattr(FakeScorer, "alike", SAME_PERSON_CSIM)  # exactly at the limit counts as the same person
+    assert upload(parts).json()["passed"]
+
+
+def test_verifying_another_face_removes_a_meeting_picture_that_no_longer_matches(parts, monkeypatch):
+    record = enrol(parts)
+    verify_face(parts)  # the same person verifies again: the picture stays
+    assert status(parts)["enrolment"]["record"]["id"] == record["id"]
+    monkeypatch.setattr(FakeScorer, "alike", 0.1)  # then someone else sits down and verifies theirs
+    verify_face(parts)
+    assert status(parts)["enrolment"]["record"] is None
+    assert parts["engines"][0].source_frame is None  # and the model no longer holds it
+    assert "The meeting picture does not match the newly verified face and was removed." in events(parts)
 
 
 def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
     client = parts["client"]
+    verify_face(parts)
     candidate = upload(parts, FLAT).json()
     assert candidate["passed"] is False
     failed = {check["key"] for check in candidate["checks"] if not check["passed"]}
@@ -294,7 +370,7 @@ def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
     assert client.get("/api/enrolment/candidate/picture").status_code == 200  # so the person can see why
     refused = client.post("/api/enrolment/confirm")
     assert refused.status_code == 409
-    assert refused.json()["detail"] == "This picture did not pass every check, so it cannot be enrolled."
+    assert refused.json()["detail"] == "This picture did not pass every check, so it cannot be used."
     assert client.delete("/api/enrolment/candidate").json() == {"ok": True}
     assert status(parts)["enrolment"] == {**status(parts)["enrolment"], "record": None, "candidate": None}
     assert client.post("/api/enrolment/confirm").status_code == 409  # nothing left to confirm
@@ -302,12 +378,15 @@ def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
 
 def test_uploads_that_are_not_usable_pictures(parts):
     client = parts["client"]
+    verify_face(parts)
     not_image = client.post("/api/enrolment/upload", files={"file": ("notes.txt", b"hello", "text/plain")})
     assert not_image.status_code == 422 and "not a picture" in not_image.json()["detail"]
     parts["tracker"].status = TrackStatus.NO_FACE
     no_face = upload(parts).json()
     assert no_face["passed"] is False
     assert no_face["hint"] == "No face was found. Sit in front of the camera."
+    assert no_face["checks"][-1] == {"key": "identity", "label": "Same person as your face", "passed": False, "hint": "",
+                                     "value": None, "tip": ""}  # with no face there is nothing to compare
     parts["tracker"].status = TrackStatus.MULTIPLE_FACES
     assert upload(parts).json()["hint"] == "More than one face was found. Only you should be in the picture."
 
@@ -324,6 +403,7 @@ def test_a_picture_the_animation_model_cannot_use_is_refused_and_nothing_changes
 
 
 def test_large_uploads_are_stored_at_the_working_size(parts):
+    verify_face(parts)
     big = cv2.resize(FRAME, (2560, 1440), interpolation=cv2.INTER_NEAREST)
     # The stand-in tracker reports the face for a 640 x 360 picture, so only the size is checked here.
     assert (upload(parts, big).json()["width"], upload(parts, big).json()["height"]) == (1280, 720)
@@ -355,11 +435,11 @@ def test_preview_shows_the_checks_and_takes_the_picture(parts):
     taken = client.post("/api/enrolment/take").json()
     assert taken["passed"] and taken["origin"] == "camera"
     assert status(parts)["enrolment"]["preview"]["state"] == "running"  # still open, for a retake
-    record = client.post("/api/enrolment/confirm").json()
-    assert record["origin"] == "camera"
+    kept = client.post("/api/enrolment/confirm").json()
+    assert kept["face"] is not None and kept["record"] is None  # the face signature is kept, the picture is not
     assert status(parts)["enrolment"]["preview"]["state"] == "idle"  # the camera is released
     assert parts["feeds"][0].closed
-    assert "Picture enrolled from the camera." in events(parts)
+    assert "Face verified from the camera. Only its signature was kept." in events(parts)
 
 
 def test_a_picture_is_not_taken_while_a_check_fails(parts, monkeypatch):
@@ -423,10 +503,11 @@ def test_the_best_frame_of_the_burst_is_kept():
         served([(0.0, Frame(False, 0)), (100.0, Frame(False, 0))]).result(timeout=0)  # nothing passed in time
 
 
-def test_only_cameras_can_enrol_and_only_one_thing_uses_the_camera(parts):
+def test_only_cameras_can_verify_a_face_and_only_one_thing_uses_the_camera(parts):
     client = parts["client"]
     sample = client.post("/api/enrolment/preview/start", json={"input": "sample:d0"})
-    assert sample.status_code == 409 and "camera or an uploaded file" in sample.json()["detail"]
+    assert sample.status_code == 409 and sample.json()["detail"] == "Your face can only be verified with a camera."
+    enrol(parts)
     client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
     assert client.post("/api/enrolment/preview/start", json={"input": "camera:0"}).status_code == 409  # already open
     start(parts)  # starting a session takes the camera over
@@ -435,18 +516,29 @@ def test_only_cameras_can_enrol_and_only_one_thing_uses_the_camera(parts):
     assert busy.status_code == 409 and busy.json()["detail"] == "Stop the live session first. The camera is in use."
 
 
-def test_removing_the_picture(parts):
+def test_removing_the_picture_keeps_the_face_and_forgetting_the_face_removes_both(parts):
     client = parts["client"]
     start(parts)
     assert client.delete("/api/enrolment").status_code == 409  # not while it is being animated
+    assert client.delete("/api/enrolment/face").status_code == 409
     client.post("/api/session/stop")
     assert client.delete("/api/enrolment").json() == {"ok": True}
-    assert status(parts)["enrolment"]["record"] is None
-    assert list((parts["tmp"] / "data" / "enrolment").iterdir()) == []
+    found = status(parts)["enrolment"]
+    assert found["record"] is None and found["face"] is not None  # the face stays: another picture can be uploaded
+    stored = parts["tmp"] / "data" / "enrolment"
+    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy"]
     assert parts["engines"][0].source_frame is None  # the model forgets it too
     assert client.get("/api/enrolment/picture").status_code == 404
     assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 409
-    assert "Enrolled picture removed." in events(parts)
+    assert "Meeting picture removed." in events(parts)
+
+    enrol(parts)
+    assert client.delete("/api/enrolment/face").json() == {"ok": True}
+    found = status(parts)["enrolment"]
+    assert found["face"] is None and found["record"] is None
+    assert list(stored.iterdir()) == []  # nothing about the person is left on disk
+    assert upload(parts).status_code == 409  # and an upload has nothing to be compared with again
+    assert "Face signature and meeting picture removed." in events(parts)
 
 
 def test_the_enrolment_survives_a_restart(parts):
@@ -458,7 +550,7 @@ def test_the_enrolment_survives_a_restart(parts):
     assert again["engines"] == []
     restarted.load_enrolment()
     assert again["engines"][0].source_frame.shape == FRAME.shape
-    assert again["engines"][0].neutral_faces == [(256, 256, 3)]
+    assert again["engines"][0].neutral_faces == []  # the neutral pose is not stored: a session takes it from the camera
 
 
 # ----------------------------------------------------------------- session
@@ -483,19 +575,23 @@ def test_a_camera_session_animates_the_enrolled_picture(parts):
     assert session["metrics"]["live_share"] == 1.0
     assert session["tracking"] == {"status": "ok", "pose_deg": [0.0, 0.0, 0.0], "mouth_open": 0.25}
     assert found["gpu"]["name"] == "Test GPU"
-    # Enrolled once, and its neutral pose set again when the session began.
-    assert parts["engines"][0].neutral_faces == [(256, 256, 3), (256, 256, 3)]
+    # The neutral pose is the live face at the camera, taken once when the session began: not the picture's own.
+    assert parts["engines"][0].neutral_faces == [(256, 256, 3)]
+    assert "Neutral pose taken from the camera. Movement is measured from how you sit now." in events(parts)
     assert len(parts["engines"]) == 1
     assert client.get("/api/enrolment/picture").status_code == 200
 
 
 def test_a_sample_clip_animates_its_own_frame_and_enrols_nothing(parts):
+    verify_face(parts)
+    parts["sources"].clear()
     start(parts, "sample:d0")
     assert status(parts)["session"]["source"] == "sample"
     assert parts["sources"] == [str(parts["tmp"] / "samples" / "d0.mp4")]
     assert parts["runtime"].engine_holds[0] == "sample"
     assert status(parts)["enrolment"]["record"] is None
-    assert not (parts["tmp"] / "data" / "enrolment").exists()  # nothing was stored
+    stored = parts["tmp"] / "data" / "enrolment"
+    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy"]  # no picture was stored
     assert "Session started on Sample clip d0." in events(parts)
     upload(parts)
     busy = parts["client"].post("/api/enrolment/confirm")
@@ -578,8 +674,9 @@ def test_lost_face_falls_back_and_is_logged(parts):
 def test_neutral_reset(parts):
     assert parts["client"].post("/api/session/neutral").status_code == 409
     start(parts)
+    assert parts["engines"][0].resets == 1  # the session began by waiting for a neutral pose
     assert parts["client"].post("/api/session/neutral").json() == {"ok": True}
-    assert parts["engines"][0].resets == 1
+    assert parts["engines"][0].resets == 2  # and the button takes a new one
 
 
 # ---------------------------------------------------------------- features

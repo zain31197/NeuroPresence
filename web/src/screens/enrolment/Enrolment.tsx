@@ -1,4 +1,4 @@
-import { ArrowRight, Camera, RefreshCw, Square, Trash2, Upload, Video, X } from 'lucide-react'
+import { ArrowRight, Camera, Check, RefreshCw, Square, Trash2, Upload, UserRoundX, Video, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Monitor, Waiting } from '../../components/Monitor'
@@ -9,15 +9,32 @@ import { Pill } from '../../components/ui/Pill'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { Tooltip } from '../../components/ui/Tooltip'
-import { api, ApiError, STOP_PREVIEW_PATH, type Candidate, type EnrolmentGuide, type EnrolmentLimits, type EnrolmentRecord, type Preview } from '../../lib/api'
+import {
+  api,
+  ApiError,
+  STOP_PREVIEW_PATH,
+  type Candidate,
+  type EnrolmentGuide,
+  type EnrolmentLimits,
+  type EnrolmentRecord,
+  type FaceIdentity,
+  type Preview,
+} from '../../lib/api'
+import { cn } from '../../lib/cn'
 import { dateTime, splitHint } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
 import { Checklist } from './Checklist'
 import { Evidence } from './Evidence'
 import { Guidance, Stage, type Mode } from './Stage'
 
+/**
+ * Enrolment has two steps. First the face is verified live with the camera: that picture is
+ * used only to make a face signature and is not stored. Then the picture people will see in
+ * meetings is uploaded, and it is accepted only if its face matches that signature.
+ */
+
 /** The one request in flight, so its button can show that it is working and the others wait. */
-type Work = 'camera' | 'take' | 'upload' | 'confirm' | 'discard' | 'remove' | 'session'
+type Work = 'camera' | 'take' | 'upload' | 'confirm' | 'discard' | 'remove' | 'forget' | 'session'
 
 const COUNTDOWN_SECONDS = 3
 
@@ -43,6 +60,7 @@ export function Enrolment() {
 
   const preview = status?.enrolment.preview ?? null
   const candidate = status?.enrolment.candidate ?? null
+  const face = status?.enrolment.face ?? null
   const record = status?.enrolment.record ?? null
   const session = status?.session
   const sessionActive = session?.state === 'running' || session?.state === 'starting'
@@ -140,14 +158,18 @@ export function Enrolment() {
         {status &&
           (record ? (
             <Pill tone="good">Picture enrolled</Pill>
+          ) : face ? (
+            <Pill tone="accent" icon={<Check className="size-3" strokeWidth={3} />}>
+              Face verified
+            </Pill>
           ) : (
             <Pill tone="neutral" icon={null}>
-              No picture yet
+              Not started
             </Pill>
           ))}
       </div>
       <p className="mt-1 text-[13.5px] text-ink-500">
-        The one picture of you that every output frame is made from. It is checked before it is kept, and it stays on this computer.
+        Verify your face with the camera, then upload the picture people will see. It is used only if it shows the same face.
       </p>
     </div>
   )
@@ -181,13 +203,18 @@ export function Enrolment() {
       groups={[{ options: cameras.map((option) => ({ value: option.id, label: option.label, icon: <Video className="size-3.5 text-ink-500" /> })) }]}
     />
   )
+  // An upload is compared with the verified face, so there has to be one first.
   const uploadButton = (label: string, variant: 'primary' | 'secondary' = 'secondary') => (
-    <Button variant={variant} icon={<Upload className="size-4" />} busy={work === 'upload'} disabled={offline || busy} onClick={chooseFile}>
-      {label}
-    </Button>
+    <Tooltip content={face ? 'It goes through the quality checks and is compared with your verified face.' : 'Verify your face with the camera first. An uploaded picture is compared with it.'}>
+      <span>
+        <Button variant={variant} icon={<Upload className="size-4" />} busy={work === 'upload'} disabled={offline || busy || !face} onClick={chooseFile}>
+          {label}
+        </Button>
+      </span>
+    </Tooltip>
   )
   const cameraButton = (label: string, variant: 'primary' | 'secondary') => (
-    <Tooltip content={sessionActive ? 'Stop the live session first: the camera can only be open in one place.' : 'Opens the camera with the checks running. Nothing is kept until you take a picture.'}>
+    <Tooltip content={sessionActive ? 'Stop the live session first: the camera can only be open in one place.' : 'Opens the camera with the checks running. Only a face signature is kept from the picture.'}>
       <span>
         <Button variant={variant} icon={<Camera className="size-4" />} busy={work === 'camera'} disabled={offline || busy || sessionActive} onClick={openCamera}>
           {label}
@@ -199,35 +226,37 @@ export function Enrolment() {
   let left: ReactNode = chooser
   let right: ReactNode
   if (mode === 'review' && candidate) {
+    const fromCamera = candidate.origin === 'camera'
     // What is wrong with an uploaded picture, without the advice meant for someone sitting at the camera.
     const fault = splitHint(candidate.hint)[0] || candidate.hint || 'This picture did not pass every check.'
     left = (
       <p className="min-w-0 flex-1 basis-[200px] text-[13px] leading-snug text-ink-600">
-        {work === 'confirm'
+        {work === 'confirm' && !fromCamera
           ? 'Preparing the picture. The first time, the animation model has to load, which takes a few seconds.'
-          : !candidate.passed
-            ? `${fault} Choose another picture, or take one with the camera.`
-            : candidate.origin === 'camera'
-              ? 'Not mirrored: this is how others will see you.'
-              : 'An uploaded picture goes through the same checks as one from the camera.'}
+          : fromCamera
+            ? 'Only a face signature is kept from this picture: the numbers that say who you are. The picture itself is not stored.'
+            : candidate.passed
+              ? 'It passed the quality checks and shows the same person as your verified face.'
+              : `${fault} Choose another picture.`}
       </p>
     )
-    right = (
+    right = fromCamera ? (
       <>
-        {candidate.origin === 'camera' ? (
-          <Button icon={<RefreshCw className="size-4" />} busy={work === 'discard'} disabled={busy} onClick={() => run('discard', api.discardCandidate)}>
-            Retake
-          </Button>
-        ) : (
-          <>
-            <Button variant="ghost" busy={work === 'discard'} disabled={busy} onClick={() => run('discard', api.discardCandidate)}>
-              Discard
-            </Button>
-            {uploadButton(candidate.passed ? 'Choose another' : 'Choose another picture', candidate.passed ? 'secondary' : 'primary')}
-          </>
-        )}
+        <Button icon={<RefreshCw className="size-4" />} busy={work === 'discard'} disabled={busy} onClick={() => run('discard', api.discardCandidate)}>
+          Retake
+        </Button>
+        <Button variant="primary" busy={work === 'confirm'} disabled={offline || busy} onClick={() => run('confirm', api.confirmPicture, 'Face verified. Only its signature was kept.')}>
+          Confirm my face
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button variant="ghost" busy={work === 'discard'} disabled={busy} onClick={() => run('discard', api.discardCandidate)}>
+          Discard
+        </Button>
+        {uploadButton(candidate.passed ? 'Choose another' : 'Choose another picture', candidate.passed ? 'secondary' : 'primary')}
         {candidate.passed && (
-          <Button variant="primary" busy={work === 'confirm'} disabled={offline || busy} onClick={() => run('confirm', api.confirmPicture, 'Picture enrolled.')}>
+          <Button variant="primary" busy={work === 'confirm'} disabled={offline || busy} onClick={() => run('confirm', api.confirmPicture, 'Meeting picture enrolled.')}>
             Use this picture
           </Button>
         )}
@@ -242,9 +271,7 @@ export function Enrolment() {
         </Button>
       </div>
     )
-    right = cameraFailed ? (
-      uploadButton('Upload a picture')
-    ) : count !== null ? (
+    right = cameraFailed ? null : count !== null ? (
       <Button icon={<X className="size-4" />} onClick={() => setCount(null)}>
         Cancel
       </Button>
@@ -266,16 +293,19 @@ export function Enrolment() {
   } else if (mode === 'enrolled') {
     right = (
       <>
-        {uploadButton('Upload a picture')}
-        {cameraButton('Take a new picture', 'secondary')}
+        {cameraButton('Verify face again', 'secondary')}
+        {uploadButton('Upload another picture')}
       </>
     )
   } else {
-    right = (
+    // Nothing to show yet: the next step is the primary one.
+    right = face ? (
       <>
-        {uploadButton('Upload a picture')}
-        {cameraButton('Open the camera', 'primary')}
+        {cameraButton('Verify face again', 'secondary')}
+        {uploadButton('Upload a picture', 'primary')}
       </>
+    ) : (
+      cameraButton('Open the camera', 'primary')
     )
   }
 
@@ -294,8 +324,8 @@ export function Enrolment() {
           }
         >
           {session?.source === 'sample'
-            ? 'Stop it to take or replace your picture.'
-            : 'Stop it to take a new picture with the camera. An uploaded picture can replace the enrolled one while it runs.'}
+            ? 'Stop it to verify your face or change your picture.'
+            : 'Stop it to verify your face again. An uploaded picture can replace the meeting picture while it runs.'}
         </Notice>
       )}
 
@@ -310,6 +340,11 @@ export function Enrolment() {
               count={count}
               taking={work === 'take'}
               shots={shots}
+              empty={
+                face
+                  ? { title: 'Your face is verified', hint: 'Now upload the picture you want people to see in meetings. It is used only if it shows the same face.' }
+                  : { title: 'Start by verifying your face', hint: 'Open the camera and follow the checks. Only a face signature is kept from that picture.' }
+              }
               retry={
                 <Button size="sm" variant="primary" busy={work === 'camera'} disabled={offline || busy} onClick={openCamera}>
                   Try again
@@ -326,16 +361,19 @@ export function Enrolment() {
           {mode === 'review' && candidate ? (
             <ReviewPanel candidate={candidate} limits={guide?.limits ?? null} />
           ) : mode === 'camera' ? (
-            <CameraPanel preview={preview} limits={guide?.limits ?? null} onUpload={chooseFile} disabled={offline || busy || count !== null} />
+            <CameraPanel preview={preview} limits={guide?.limits ?? null} />
           ) : record ? (
             <EnrolledPanel
               record={record}
-              removing={work === 'remove'}
+              face={face}
+              limits={guide?.limits ?? null}
+              work={work}
               disabled={offline || busy}
-              onRemove={() => run('remove', api.removeEnrolment, 'Enrolled picture removed.')}
+              onRemove={() => run('remove', api.removeEnrolment, 'Meeting picture removed.')}
+              onForget={() => run('forget', api.forgetFace, 'Face signature and meeting picture removed.')}
             />
           ) : (
-            <StartPanel />
+            <StepsPanel face={face} forgetting={work === 'forget'} disabled={offline || busy} onForget={() => run('forget', api.forgetFace, 'Face signature removed.')} />
           )}
         </div>
       </div>
@@ -348,19 +386,15 @@ export function Enrolment() {
 
 /* ------------------------------------------------------------------ panels */
 
-function CameraPanel({ preview, limits, onUpload, disabled }: { preview: Preview | null; limits: EnrolmentLimits | null; onUpload: () => void; disabled: boolean }) {
+function CameraPanel({ preview, limits }: { preview: Preview | null; limits: EnrolmentLimits | null }) {
   return (
     <Card className="flex flex-col">
-      <CardHeader title="Checks" hint="Every one has to pass before a picture can be taken." />
+      <CardHeader title="Checks" hint="Every one has to pass before the picture can be taken." />
       <div className="flex flex-1 flex-col px-5 pb-5">
         <Checklist checks={preview?.state === 'running' ? preview.checks : null} limits={limits} detail={false} />
         <p className="mt-auto border-t border-line pt-3.5 text-[12.5px] leading-relaxed text-ink-500">
-          The picture is taken after a count of three, and the sharpest frame with your eyes open is kept. Already have a good
-          picture?{' '}
-          <button type="button" disabled={disabled} onClick={onUpload} className="font-medium text-ink-900 underline decoration-ink-300 underline-offset-2 hover:decoration-ink-900 disabled:opacity-45">
-            Upload it instead
-          </button>
-          .
+          This picture is used only to make your face signature and is not stored. It is taken after a count of three, as the
+          sharpest frame with your eyes open. The picture people see in meetings is uploaded in the next step.
         </p>
       </div>
     </Card>
@@ -368,43 +402,82 @@ function CameraPanel({ preview, limits, onUpload, disabled }: { preview: Preview
 }
 
 function ReviewPanel({ candidate, limits }: { candidate: Candidate; limits: EnrolmentLimits | null }) {
+  const fromCamera = candidate.origin === 'camera'
   return (
     <Card className="flex flex-col">
       <CardHeader
-        title={candidate.passed ? 'Review the picture' : 'This picture cannot be enrolled'}
+        title={!candidate.passed ? 'This picture cannot be used' : fromCamera ? 'Is this you?' : 'Review the picture'}
         hint={
-          candidate.passed
-            ? 'It passed every check. Keep it, or try for a better one.'
-            : 'One or more checks failed. Each says what is wrong.'
+          !candidate.passed
+            ? 'One or more checks failed. Each says what is wrong.'
+            : fromCamera
+              ? 'It passed every check. Confirm it to make your face signature.'
+              : 'It passed every check, and it shows the same person as your verified face.'
         }
       />
       <div className="px-5 pb-5">
-        <Checklist checks={candidate.checks} limits={limits} detail advice={candidate.origin === 'camera'} />
+        <Checklist checks={candidate.checks} limits={limits} detail advice={fromCamera} />
       </div>
     </Card>
   )
 }
 
-function EnrolledPanel({ record, removing, disabled, onRemove }: { record: EnrolmentRecord; removing: boolean; disabled: boolean; onRemove: () => void }) {
+/** A button that asks once more before doing something that cannot be undone. */
+function Ask({ label, question, confirm, icon, busy, disabled, onConfirm }: { label: string; question: string; confirm: string; icon: ReactNode; busy: boolean; disabled: boolean; onConfirm: () => void }) {
   const [asking, setAsking] = useState(false)
-  const face = valueOf(record, 'size')
+  if (!asking) {
+    return (
+      <Button variant="ghost" icon={icon} disabled={disabled} onClick={() => setAsking(true)}>
+        {label}
+      </Button>
+    )
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-control border border-critical/25 bg-critical-wash px-3 py-2">
+      <p className="min-w-0 flex-1 basis-[180px] text-[12.5px] leading-snug text-ink-800">{question}</p>
+      <div className="ml-auto flex gap-2">
+        <Button size="sm" disabled={busy} onClick={() => setAsking(false)}>
+          Keep it
+        </Button>
+        <Button size="sm" variant="danger" busy={busy} onClick={onConfirm}>
+          {confirm}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+interface EnrolledProps {
+  record: EnrolmentRecord
+  face: FaceIdentity | null
+  limits: EnrolmentLimits | null
+  work: Work | null
+  disabled: boolean
+  onRemove: () => void
+  onForget: () => void
+}
+
+function EnrolledPanel({ record, face, limits, work, disabled, onRemove, onForget }: EnrolledProps) {
+  const faceHeight = valueOf(record, 'size')
   const sharpness = valueOf(record, 'sharp')
   // For an uploaded picture, what could be better without the advice meant for someone at the camera.
-  const tips = record.checks.flatMap((check) =>
-    check.passed && check.tip ? [record.origin === 'camera' ? check.tip : splitHint(check.tip)[0] || check.tip] : [],
-  )
+  const tips = record.checks.flatMap((check) => (check.passed && check.tip ? [splitHint(check.tip)[0] || check.tip] : []))
+  const match =
+    typeof record.match === 'number'
+      ? `${record.match.toFixed(2)}${limits ? ` (${limits.same_person_csim} or more is the same person)` : ''}`
+      : 'Not compared: enrolled before this check existed'
   const facts = [
-    ['Enrolled', dateTime(record.enrolled_at)],
-    ['From', record.origin === 'camera' ? 'The camera' : 'An uploaded file'],
+    ['Face verified', face ? dateTime(face.verified_at) : 'Not yet'],
+    ['Picture enrolled', dateTime(record.enrolled_at)],
+    ['Match with your face', match],
     ['Picture', `${record.width} × ${record.height} px`],
-    face !== null && ['Face', `${Math.round(face)} px tall`],
+    faceHeight !== null && ['Face in the picture', `${Math.round(faceHeight)} px tall`],
     sharpness !== null && ['Sharpness', `${Math.round(sharpness)}`],
-    ['Face signature', record.has_signature ? 'Saved, for the identity check' : 'Not saved: the identity model is not installed'],
   ].filter((fact): fact is [string, string] => fact !== false)
 
   return (
     <Card className="flex flex-col">
-      <CardHeader title="Your enrolled picture" hint="A camera session animates this picture. It passed every check." />
+      <CardHeader title="Your meeting picture" hint="A camera session animates this picture. It shows the face you verified." />
       <div className="flex flex-1 flex-col px-5 pb-5">
         <dl className="divide-y divide-line text-[13px]">
           {facts.map(([name, value]) => (
@@ -431,45 +504,60 @@ function EnrolledPanel({ record, removing, disabled, onRemove }: { record: Enrol
             Go to Live Studio
             <ArrowRight className="size-3.5" />
           </Link>
-          {asking ? (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-control border border-critical/25 bg-critical-wash px-3 py-2">
-              <p className="text-[12.5px] leading-snug text-ink-800">Remove the picture and its face signature from this computer?</p>
-              <div className="ml-auto flex gap-2">
-                <Button size="sm" disabled={removing} onClick={() => setAsking(false)}>
-                  Keep it
-                </Button>
-                <Button size="sm" variant="danger" busy={removing} onClick={onRemove}>
-                  Remove
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button variant="ghost" icon={<Trash2 className="size-4" />} disabled={disabled} onClick={() => setAsking(true)}>
-              Remove picture
-            </Button>
-          )}
+          <Ask
+            label="Remove picture"
+            question="Remove the meeting picture? Your verified face stays, so you can upload another."
+            confirm="Remove"
+            icon={<Trash2 className="size-4" />}
+            busy={work === 'remove'}
+            disabled={disabled}
+            onConfirm={onRemove}
+          />
+          <Ask
+            label="Forget my face"
+            question="Remove your face signature and the meeting picture from this computer?"
+            confirm="Forget"
+            icon={<UserRoundX className="size-4" />}
+            busy={work === 'forget'}
+            disabled={disabled}
+            onConfirm={onForget}
+          />
         </div>
       </div>
     </Card>
   )
 }
 
-const STEPS = [
-  { title: 'Open the camera', text: 'Sit facing it with light on your face, and fill the outline with your face, from forehead to chin.' },
-  { title: 'Follow the checks', text: 'Seven checks run on every frame. The picture tells you the one thing to fix next.' },
-  { title: 'Take and keep the picture', text: 'After a count of three the sharpest frame is kept. Review it, then use it or retake it.' },
-]
-
-function StartPanel() {
+function StepsPanel({ face, forgetting, disabled, onForget }: { face: FaceIdentity | null; forgetting: boolean; disabled: boolean; onForget: () => void }) {
+  const steps = [
+    {
+      title: 'Verify your face',
+      text: face
+        ? `Done on ${dateTime(face.verified_at)}. Only the face signature was kept.`
+        : 'Open the camera and follow the checks. The picture is used only to make a face signature, and is not stored.',
+      done: face !== null,
+    },
+    {
+      title: 'Upload your meeting picture',
+      text: 'The picture people will see: well lit, with the background you want. It is accepted only if it shows the same face.',
+      done: false,
+    },
+    { title: 'Go to the Live Studio', text: 'A camera session animates the meeting picture with your live face.', done: false },
+  ]
   return (
     <Card className="flex flex-col">
-      <CardHeader title="How enrolment works" hint="It takes about a minute, once." />
+      <CardHeader title="How enrolment works" hint="Two steps, once. It takes about a minute." />
       <div className="flex flex-1 flex-col px-5 pb-5">
         <ol className="grid gap-4">
-          {STEPS.map((step, index) => (
+          {steps.map((step, index) => (
             <li key={step.title} className="flex gap-3">
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-950 font-mono text-[11.5px] font-medium text-white tabular-nums">
-                {index + 1}
+              <span
+                className={cn(
+                  'grid size-6 shrink-0 place-items-center rounded-full font-mono text-[11.5px] font-medium tabular-nums',
+                  step.done ? 'bg-good-wash text-good-ink' : 'bg-ink-950 text-white',
+                )}
+              >
+                {step.done ? <Check className="size-3.5" strokeWidth={3} aria-label="Done" /> : index + 1}
               </span>
               <div className="min-w-0">
                 <p className="text-[13.5px] font-medium text-ink-900">{step.title}</p>
@@ -478,11 +566,22 @@ function StartPanel() {
             </li>
           ))}
         </ol>
-        <div className="mt-auto pt-5">
+        <div className="mt-auto grid gap-2 pt-5">
           <p className="border-t border-line pt-3.5 text-[12.5px] leading-relaxed text-ink-500">
-            The picture and its face signature are kept as files in this project's data folder. Nothing is uploaded, and
-            removing the picture deletes both.
+            The face signature and the meeting picture are kept as files in this project's data folder. Nothing is uploaded
+            anywhere else.
           </p>
+          {face && (
+            <Ask
+              label="Forget my face"
+              question="Remove your face signature from this computer?"
+              confirm="Forget"
+              icon={<UserRoundX className="size-4" />}
+              busy={forgetting}
+              disabled={disabled}
+              onConfirm={onForget}
+            />
+          )}
         </div>
       </div>
     </Card>

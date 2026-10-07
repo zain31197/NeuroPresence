@@ -11,8 +11,8 @@ status: "working" - built and running; "partial" - part of it is built;
 ENROLMENT = {
     "key": "enrolment",
     "name": "Enrolment",
-    "summary": "You take one picture of yourself. It is checked for sharpness, light, framing and a relaxed, "
-               "front-facing face, because every output frame is made from it.",
+    "summary": "Your face is verified live with the camera, and only its signature is kept. Then you upload the "
+               "picture you want people to see: it is checked for quality, and accepted only if it shows the same face.",
     "status": "working",
     "note": None,
 }
@@ -50,8 +50,9 @@ STAGES = [
         "key": "consent",
         "name": "Consent and disclosure",
         "summary": "Animates only the enrolled user's own face and marks the output as synthetic.",
-        "status": "planned",
-        "note": None,
+        "status": "partial",
+        "note": "A meeting picture is accepted only if it matches the face verified live. Checking the live face "
+                "before each session, and the mark on the output, are not built yet.",
     },
     {
         "key": "virtual_camera",

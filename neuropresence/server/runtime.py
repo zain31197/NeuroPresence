@@ -8,7 +8,8 @@ from pathlib import Path
 
 import cv2
 
-from ..enrolment import EnrolmentStore, make_candidate, prepare
+from ..enrolment import Check, EnrolmentStore, make_candidate, prepare
+from ..identity import SAME_PERSON_CSIM
 from ..targets import TARGETS
 from .benchmarks import latest_benchmark
 from .features import FeatureSet
@@ -175,7 +176,8 @@ class Runtime:
         self._samples_used = 0
 
         self.store = EnrolmentStore(Path(data_dir) / "enrolment")
-        self.enrolment = self.store.load()
+        self.enrolment = self.store.load()  # the meeting picture
+        self.face = self.store.load_identity()  # who the user is: a signature taken live from the camera
         self.candidate = None  # a checked picture waiting to be confirmed or discarded
         self._candidate_id = 0
 
@@ -202,7 +204,7 @@ class Runtime:
             return self._scorer
 
     def load_enrolment(self):
-        """Give the engine the enrolled picture and its neutral pose. Called when a camera session starts."""
+        """Give the engine the meeting picture. Called when a camera session starts."""
         with self.engine_lock:
             enrolment = self.enrolment
             if enrolment is None:
@@ -211,9 +213,8 @@ class Runtime:
             if self.engine_holds != ("enrolment", enrolment.id):
                 engine.set_source(enrolment.picture)
                 self.engine_holds = ("enrolment", enrolment.id)
-            # The enrolled picture's own face is the neutral pose: when the person sits
-            # as they did in the picture, the output is the picture.
-            engine.set_reference(enrolment.neutral_face)
+            # The neutral pose is not set here. It is the person's own resting face at the camera,
+            # which the session takes from the first calm frame (see pipeline.py).
 
     def use_sample_source(self, frame, neutral_face):
         """A sample clip animates one of its own frames. It is never stored as an enrolment."""
@@ -245,7 +246,7 @@ class Runtime:
             raise SessionError("Stop the live session first. The camera is in use.")
         entry = self._input(input_id)
         if entry["kind"] != "camera":
-            raise SessionError("A picture can only be enrolled from a camera or an uploaded file.")
+            raise SessionError("Your face can only be verified with a camera.")
         self.preview.start(self._source_of(entry), entry["label"])
 
     def stop_preview(self):
@@ -261,14 +262,38 @@ class Runtime:
         return self._hold(self.preview.take())
 
     def check_upload(self, image):
-        """Check an uploaded picture. It becomes the candidate whether or not it passes, so it can be shown."""
+        """Check an uploaded meeting picture: the usual checks, and that it shows the verified face.
+
+        It becomes the candidate whether or not it passes, so the result can be shown.
+        """
+        face = self.face
+        if face is None:
+            raise SessionError("Verify your face with the camera first. An uploaded picture is compared with it.")
         picture = prepare(image)
         tracker = self.make_tracker(video=False)
         try:
             track = tracker.process(picture)
         finally:
             tracker.close()
-        return self._hold(make_candidate(picture, track, "upload"))
+        candidate = make_candidate(picture, track, "upload")
+        candidate.checks.append(self._same_person(candidate, face))
+        return self._hold(candidate)
+
+    def _same_person(self, candidate, face):
+        """The check an uploaded picture gets and a camera frame does not: is this the verified face?"""
+        label = "Same person as your face"
+        if candidate.landmarks is None:
+            return Check("identity", label, False, "")  # no single face to compare
+        try:
+            scorer = self.scorer()
+        except FileNotFoundError:
+            raise SessionError("The identity model is not installed, so the picture cannot be compared with your face. "
+                               "Run scripts/download_models.py.") from None
+        candidate.signature = scorer.embed(candidate.image, candidate.landmarks)
+        alike = scorer.similarity(face.signature, candidate.signature)
+        hint = "" if alike >= SAME_PERSON_CSIM else ("This is not the face you verified with the camera. "
+                                                     "Upload a picture of yourself.")
+        return Check("identity", label, not hint, hint, round(alike, 3))
 
     def discard_candidate(self):
         self.candidate = None
@@ -278,16 +303,48 @@ class Runtime:
         return None if candidate is None else {"id": self._candidate_id, **candidate.summary()}
 
     def confirm_candidate(self):
-        """Enrol the candidate.
+        """Keep the candidate.
 
-        Raises SessionError if there is none or it failed a check, and
-        ValueError if the animation model cannot use the picture.
+        A picture taken with the camera becomes the user's face: its signature is
+        stored and the picture itself is dropped. An uploaded picture becomes the
+        meeting picture. Raises SessionError if it cannot be kept, and ValueError
+        if the animation model cannot use an uploaded picture.
         """
         candidate = self.candidate
         if candidate is None:
-            raise SessionError("There is no picture to enrol. Take or upload one first.")
+            raise SessionError("There is no picture to keep. Take or upload one first.")
         if not candidate.passed:
-            raise SessionError("This picture did not pass every check, so it cannot be enrolled.")
+            raise SessionError("This picture did not pass every check, so it cannot be used.")
+        if candidate.origin == "camera":
+            self._verify_face(candidate)
+        else:
+            self._enrol_picture(candidate)
+        self.candidate = None
+        self.preview.stop()
+        return {"face": None if self.face is None else self.face.summary(),
+                "record": None if self.enrolment is None else self.enrolment.summary()}
+
+    def _verify_face(self, candidate):
+        """The camera picture says who the user is. Its signature is kept; the picture is not."""
+        if self.session.active:
+            raise SessionError("Stop the live session first.")
+        signature = self._signature(candidate)
+        if signature is None:
+            raise SessionError("Your face could not be verified, because its signature could not be made. "
+                               "Check that the identity model is installed: python scripts/download_models.py.")
+        self.face = self.store.save_identity(signature, candidate.summary()["checks"])
+        self.events.add("info", "Face verified from the camera. Only its signature was kept.")
+        # A meeting picture enrolled earlier has to be of this face too.
+        enrolment = self.enrolment
+        if enrolment is not None and enrolment.signature is not None:
+            if self.scorer().similarity(signature, enrolment.signature) < SAME_PERSON_CSIM:
+                self._drop_picture()
+                self.events.add("warning", "The meeting picture does not match the newly verified face and was removed.")
+
+    def _enrol_picture(self, candidate):
+        """An uploaded picture that passed every check, the face match among them, becomes the meeting picture."""
+        if self.face is None:
+            raise SessionError("Verify your face with the camera first.")
         if self.session.active and not self.session.uses_enrolment:
             # A sample clip is using the engine for its own picture; do not swap it mid-session.
             raise SessionError("Stop the sample session first.")
@@ -296,43 +353,53 @@ class Runtime:
             self.session.call(lambda frame, track: self._enrol(candidate), timeout=30.0)
         else:
             self._enrol(candidate)
-        self.candidate = None
-        self.preview.stop()
-        origin = "the camera" if candidate.origin == "camera" else "an uploaded file"
-        self.events.add("info", f"Picture enrolled from {origin}.")
-        return self.enrolment.summary()
+        self.events.add("info", "Meeting picture enrolled. Its face matches the verified face.")
 
     def _enrol(self, candidate):
         with self.engine_lock:
             engine = self.engine()
             engine.set_source(candidate.image)  # raises SourceError if the model finds no face
-            engine.set_reference(candidate.neutral_face)
-            self.enrolment = self.store.save(engine.source_frame, candidate.neutral_face, self._signature(candidate),
-                                             candidate.origin, candidate.summary()["checks"])
+            match = next((check.value for check in candidate.checks if check.key == "identity"), None)
+            self.enrolment = self.store.save(engine.source_frame, candidate.neutral_face, candidate.signature,
+                                             candidate.origin, candidate.summary()["checks"], match)
             self.engine_holds = ("enrolment", self.enrolment.id)
 
     def _signature(self, candidate):
-        """The picture's face signature, or None if the identity model is not installed."""
+        """The face signature of a picture, or None if the identity model is not installed or fails."""
         try:
             return self.scorer().embed(candidate.image, candidate.landmarks)
         except FileNotFoundError:
-            self.events.add("warning", "The identity model is not installed, so no face signature was saved. "
-                                       "Run scripts/download_models.py and enrol again.")
+            self.events.add("warning", "The identity model is not installed, so no face signature could be made. "
+                                       "Run scripts/download_models.py.")
         except Exception:
             log.exception("The face signature could not be computed.")
-            self.events.add("warning", "The face signature could not be computed, so none was saved.")
+            self.events.add("warning", "The face signature could not be computed.")
         return None
 
     def remove_enrolment(self):
+        """Remove the meeting picture. The verified face stays."""
         if self.session.active:
             raise SessionError("Stop the live session first.")
+        self._drop_picture()
+        self.events.add("info", "Meeting picture removed.")
+
+    def forget_face(self):
+        """Remove everything kept about the user: the face signature and the meeting picture."""
+        if self.session.active:
+            raise SessionError("Stop the live session first.")
+        self._drop_picture()
+        self.store.remove_identity()
+        self.face = None
+        self.candidate = None
+        self.events.add("info", "Face signature and meeting picture removed.")
+
+    def _drop_picture(self):
         with self.engine_lock:
             self.store.remove()
             self.enrolment = None
             if self._engine is not None and self.engine_holds is not None and self.engine_holds[0] == "enrolment":
                 self._engine.clear_source()
                 self.engine_holds = None
-        self.events.add("info", "Enrolled picture removed.")
 
     def enrolment_jpeg(self):
         enrolment = self.enrolment
@@ -403,6 +470,7 @@ class Runtime:
         return {
             "session": self.session.snapshot(),
             "enrolment": {
+                "face": None if self.face is None else self.face.summary(),
                 "record": None if enrolment is None else enrolment.summary(),
                 "candidate": self.candidate_summary(),
                 "preview": self.preview.snapshot(),
