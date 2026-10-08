@@ -45,9 +45,9 @@ def prepare(image_bgr):
 def make_candidate(image_bgr, track, origin):
     """Check a prepared picture whose face has been tracked."""
     if not track.ok:
-        return Candidate(image_bgr, origin, evaluate(image_bgr, track), None, None)
+        return Candidate(image_bgr, origin, evaluate(image_bgr, track, origin), None, None)
     measurements = measure(image_bgr, track)
     # Sharper is better, and so are wider-open eyes: this picks the still, unblinking frame.
     score = measurements["sharpness"] * (1.0 - measurements["eye_closed"])
-    return Candidate(image_bgr, origin, judge(measurements), track.landmarks,
+    return Candidate(image_bgr, origin, judge(measurements, origin), track.landmarks,
                      square_face_crop(image_bgr, track.bbox), score)

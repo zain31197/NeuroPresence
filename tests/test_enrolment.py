@@ -61,6 +61,33 @@ def test_each_fault_fails_its_own_check_and_says_what_to_do(changes, key, hint):
     assert all(check.passed for other, check in found.items() if other != key)  # and no other check
 
 
+@pytest.mark.parametrize("changes, key, camera_hint, upload_hint", [
+    ({"face_height_px": 120.0}, "size",
+     "The face is too small in the picture. Move closer to the camera.",
+     "The face is too small in the picture. Choose a photo where your face is larger, or crop in closer."),
+    ({"yaw_deg": 20.0}, "facing",
+     "The head is turned to one side. Face the camera.",
+     "Choose a photo where you are facing the camera."),
+    ({"bright_level": 60.0}, "light",
+     "There is not enough light on the face. Face a lamp or a window.",
+     "There is not enough light on the face. Choose a better-lit photo."),
+    ({"sharpness": 6.0}, "sharp",
+     "The picture is blurred. Hold still and check the camera's focus.",
+     "The picture is blurred. Choose a sharper photo."),
+    ({"lip_gap": 0.2}, "expression",
+     "The mouth is open. Close it.",
+     "Choose a photo with your mouth closed."),
+])
+def test_an_uploaded_picture_is_told_to_choose_another_photo_not_to_move(changes, key, camera_hint, upload_hint):
+    # A picture already taken cannot be acted on live: an upload gets its own wording,
+    # a live camera frame keeps the instruction it can actually be followed by.
+    m = {**GOOD, **changes}
+    camera_found = {check.key: check for check in c.judge(m)}  # origin defaults to "camera"
+    upload_found = {check.key: check for check in c.judge(m, origin="upload")}
+    assert camera_found[key].hint == camera_hint
+    assert upload_found[key].hint == upload_hint
+
+
 def test_limits_are_inclusive():
     at_the_limit = verdicts(yaw_deg=c.MAX_YAW_DEG, face_height_px=c.MIN_FACE_HEIGHT_PX, room_above=c.MIN_ROOM_ABOVE,
                             bright_level=c.MIN_BRIGHT_LEVEL, sharpness=c.MIN_SHARPNESS, lip_gap=c.MAX_LIP_GAP,
@@ -273,7 +300,8 @@ def test_a_candidate_carries_its_checks_and_its_neutral_pose():
 def test_a_candidate_without_a_face_cannot_be_used():
     candidate = make_candidate(textured(), TrackResult(TrackStatus.NO_FACE, 1.0), "upload")
     assert not candidate.passed and candidate.neutral_face is None and candidate.landmarks is None
-    assert candidate.summary()["hint"] == "No face was found. Sit in front of the camera."
+    # An uploaded picture cannot be told to sit in front of the camera: it asks for a different photo instead.
+    assert candidate.summary()["hint"] == "No face was found. Choose a different photo."
 
 
 def test_the_sharper_frame_with_more_open_eyes_scores_higher():

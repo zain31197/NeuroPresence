@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from neuropresence.capture import TrackResult, TrackStatus
 from neuropresence.capture.feed import FeedFrame
 from neuropresence.enrolment import checks as limits
+from neuropresence.enrolment import make_candidate, prepare
 from neuropresence.identity import SAME_PERSON_CSIM
 from neuropresence.server import create_app
 from neuropresence.server.metrics import MetricsWindow
@@ -368,7 +369,7 @@ def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
     assert candidate["passed"] is False
     failed = {check["key"] for check in candidate["checks"] if not check["passed"]}
     assert failed == {"light", "sharp"}
-    assert candidate["hint"] == "There is not enough light on the face. Face a lamp or a window."
+    assert candidate["hint"] == "There is not enough light on the face. Choose a better-lit photo."
     assert client.get("/api/enrolment/candidate/picture").status_code == 200  # so the person can see why
     refused = client.post("/api/enrolment/confirm")
     assert refused.status_code == 409
@@ -386,11 +387,162 @@ def test_uploads_that_are_not_usable_pictures(parts):
     parts["tracker"].status = TrackStatus.NO_FACE
     no_face = upload(parts).json()
     assert no_face["passed"] is False
-    assert no_face["hint"] == "No face was found. Sit in front of the camera."
+    # An uploaded picture cannot be told to sit in front of the camera: it asks for a different photo instead.
+    assert no_face["hint"] == "No face was found. Choose a different photo."
     assert no_face["checks"][-1] == {"key": "identity", "label": "Same person as your face", "passed": False, "hint": "",
                                      "value": None, "tip": ""}  # with no face there is nothing to compare
     parts["tracker"].status = TrackStatus.MULTIPLE_FACES
-    assert upload(parts).json()["hint"] == "More than one face was found. Only you should be in the picture."
+    assert upload(parts).json()["hint"] == "More than one face was found. Choose a photo with only you in it."
+
+
+def _face_track(bbox, frame_shape):
+    """A believable track for a face at bbox: random points inside the box, so the convex
+    hull and brightness measurements stay within it, with a closed mouth and open eyes."""
+    x, y, w, h = bbox
+    rng = np.random.default_rng(1)
+    points = np.column_stack([rng.uniform(x, x + w, 478), rng.uniform(y, y + h, 478)]).astype(np.float32)
+    points[:4] = [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+    middle, mouth_y = x + w / 2, y + h * 0.55
+    points[limits.UPPER_LIP], points[limits.LOWER_LIP] = (middle, mouth_y), (middle, mouth_y + 2)
+    points[limits.MOUTH_LEFT], points[limits.MOUTH_RIGHT] = (middle - w * 0.15, mouth_y), (middle + w * 0.15, mouth_y)
+    return TrackResult(TrackStatus.OK, 1.0, landmarks=points, bbox=bbox, pose_deg=(0.0, 0.0, 0.0),
+                       blendshapes={"jawOpen": 0.05, "eyeBlinkLeft": 0.1, "eyeBlinkRight": 0.1,
+                                    "mouthSmileLeft": 0.1, "mouthSmileRight": 0.1})
+
+
+def textured_at(shape):
+    """A stand-in for a well-lit, detailed picture: broad light and shade with fine detail on top."""
+    ys, xs = np.mgrid[0:shape[0], 0:shape[1]]
+    shade = 45 * np.sin(xs / 10.0) * np.cos(ys / 12.0)
+    detail = np.random.default_rng(0).integers(-20, 21, shape[:2])
+    grey = np.clip(128 + shade + detail, 0, 255).astype(np.uint8)
+    return np.repeat(grey[:, :, None], 3, axis=2)
+
+
+def test_an_upload_with_a_small_face_in_a_large_casual_photo_is_reframed_tighter(tmp_path):
+    """A wide, casual photo (a desk, a wall, the subject sitting back) can still have plenty of
+    native resolution on the face; downscaling the whole photo to the stored size first throws
+    most of that away on background the output never uses. Cropping around the face first, in
+    the original upload, keeps it, and a picture that looked unusable at a glance passes."""
+    image = textured_at((3000, 4000))  # a big original upload: plenty of resolution, badly framed
+    picture_shape = (960, 1280)  # what prepare() brings a 3000x4000 upload down to
+    small_box_in_picture = (600, 400, 100, 100)  # a small, distant face once the whole photo is downscaled
+
+    class FramingAwareTracker:
+        """Finds the same face wherever it is asked to look: a small box in the downscaled
+        whole photo, and a box filling the outline's own share in a tighter crop of it."""
+
+        def process(self, frame):
+            h, w = frame.shape[:2]
+            if (h, w) == picture_shape:
+                box = small_box_in_picture
+            else:
+                side = h * limits.TARGET_FACE_HEIGHT_SHARE
+                box = ((w - side) / 2, (h - side) / 2, side, side)
+            return _face_track(box, frame.shape)
+
+        def close(self):
+            pass
+
+    tracker = FramingAwareTracker()
+    naive = make_candidate(prepare(image), tracker.process(prepare(image)), "upload")
+    naive_size = next(c for c in naive.checks if c.key == "size")
+    assert not naive_size.passed  # confirms the premise: downscaling the whole photo first loses the face
+
+    runtime = Runtime(tracker_factory=lambda video=True: tracker, data_dir=tmp_path / "data")
+    reframed = runtime._upload_candidate(image, tracker)
+    reframed_size = next(c for c in reframed.checks if c.key == "size")
+    assert reframed_size.passed  # cropping around the face first kept enough of its native detail
+    assert reframed_size.value > naive_size.value
+
+
+class _MatchingScorer:
+    """Says any two faces it is given are the enrolled person: for testing the identity gate
+    in isolation from the real ArcFace model."""
+
+    def embed(self, image, landmarks=None):
+        return np.array([1.0, 0.0])
+
+    def similarity(self, a, b):
+        return 0.9  # comfortably above SAME_PERSON_CSIM
+
+
+def test_a_small_face_is_accepted_once_identity_is_confirmed(tmp_path):
+    """The size check protects how sharp the output looks, not who it is of. Once the ArcFace
+    identity check confirms the uploaded picture is the enrolled person, a small face no
+    longer blocks it, only warns about it in the tip a passing check already carries."""
+    small_box = (220, 75, 100, 90)  # well under MIN_FACE_HEIGHT_PX, and too small to be fixed by reframing
+
+    class SmallFaceTracker:
+        def process(self, frame):
+            return _face_track(small_box, frame.shape)
+
+        def close(self):
+            pass
+
+    tracker = SmallFaceTracker()
+    runtime = Runtime(tracker_factory=lambda video=True: tracker, scorer_factory=lambda: _MatchingScorer(),
+                      data_dir=tmp_path / "data")
+    runtime.store.save_identity(np.array([1.0, 0.0]), [{"key": "face", "passed": True}])
+    runtime.face = runtime.store.load_identity()
+
+    result = runtime.check_upload(textured_at((360, 640)))  # already at the stored size
+
+    checks = {check["key"]: check for check in result["checks"]}
+    assert checks["identity"]["passed"] is True
+    assert checks["size"]["passed"] is True  # no longer a block ...
+    assert checks["size"]["hint"] == ""
+    assert "confirmed to be you" in checks["size"]["tip"]  # ... but still visibly a warning
+    assert result["passed"] is True
+
+
+def test_a_small_dark_face_is_still_refused_even_once_identity_is_confirmed(tmp_path):
+    """Size is forgiven once identity is confirmed; the other checks are not. A photo that is
+    both too small and too dark is still refused, on the lighting ground."""
+    small_box = (220, 75, 100, 90)
+
+    class SmallFaceTracker:
+        def process(self, frame):
+            return _face_track(small_box, frame.shape)
+
+        def close(self):
+            pass
+
+    tracker = SmallFaceTracker()
+    runtime = Runtime(tracker_factory=lambda video=True: tracker, scorer_factory=lambda: _MatchingScorer(),
+                      data_dir=tmp_path / "data")
+    runtime.store.save_identity(np.array([1.0, 0.0]), [{"key": "face", "passed": True}])
+    runtime.face = runtime.store.load_identity()
+
+    dark = textured_at((360, 640)) // 5  # the whole picture, including the face, is too dark
+    result = runtime.check_upload(dark)
+
+    checks = {check["key"]: check for check in result["checks"]}
+    assert checks["identity"]["passed"] is True
+    assert checks["light"]["passed"] is False  # the other fault still blocks ...
+    assert checks["size"]["passed"] is False  # ... so size is not softened either
+    assert result["passed"] is False
+
+
+def test_an_upload_already_at_the_stored_size_is_not_reframed(tmp_path):
+    """Nothing is gained by cropping a picture that was never going to be downscaled: there is
+    no extra native resolution past the stored size for a tighter crop to recover."""
+    image = textured_at((360, 640))  # well within the stored-size cap: prepare() leaves it alone
+    box = (220, 75, 100, 90)  # small enough to fail "size" on its own
+
+    class SmallFaceTracker:
+        def process(self, frame):
+            return _face_track(box, frame.shape)
+
+        def close(self):
+            pass
+
+    tracker = SmallFaceTracker()
+    runtime = Runtime(tracker_factory=lambda video=True: tracker, data_dir=tmp_path / "data")
+    result = runtime._upload_candidate(image, tracker)
+    size_check = next(c for c in result.checks if c.key == "size")
+    assert not size_check.passed  # an honest refusal: the file itself does not have the detail
+    assert size_check.value == pytest.approx(90, abs=1)
 
 
 def test_a_picture_the_animation_model_cannot_use_is_refused_and_nothing_changes(parts):

@@ -8,7 +8,11 @@ from pathlib import Path
 
 import cv2
 
+from dataclasses import replace
+
+from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
 from ..enrolment import Check, EnrolmentStore, make_candidate, prepare
+from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
 from ..identity import SAME_PERSON_CSIM
 from ..targets import TARGETS
 from .benchmarks import latest_benchmark
@@ -271,15 +275,94 @@ class Runtime:
         face = self.face
         if face is None:
             raise SessionError("Verify your face with the camera first. An uploaded picture is compared with it.")
-        picture = prepare(image)
         tracker = self.make_tracker(video=False)
         try:
-            track = tracker.process(picture)
+            candidate = self._upload_candidate(image, tracker)
         finally:
             tracker.close()
-        candidate = make_candidate(picture, track, "upload")
-        candidate.checks.append(self._same_person(candidate, face))
+        identity = self._same_person(candidate, face)
+        candidate.checks.append(identity)
+        if identity.passed:
+            self._accept_small_face_once_identity_is_confirmed(candidate)
         return self._hold(candidate)
+
+    @staticmethod
+    def _accept_small_face_once_identity_is_confirmed(candidate):
+        """Once the picture is confirmed to be the enrolled person, a small face no longer
+        refuses it: identity is who it is of, size is only how sharp the animation looks, and
+        those are different questions. The size check becomes a warning instead of a block,
+        carried in `tip` the same way an already-passing check suggests a better picture
+        elsewhere. It is left blocking when anything else also fails: a small face on a photo
+        that is also blurred or badly lit is still worth refusing, on that other ground.
+        """
+        checks = candidate.checks
+        size = next((c for c in checks if c.key == "size"), None)
+        if size is None or size.passed:
+            return
+        if any(not c.passed for c in checks if c.key not in ("size", "identity")):
+            return
+        note = (f"Your face is about {round(size.value)} px tall here, below the {MIN_FACE_HEIGHT_PX} px that "
+                "gives the sharpest result. Since this is confirmed to be you, the picture is accepted anyway; "
+                "a closer or higher-resolution photo would animate more sharply.")
+        checks[checks.index(size)] = replace(size, passed=True, hint="", tip=note)
+
+    def _upload_candidate(self, image, tracker):
+        """Judge the picture as given; if only its framing is at fault, try again cropped
+        tighter around the face before giving up on it.
+
+        A casual workplace photo (a desk, a wall, a person sitting back from the
+        camera) often has a small face only because of how it is framed, not
+        because the file lacks detail: the original upload, before it is brought
+        down to the stored size, usually has far more resolution on the face than
+        a crop of the whole scene would suggest. Cropping first and bringing down
+        only that crop keeps that detail; downscaling the whole photo first, as
+        the straightforward path does, would have thrown most of it away on
+        background the output never uses. If the file truly does not have the
+        detail (a small or heavily compressed upload), the crop does not invent
+        any, and the picture is still refused, now for a reason that is actually
+        about the photo rather than a camera instruction that does not apply.
+        """
+        picture = prepare(image)
+        track = tracker.process(picture)
+        candidate = make_candidate(picture, track, "upload")
+        if not track.ok:
+            return candidate
+        too_small = any(check.key == "size" and not check.passed for check in candidate.checks)
+        if not too_small:
+            return candidate
+        reframed = self._reframe_on_face(image, picture.shape[:2], track.bbox)
+        if reframed is None:
+            return candidate
+        retrack = tracker.process(reframed)
+        if not retrack.ok:
+            return candidate
+        tighter = make_candidate(reframed, retrack, "upload")
+        if self._face_px(tighter) >= self._face_px(candidate):
+            return tighter  # at least as much real detail on the face, now better framed
+        return candidate  # the crop made it worse (rare); keep the original's honest report
+
+    @staticmethod
+    def _face_px(candidate):
+        check = next((c for c in candidate.checks if c.key == "size"), None)
+        return check.value if check is not None and check.value is not None else 0.0
+
+    @staticmethod
+    def _reframe_on_face(image, picture_shape, bbox):
+        """Crop `image` (the upload as given, before it was brought down to the stored size)
+        tightly around bbox (found in the already-downscaled `picture`), so the face fills
+        about the same share of the frame the live camera outline asks for. Returns None if
+        the picture is already at or below the stored size, since there is then nothing a
+        tighter crop could recover that downscaling had not already kept.
+        """
+        ph, pw = picture_shape
+        ih, iw = image.shape[:2]
+        if max(ih, iw) <= max(ph, pw):
+            return None
+        scale = iw / pw  # == ih / ph: prepare() keeps the aspect ratio
+        x, y, w, h = (value * scale for value in bbox)
+        side = max(w, h) / TARGET_FACE_HEIGHT_SHARE
+        crop = square_face_crop(image, (x, y, w, h), scale=side / max(w, h), out_size=round(side))
+        return limit_size(crop, MAX_PICTURE_DIM)
 
     def _same_person(self, candidate, face):
         """The check an uploaded picture gets and a camera frame does not: is this the verified face?"""

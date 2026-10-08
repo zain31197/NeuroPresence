@@ -167,75 +167,96 @@ def measure(image_bgr, track):
 # ----------------------------------------------------------------- checks
 
 
-def _facing(m):
+def _facing(m, upload):
     worst = max(abs(m["yaw_deg"]) / MAX_YAW_DEG, abs(m["pitch_deg"]) / MAX_PITCH_DEG, abs(m["roll_deg"]) / MAX_ROLL_DEG)
     hint = ""
     if abs(m["yaw_deg"]) > MAX_YAW_DEG:
-        hint = "The head is turned to one side. Face the camera."
+        hint = "Choose a photo where you are facing the camera." if upload else "The head is turned to one side. Face the camera."
     elif abs(m["pitch_deg"]) > MAX_PITCH_DEG:  # a positive pitch is a lowered chin
-        hint = "The chin is too low. Raise it a little." if m["pitch_deg"] > 0 else "The chin is too high. Lower it a little."
+        if upload:
+            hint = "Choose a photo with your chin level, not tipped up or down."
+        else:
+            hint = "The chin is too low. Raise it a little." if m["pitch_deg"] > 0 else "The chin is too high. Lower it a little."
     elif abs(m["roll_deg"]) > MAX_ROLL_DEG:
-        hint = "The head is tilted. Straighten it."
+        hint = "Choose a photo where your head is level, not tilted." if upload else "The head is tilted. Straighten it."
     return Check("facing", "Facing the camera", not hint, hint, round(worst, 2))
 
 
-def _size(m):
+def _size(m, upload):
     hint = tip = ""
     if m["face_height_px"] < MIN_FACE_HEIGHT_PX:
-        hint = "The face is too small in the picture. Move closer to the camera."
+        hint = ("The face is too small in the picture. Choose a photo where your face is larger, or crop in closer."
+                if upload else "The face is too small in the picture. Move closer to the camera.")
     elif m["face_height_share"] > MAX_FACE_HEIGHT_SHARE:
-        hint = "The face fills too much of the picture. Move back from the camera."
+        hint = ("The face fills too much of the picture. Choose a photo with a bit more room around your face."
+                if upload else "The face fills too much of the picture. Move back from the camera.")
     elif m["face_height_px"] < GOOD_FACE_HEIGHT_PX and m["face_height_share"] < ROOM_TO_COME_CLOSER:
-        tip = "A larger face gives a sharper result. Move a little closer if you can."
+        tip = ("A larger face gives a sharper result. A closer, more tightly framed photo would help."
+               if upload else "A larger face gives a sharper result. Move a little closer if you can.")
     return Check("size", "Face large enough", not hint, hint, round(m["face_height_px"]), tip)
 
 
-def _framing(m):
+def _framing(m, upload):
     hint = ""
     # A face larger than the outline has no room because it is too close; one that fits
     # the outline's size is only in the wrong place, and moving back would cost sharpness.
     too_close = m["face_over_outline"] > LARGER_THAN_OUTLINE
     if m["room_above"] < MIN_ROOM_ABOVE:
-        hint = ("The top of the head is cut off. Move back a little." if too_close
-                else "The top of the head is cut off. Tilt the camera up a little, or sit lower.")
+        if upload:
+            hint = ("Choose a photo with a bit more room around your face." if too_close
+                    else "Choose a photo with more room above your head.")
+        else:
+            hint = ("The top of the head is cut off. Move back a little." if too_close
+                    else "The top of the head is cut off. Tilt the camera up a little, or sit lower.")
     elif m["room_below"] < MIN_ROOM_BELOW:
-        hint = ("The chin is at the bottom edge. Move back a little." if too_close
-                else "The chin is at the bottom edge. Tilt the camera down a little, or sit higher.")
+        if upload:
+            hint = ("Choose a photo with a bit more room around your face." if too_close
+                    else "Choose a photo with more room below your chin.")
+        else:
+            hint = ("The chin is at the bottom edge. Move back a little." if too_close
+                    else "The chin is at the bottom edge. Tilt the camera down a little, or sit higher.")
     elif min(m["room_left"], m["room_right"]) < MIN_ROOM_BESIDE or abs(m["off_centre"]) > MAX_OFF_CENTRE:
-        # Directions are the person's own: a face at the left of the camera's picture
-        # belongs to someone sitting too far to their right.
-        side = "left" if m["off_centre"] < 0 else "right"
-        hint = f"The face is too far to one side. Move to your {side}, toward the middle."
+        if upload:
+            hint = "Choose a photo where your face is closer to the middle of the picture."
+        else:
+            # Directions are the person's own: a face at the left of the camera's picture
+            # belongs to someone sitting too far to their right.
+            side = "left" if m["off_centre"] < 0 else "right"
+            hint = f"The face is too far to one side. Move to your {side}, toward the middle."
     room = min(m["room_above"], m["room_below"], m["room_left"], m["room_right"])
     return Check("framing", "Whole head in frame", not hint, hint, round(room, 2))
 
 
-def _light(m):
+def _light(m, upload):
     hint = ""
     if m["blown_out_share"] > MAX_BLOWN_OUT_SHARE:
-        hint = "There is too much light on the face. Turn away from the lamp or window."
+        hint = ("There is too much light on the face. Choose a photo with less light on it, or out of direct sun."
+                if upload else "There is too much light on the face. Turn away from the lamp or window.")
     elif m["bright_level"] < MIN_BRIGHT_LEVEL or m["light_range"] < MIN_LIGHT_RANGE:
-        hint = "There is not enough light on the face. Face a lamp or a window."
+        hint = ("There is not enough light on the face. Choose a better-lit photo."
+                if upload else "There is not enough light on the face. Face a lamp or a window.")
     return Check("light", "Enough light", not hint, hint, round(m["bright_level"], 1))
 
 
-def _sharp(m):
+def _sharp(m, upload):
     hint = tip = ""
     if m["sharpness"] < MIN_SHARPNESS:
-        hint = "The picture is blurred. Hold still and check the camera's focus."
+        hint = "The picture is blurred. Choose a sharper photo." if upload else "The picture is blurred. Hold still and check the camera's focus."
     elif m["sharpness"] < GOOD_SHARPNESS:
-        tip = "The picture is a little soft. More light and a clean lens make it sharper."
+        tip = ("The picture is a little soft. A sharper, better-lit photo would help."
+               if upload else "The picture is a little soft. More light and a clean lens make it sharper.")
     return Check("sharp", "Sharp", not hint, hint, round(m["sharpness"], 1), tip)
 
 
-def _expression(m):
+def _expression(m, upload):
     hint = ""
     if m["lip_gap"] > MAX_LIP_GAP:
-        hint = "The mouth is open. Close it."
+        hint = "Choose a photo with your mouth closed." if upload else "The mouth is open. Close it."
     elif m["eye_closed"] > MAX_EYE_CLOSED:
-        hint = "The eyes are closed. Open them."
+        hint = "Choose a photo with your eyes open." if upload else "The eyes are closed. Open them."
     elif m["smile"] > MAX_SMILE:
-        hint = "The face is not relaxed. A slight smile is fine, a broad one is not."
+        hint = ("Choose a photo with a relaxed face. A slight smile is fine, a broad one is not."
+                if upload else "The face is not relaxed. A slight smile is fine, a broad one is not.")
     return Check("expression", "Relaxed face, eyes open", not hint, hint, round(m["lip_gap"], 3))
 
 
@@ -243,25 +264,35 @@ UNMEASURED = [("facing", "Facing the camera"), ("size", "Face large enough"), ("
               ("light", "Enough light"), ("sharp", "Sharp"), ("expression", "Relaxed face, eyes open")]
 
 
-def judge(measurements):
-    """Turn the measurements of one face (from measure) into the list of Checks."""
-    m = measurements
+def judge(measurements, origin="camera"):
+    """Turn the measurements of one face (from measure) into the list of Checks.
+
+    origin is "camera" (default, live capture: the hints are instructions you can
+    act on right now) or "upload": a picture already taken cannot be told to move
+    closer or tilt up, so the hints there ask for a different photo instead.
+    """
+    m, upload = measurements, origin == "upload"
     return [Check("face", "One face in view", True, ""),
-            _facing(m), _size(m), _framing(m), _light(m), _sharp(m), _expression(m)]
+            _facing(m, upload), _size(m, upload), _framing(m, upload), _light(m, upload),
+            _sharp(m, upload), _expression(m, upload)]
 
 
-def evaluate(image_bgr, track):
+def evaluate(image_bgr, track, origin="camera"):
     """Run every check on a picture and its tracked face. Returns the list of Checks.
 
     When no single face is found, the other checks cannot be measured and are
     reported as not passed, without a hint of their own.
     """
+    upload = origin == "upload"
     if track.status is TrackStatus.NO_FACE:
-        face = Check("face", "One face in view", False, "No face was found. Sit in front of the camera.")
+        hint = "No face was found. Choose a different photo." if upload else "No face was found. Sit in front of the camera."
+        face = Check("face", "One face in view", False, hint)
     elif track.status is TrackStatus.MULTIPLE_FACES:
-        face = Check("face", "One face in view", False, "More than one face was found. Only you should be in the picture.")
+        hint = ("More than one face was found. Choose a photo with only you in it." if upload
+                else "More than one face was found. Only you should be in the picture.")
+        face = Check("face", "One face in view", False, hint)
     else:
-        return judge(measure(image_bgr, track))
+        return judge(measure(image_bgr, track), origin)
     return [face] + [Check(key, label, False, "") for key, label in UNMEASURED]
 
 
