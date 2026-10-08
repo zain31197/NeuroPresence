@@ -11,7 +11,7 @@ import cv2
 from dataclasses import replace
 
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
-from ..enrolment import Check, EnrolmentStore, make_candidate, prepare
+from ..enrolment import POSE_KEYS, Check, EnrolmentStore, make_candidate, prepare
 from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
 from ..identity import SAME_PERSON_CSIM
 from ..targets import TARGETS
@@ -200,7 +200,19 @@ class Runtime:
         with self.engine_lock:
             if self._engine is None:
                 self._engine = self._engine_factory()
+                self._apply_pose_calibration(self._engine)
             return self._engine
+
+    def _apply_pose_calibration(self, engine):
+        """Fit the engine's pose-range clamp to this person's own registered poses, if any
+        (see reenactment/engine.py: calibrate_pose_range). Call with self.engine_lock held."""
+        poses = {} if self.face is None else self.face.poses
+        yaw = [abs(poses[side]["angle_deg"]) for side in ("left", "right") if side in poses]
+        up = poses.get("up", {}).get("angle_deg")
+        down = poses.get("down", {}).get("angle_deg")
+        if yaw or up is not None or down is not None:
+            engine.calibrate_pose_range(yaw_extreme_deg=max(yaw) if yaw else None,
+                                        pitch_up_extreme_deg=up, pitch_down_extreme_deg=down)
 
     def scorer(self):
         """The identity scorer, loaded on first use. Raises if its model is not installed."""
@@ -255,6 +267,22 @@ class Runtime:
             raise SessionError("Your face can only be verified with a camera.")
         self.preview.start(self._source_of(entry), entry["label"])
 
+    def start_pose_preview(self, pose, input_id):
+        """Open the camera to register one pose ("left", "right", "up" or "down"): turned to
+        the side or tilted up/down, used both for a richer identity signature and to calibrate
+        how far this person's own head actually moves (see enrolment/checks.py and
+        reenactment/engine.py: calibrate_pose_range)."""
+        if pose not in POSE_KEYS:
+            raise SessionError(f"Unknown pose: {pose}")
+        if self.face is None:
+            raise SessionError("Verify your face with the camera first.")
+        if self.session.active:
+            raise SessionError("Stop the live session first. The camera is in use.")
+        entry = self._input(input_id)
+        if entry["kind"] != "camera":
+            raise SessionError("A pose is registered with a camera.")
+        self.preview.start(self._source_of(entry), entry["label"], pose=pose)
+
     def stop_preview(self):
         self.preview.stop()
 
@@ -275,6 +303,10 @@ class Runtime:
         face = self.face
         if face is None:
             raise SessionError("Verify your face with the camera first. An uploaded picture is compared with it.")
+        missing = [pose for pose in POSE_KEYS if pose not in face.poses]
+        if missing:
+            raise SessionError("Register these poses first, facing the camera, turned to each side, and tilted "
+                               "up and down: " + ", ".join(missing) + ".")
         tracker = self.make_tracker(video=False)
         try:
             candidate = self._upload_candidate(image, tracker)
@@ -365,7 +397,13 @@ class Runtime:
         return limit_size(crop, MAX_PICTURE_DIM)
 
     def _same_person(self, candidate, face):
-        """The check an uploaded picture gets and a camera frame does not: is this the verified face?"""
+        """The check an uploaded picture gets and a camera frame does not: is this the verified face?
+
+        Compared against every signature registered for this face, not only the front-on one: a
+        meeting picture taken at a slight angle, or a live face turned to the side, can look more
+        like one of the registered poses than like the straight-on capture. The best match of the
+        five (or just the one, before any pose is registered) decides it.
+        """
         label = "Same person as your face"
         if candidate.landmarks is None:
             return Check("identity", label, False, "")  # no single face to compare
@@ -375,7 +413,8 @@ class Runtime:
             raise SessionError("The identity model is not installed, so the picture cannot be compared with your face. "
                                "Run scripts/download_models.py.") from None
         candidate.signature = scorer.embed(candidate.image, candidate.landmarks)
-        alike = scorer.similarity(face.signature, candidate.signature)
+        references = [face.signature] + [pose["signature"] for pose in face.poses.values()]
+        alike = max(scorer.similarity(reference, candidate.signature) for reference in references)
         hint = "" if alike >= SAME_PERSON_CSIM else ("This is not the face you verified with the camera. "
                                                      "Upload a picture of yourself.")
         return Check("identity", label, not hint, hint, round(alike, 3))
@@ -402,6 +441,8 @@ class Runtime:
             raise SessionError("This picture did not pass every check, so it cannot be used.")
         if candidate.origin == "camera":
             self._verify_face(candidate)
+        elif candidate.origin.startswith("pose:"):
+            self._register_pose(candidate)
         else:
             self._enrol_picture(candidate)
         self.candidate = None
@@ -425,6 +466,22 @@ class Runtime:
             if self.scorer().similarity(signature, enrolment.signature) < SAME_PERSON_CSIM:
                 self._drop_picture()
                 self.events.add("warning", "The meeting picture does not match the newly verified face and was removed.")
+
+    def _register_pose(self, candidate):
+        """A pose capture (turned to one side, or tilted up/down) that passed its checks:
+        add it to the verified face's registered poses."""
+        pose = candidate.origin.split(":", 1)[1]
+        signature = self._signature(candidate)
+        if signature is None:
+            raise SessionError("This pose could not be registered, because its signature could not be made. "
+                               "Check that the identity model is installed: python scripts/download_models.py.")
+        angle = next(check.value for check in candidate.checks if check.key == "pose")
+        self.store.save_pose(pose, signature, angle, candidate.summary()["checks"])
+        self.face = self.store.load_identity()
+        with self.engine_lock:
+            if self._engine is not None:
+                self._apply_pose_calibration(self._engine)
+        self.events.add("info", f"{pose.capitalize()} pose registered.")
 
     def _enrol_picture(self, candidate):
         """An uploaded picture that passed every check, the face match among them, becomes the meeting picture."""

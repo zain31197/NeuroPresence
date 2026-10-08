@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from neuropresence.capture import TrackResult, TrackStatus
 from neuropresence.capture.feed import FeedFrame
 from neuropresence.enrolment import checks as limits
-from neuropresence.enrolment import make_candidate, prepare
+from neuropresence.enrolment import POSE_KEYS, make_candidate, prepare
 from neuropresence.identity import SAME_PERSON_CSIM
 from neuropresence.server import create_app
 from neuropresence.server.metrics import MetricsWindow
@@ -57,6 +57,7 @@ class FakeTracker:
 
     status = TrackStatus.OK
     yaw = 0.0
+    pitch = 0.0
     blink = 0.1
 
     def process(self, frame):
@@ -69,7 +70,7 @@ class FakeTracker:
         middle = x + w / 2
         points[limits.UPPER_LIP], points[limits.LOWER_LIP] = (middle, y + 120), (middle, y + 122)
         points[limits.MOUTH_LEFT], points[limits.MOUTH_RIGHT] = (middle - 30, y + 121), (middle + 30, y + 121)
-        return TrackResult(self.status, 1.0, landmarks=points, bbox=FACE_BOX, pose_deg=(self.yaw, 0.0, 0.0),
+        return TrackResult(self.status, 1.0, landmarks=points, bbox=FACE_BOX, pose_deg=(self.yaw, self.pitch, 0.0),
                            blendshapes={"jawOpen": 0.25, "eyeBlinkLeft": self.blink, "eyeBlinkRight": self.blink})
 
     def close(self):
@@ -85,6 +86,10 @@ class FakeEngine:
         self.last_timing_ms = {"motion": 2.0, "render": 3.0, "compose": 1.0}
         self.resets = 0
         self.neutral_faces = []
+        self.pose_calibration = None  # the kwargs calibrate_pose_range was last called with
+
+    def calibrate_pose_range(self, **kwargs):
+        self.pose_calibration = kwargs
 
     def set_source(self, image):
         if self.reject:
@@ -187,10 +192,29 @@ def verify_face(parts, camera="camera:0"):
     return reply.json()["face"]
 
 
+POSE_ANGLES = {"front": (0.0, 0.0), "left": (-60.0, 0.0), "right": (60.0, 0.0), "up": (0.0, -25.0), "down": (0.0, 25.0)}
+
+
+def register_all_poses(parts, camera="camera:0"):
+    """Register every pose (front, left, right, up, down) for the verified face: the real flow
+    requires all five before a meeting picture can be uploaded (see runtime.py: check_upload)."""
+    client, tracker = parts["client"], parts["tracker"]
+    for pose, (yaw, pitch) in POSE_ANGLES.items():
+        tracker.yaw, tracker.pitch = yaw, pitch
+        assert client.post(f"/api/enrolment/pose/{pose}/start", json={"input": camera}).status_code == 200
+        assert wait_for(lambda: status(parts)["enrolment"]["preview"]["ready"])
+        assert client.post("/api/enrolment/take").json()["passed"]
+        reply = client.post("/api/enrolment/confirm")
+        assert reply.status_code == 200, reply.text
+    tracker.yaw, tracker.pitch = 0.0, 0.0
+
+
 def enrol(parts, image=FRAME):
-    """Verify the face if that has not been done, then upload a meeting picture and keep it."""
+    """Verify the face and register every pose if that has not been done, then upload a meeting
+    picture and keep it."""
     if status(parts)["enrolment"]["face"] is None:
         verify_face(parts)
+        register_all_poses(parts)
         parts["feeds"].clear()  # the camera opened for that is not what the tests go on to look at
         parts["sources"].clear()
     assert upload(parts, image).json()["passed"]
@@ -220,7 +244,7 @@ def test_status_when_nothing_has_happened(parts):
     found = status(parts)
     assert found["session"]["state"] == "idle" and found["session"]["metrics"] is None
     assert found["enrolment"] == {"face": None, "record": None, "candidate": None,
-                                  "preview": {"state": "idle", "message": "", "input": None, "checks": None,
+                                  "preview": {"state": "idle", "message": "", "input": None, "pose": None, "checks": None,
                                               "hint": "", "tip": "", "ready": False, "outline": None,
                                               "taking": False}}
     assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
@@ -308,6 +332,7 @@ def test_the_camera_picture_becomes_the_face_signature_and_nothing_else(parts):
 def test_an_uploaded_picture_of_the_same_person_becomes_the_meeting_picture(parts):
     client = parts["client"]
     verify_face(parts)
+    register_all_poses(parts)
     candidate = upload(parts).json()
     assert candidate["passed"] and candidate["origin"] == "upload" and candidate["hint"] == ""
     assert (candidate["width"], candidate["height"]) == (640, 360)
@@ -327,7 +352,9 @@ def test_an_uploaded_picture_of_the_same_person_becomes_the_meeting_picture(part
     assert found["record"]["id"] == record["id"] and found["candidate"] is None
     stored = parts["tmp"] / "data" / "enrolment"
     assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy", "neutral.png", "picture.png",
-                                                        "record.json", "signature.npy"]
+                                                        "pose_down.npy", "pose_front.npy", "pose_left.npy",
+                                                        "pose_right.npy", "pose_up.npy", "poses.json", "record.json",
+                                                        "signature.npy"]
     assert parts["engines"][0].source_frame.shape == FRAME.shape
     assert parts["engines"][0].neutral_faces == []  # the neutral pose comes from the camera, when a session starts
     assert client.get("/api/enrolment/picture").headers["content-type"] == "image/jpeg"
@@ -338,6 +365,7 @@ def test_an_uploaded_picture_of_the_same_person_becomes_the_meeting_picture(part
 def test_a_picture_of_someone_else_is_refused(parts, monkeypatch):
     client = parts["client"]
     verify_face(parts)
+    register_all_poses(parts)
     monkeypatch.setattr(FakeScorer, "alike", 0.2)  # a different person: no two different people scored above 0.27
     candidate = upload(parts).json()
     assert candidate["passed"] is False
@@ -365,6 +393,7 @@ def test_verifying_another_face_removes_a_meeting_picture_that_no_longer_matches
 def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
     client = parts["client"]
     verify_face(parts)
+    register_all_poses(parts)
     candidate = upload(parts, FLAT).json()
     assert candidate["passed"] is False
     failed = {check["key"] for check in candidate["checks"] if not check["passed"]}
@@ -382,6 +411,7 @@ def test_a_picture_that_fails_a_check_is_shown_but_cannot_be_enrolled(parts):
 def test_uploads_that_are_not_usable_pictures(parts):
     client = parts["client"]
     verify_face(parts)
+    register_all_poses(parts)
     not_image = client.post("/api/enrolment/upload", files={"file": ("notes.txt", b"hello", "text/plain")})
     assert not_image.status_code == 422 and "not a picture" in not_image.json()["detail"]
     parts["tracker"].status = TrackStatus.NO_FACE
@@ -467,6 +497,13 @@ class _MatchingScorer:
         return 0.9  # comfortably above SAME_PERSON_CSIM
 
 
+def _register_dummy_poses(store):
+    """Fill in all four registered poses directly, for a unit test that is not about pose
+    capture itself: check_upload refuses an upload until they are all registered."""
+    for pose in POSE_KEYS:
+        store.save_pose(pose, np.array([1.0, 0.0]), 60.0, [{"key": "pose", "passed": True}])
+
+
 def test_a_small_face_is_accepted_once_identity_is_confirmed(tmp_path):
     """The size check protects how sharp the output looks, not who it is of. Once the ArcFace
     identity check confirms the uploaded picture is the enrolled person, a small face no
@@ -484,6 +521,7 @@ def test_a_small_face_is_accepted_once_identity_is_confirmed(tmp_path):
     runtime = Runtime(tracker_factory=lambda video=True: tracker, scorer_factory=lambda: _MatchingScorer(),
                       data_dir=tmp_path / "data")
     runtime.store.save_identity(np.array([1.0, 0.0]), [{"key": "face", "passed": True}])
+    _register_dummy_poses(runtime.store)
     runtime.face = runtime.store.load_identity()
 
     result = runtime.check_upload(textured_at((360, 640)))  # already at the stored size
@@ -512,6 +550,7 @@ def test_a_small_dark_face_is_still_refused_even_once_identity_is_confirmed(tmp_
     runtime = Runtime(tracker_factory=lambda video=True: tracker, scorer_factory=lambda: _MatchingScorer(),
                       data_dir=tmp_path / "data")
     runtime.store.save_identity(np.array([1.0, 0.0]), [{"key": "face", "passed": True}])
+    _register_dummy_poses(runtime.store)
     runtime.face = runtime.store.load_identity()
 
     dark = textured_at((360, 640)) // 5  # the whole picture, including the face, is too dark
@@ -558,6 +597,7 @@ def test_a_picture_the_animation_model_cannot_use_is_refused_and_nothing_changes
 
 def test_large_uploads_are_stored_at_the_working_size(parts):
     verify_face(parts)
+    register_all_poses(parts)
     big = cv2.resize(FRAME, (2560, 1440), interpolation=cv2.INTER_NEAREST)
     # The stand-in tracker reports the face for a 640 x 360 picture, so only the size is checked here.
     assert (upload(parts, big).json()["width"], upload(parts, big).json()["height"]) == (1280, 720)
@@ -680,7 +720,10 @@ def test_removing_the_picture_keeps_the_face_and_forgetting_the_face_removes_bot
     found = status(parts)["enrolment"]
     assert found["record"] is None and found["face"] is not None  # the face stays: another picture can be uploaded
     stored = parts["tmp"] / "data" / "enrolment"
-    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy"]
+    # Removing the meeting picture does not touch the registered poses: they are the face's, not the picture's.
+    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy", "pose_down.npy",
+                                                        "pose_front.npy", "pose_left.npy", "pose_right.npy",
+                                                        "pose_up.npy", "poses.json"]
     assert parts["engines"][0].source_frame is None  # the model forgets it too
     assert client.get("/api/enrolment/picture").status_code == 404
     assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 409
@@ -738,6 +781,8 @@ def test_a_camera_session_animates_the_enrolled_picture(parts):
 
 def test_a_sample_clip_animates_its_own_frame_and_enrols_nothing(parts):
     verify_face(parts)
+    register_all_poses(parts)  # poses are registered before the session, since the camera cannot open during one
+    parts["feeds"].clear()
     parts["sources"].clear()
     start(parts, "sample:d0")
     assert status(parts)["session"]["source"] == "sample"
@@ -745,7 +790,10 @@ def test_a_sample_clip_animates_its_own_frame_and_enrols_nothing(parts):
     assert parts["runtime"].engine_holds[0] == "sample"
     assert status(parts)["enrolment"]["record"] is None
     stored = parts["tmp"] / "data" / "enrolment"
-    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy"]  # no picture was stored
+    # The face signature, and the four registered poses; still no meeting picture.
+    assert sorted(p.name for p in stored.iterdir()) == ["identity.json", "identity.npy", "pose_down.npy",
+                                                        "pose_front.npy", "pose_left.npy", "pose_right.npy",
+                                                        "pose_up.npy", "poses.json"]
     assert "Session started on Sample clip d0." in events(parts)
     upload(parts)
     busy = parts["client"].post("/api/enrolment/confirm")

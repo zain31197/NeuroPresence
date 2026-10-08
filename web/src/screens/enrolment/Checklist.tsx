@@ -16,6 +16,15 @@ const LABELS: [CheckKey, string][] = [
   ['expression', 'Relaxed face, eyes open'],
 ]
 
+/** A pose capture gets four checks instead of seven: the frontal-only ones (facing, size,
+ * framing, expression) do not apply when turned to the side or tilted up/down. */
+export const POSE_LABELS: [CheckKey, string][] = [
+  ['face', 'One face in view'],
+  ['pose', 'Turned the right way'],
+  ['light', 'Enough light'],
+  ['sharp', 'Sharp'],
+]
+
 /** The readings shown as numbers: the ones that depend on the camera and the room. */
 const READOUT: Partial<Record<CheckKey, (value: number) => string>> = {
   size: (value) => `${Math.round(value)} px`,
@@ -53,6 +62,8 @@ function about(key: CheckKey, limits: EnrolmentLimits | null): string {
       return limits
         ? `How alike the face in this picture is to the face you verified with the camera, from 0 to 1. ${limits.same_person_csim} or more counts as the same person.`
         : 'The face in this picture is compared with the face you verified with the camera.'
+    case 'pose':
+      return 'Turned to one side, or tilted up or down, far enough to measure, not so far the face is barely visible.'
   }
 }
 
@@ -88,15 +99,18 @@ interface Props {
    * Off for an uploaded picture, which nobody is sitting in front of.
    */
   advice?: boolean
+  /** The fixed order to draw the checks in before the first frame has been judged.
+   * Defaults to the seven frontal checks; pass POSE_LABELS for a pose capture. */
+  labels?: [CheckKey, string][]
 }
 
-export function Checklist({ checks, limits, detail, advice = true }: Props) {
+export function Checklist({ checks, limits, detail, advice = true, labels = LABELS }: Props) {
   const found = new Map(checks?.map((check) => [check.key, check]))
-  // An uploaded picture has one check more than the seven every picture gets: it is listed after them.
-  const extra = (checks ?? []).filter((check) => !LABELS.some(([key]) => key === check.key)).map((check): [CheckKey, string] => [check.key, check.label])
+  // A picture can carry one check more than its own fixed list: it is shown after them.
+  const extra = (checks ?? []).filter((check) => !labels.some(([key]) => key === check.key)).map((check): [CheckKey, string] => [check.key, check.label])
   return (
     <ul className="divide-y divide-line" aria-label="Enrolment checks">
-      {[...LABELS, ...extra].map(([key, fallback]) => {
+      {[...labels, ...extra].map(([key, fallback]) => {
         const check = found.get(key)
         const state = stateOf(check)
         const lamp = LAMPS[state]

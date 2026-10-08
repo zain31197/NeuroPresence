@@ -97,6 +97,40 @@ def test_set_reference_fixes_the_neutral_pose(engine):
     assert np.abs(first - back).mean() > 0.2  # the other pose really moved the face
 
 
+def test_calibrate_pose_range_fits_the_free_to_most_ratio_to_what_was_measured():
+    from neuropresence.reenactment.engine import POSE_RANGE_DEG, ReenactmentEngine
+
+    engine = ReenactmentEngine.__new__(ReenactmentEngine)  # only the calibration arithmetic
+    engine.pose_range_deg = dict(POSE_RANGE_DEG)
+    default_ratio_yaw = POSE_RANGE_DEG["yaw"][0] / POSE_RANGE_DEG["yaw"][1]
+    default_ratio_pitch = POSE_RANGE_DEG["pitch"][0] / POSE_RANGE_DEG["pitch"][1]
+
+    # A person who registered a wider turn than the default gets a wider range, same ratio.
+    engine.calibrate_pose_range(yaw_extreme_deg=60.0)
+    free, most = engine.pose_range_deg["yaw"]
+    assert most == 60.0
+    assert free == pytest.approx(60.0 * default_ratio_yaw)
+    assert engine.pose_range_deg["pitch"] == POSE_RANGE_DEG["pitch"]  # untouched: not given this time
+
+    # up and down each register their own sign; the more extreme of the two sets the limit.
+    engine.calibrate_pose_range(pitch_up_extreme_deg=-18.0, pitch_down_extreme_deg=30.0)
+    free, most = engine.pose_range_deg["pitch"]
+    assert most == 30.0
+    assert free == pytest.approx(30.0 * default_ratio_pitch)
+    assert engine.pose_range_deg["yaw"] == (pytest.approx(60.0 * default_ratio_yaw), 60.0)  # the earlier call is kept
+
+
+def test_calibrate_pose_range_never_sets_most_below_the_generic_free_range():
+    from neuropresence.reenactment.engine import POSE_RANGE_DEG, ReenactmentEngine
+
+    engine = ReenactmentEngine.__new__(ReenactmentEngine)
+    engine.pose_range_deg = dict(POSE_RANGE_DEG)
+    # A person who (for whatever reason) registered a smaller angle than the generic free range
+    # does not end up clamped tighter than everyone else's default.
+    engine.calibrate_pose_range(yaw_extreme_deg=3.0)
+    assert engine.pose_range_deg["yaw"][1] == POSE_RANGE_DEG["yaw"][0]
+
+
 def test_the_head_range_is_followed_exactly_inside_and_eases_to_a_stop_outside():
     import torch
 
@@ -127,6 +161,7 @@ def test_a_held_posture_becomes_the_rest_position_and_a_small_movement_does_not(
     engine._rotation = lambda pitch, yaw, roll: (float(pitch), float(yaw), float(roll))
     engine._reference = {"info": pose(), "rotation": (0.0, 0.0, 0.0)}
     engine._posture_at, engine._settling = None, False
+    engine.pose_range_deg = dict(POSE_RANGE_DEG)
     free = POSE_RANGE_DEG["pitch"][0]
 
     def away(driving):

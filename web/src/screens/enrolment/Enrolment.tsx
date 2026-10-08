@@ -12,6 +12,7 @@ import { Tooltip } from '../../components/ui/Tooltip'
 import {
   api,
   ApiError,
+  POSE_KEYS,
   STOP_PREVIEW_PATH,
   type Candidate,
   type EnrolmentGuide,
@@ -25,6 +26,7 @@ import { dateTime, splitHint } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
 import { Checklist } from './Checklist'
 import { Evidence } from './Evidence'
+import { PoseCapture } from './PoseCapture'
 import { Guidance, Stage, type Mode } from './Stage'
 
 /**
@@ -169,7 +171,8 @@ export function Enrolment() {
           ))}
       </div>
       <p className="mt-1 text-[13.5px] text-ink-500">
-        Verify your face with the camera, then upload the picture people will see. It is used only if it shows the same face.
+        Verify your face with the camera, register how far it turns, then upload the picture people will see. It is used only if it
+        shows the same face.
       </p>
     </div>
   )
@@ -190,6 +193,39 @@ export function Enrolment() {
             <Waiting message="Connecting to the engine" />
           </Monitor>
         </Card>
+      </main>
+    )
+  }
+
+  // Step one and a half, between verifying the face and uploading the meeting picture: four more
+  // pictures, turned to each side and tilted up and down (see PoseCapture). Its own camera and
+  // candidate state share the same preview/candidate the rest of this screen uses, so this branch
+  // owns the whole page while it runs, rather than risk two panels both trying to read them.
+  //
+  // Gated on there being no meeting picture yet: once one is enrolled, poses are not forced on
+  // a person who already finished enrolling before this step existed, or who simply has not
+  // registered them. Re-uploading a new picture still requires them (see runtime.py: check_upload).
+  if (face && record === null && !POSE_KEYS.every((pose) => face.poses[pose])) {
+    return (
+      <main className="mx-auto max-w-[1520px] px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
+        {heading}
+        {engineDown}
+        {sessionActive && (
+          <Notice
+            className="mt-5"
+            title="A live session is running"
+            action={
+              <Button size="sm" icon={<Square className="size-3 fill-current" />} busy={work === 'session'} disabled={busy} onClick={() => run('session', api.stopSession)}>
+                Stop session
+              </Button>
+            }
+          >
+            Stop it to register a pose: the camera can only be open in one place.
+          </Notice>
+        )}
+        <div className="mt-5">
+          <PoseCapture face={face} camera={camera} disabled={offline || sessionActive} />
+        </div>
       </main>
     )
   }
@@ -529,6 +565,7 @@ function EnrolledPanel({ record, face, limits, work, disabled, onRemove, onForge
 }
 
 function StepsPanel({ face, forgetting, disabled, onForget }: { face: FaceIdentity | null; forgetting: boolean; disabled: boolean; onForget: () => void }) {
+  const posesDone = face !== null && POSE_KEYS.every((pose) => face.poses[pose])
   const steps = [
     {
       title: 'Verify your face',
@@ -536,6 +573,11 @@ function StepsPanel({ face, forgetting, disabled, onForget }: { face: FaceIdenti
         ? `Done on ${dateTime(face.verified_at)}. Only the face signature was kept.`
         : 'Open the camera and follow the checks. The picture is used only to make a face signature, and is not stored.',
       done: face !== null,
+    },
+    {
+      title: 'Register your pose range',
+      text: 'Five more pictures: facing the camera, turned to each side, and tilted up and down. A richer face signature, and the reenacted head fitted to how far yours actually moves.',
+      done: posesDone,
     },
     {
       title: 'Upload your meeting picture',
@@ -546,7 +588,7 @@ function StepsPanel({ face, forgetting, disabled, onForget }: { face: FaceIdenti
   ]
   return (
     <Card className="flex flex-col">
-      <CardHeader title="How enrolment works" hint="Two steps, once. It takes about a minute." />
+      <CardHeader title="How enrolment works" hint="Once, it takes a few minutes." />
       <div className="flex flex-1 flex-col px-5 pb-5">
         <ol className="grid gap-4">
           {steps.map((step, index) => (

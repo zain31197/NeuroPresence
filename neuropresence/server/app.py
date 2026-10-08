@@ -99,6 +99,17 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         attempt(lambda: runtime.start_preview(request.input))
         return runtime.status()
 
+    @app.post("/api/enrolment/pose/{pose}/start")
+    def start_pose_preview(pose: str, request: StartRequest):
+        """Open the camera to register one pose: 'left', 'right', 'up' or 'down'.
+
+        Taking and confirming the picture reuse the ordinary /take and /confirm endpoints:
+        the preview is already in pose mode, so every frame is judged against that pose's
+        own checks (see enrolment/checks.py: evaluate_pose) instead of the frontal ones.
+        """
+        attempt(lambda: runtime.start_pose_preview(pose, request.input))
+        return runtime.status()
+
     @app.post("/api/enrolment/preview/stop")
     def stop_preview():
         runtime.stop_preview()

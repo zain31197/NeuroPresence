@@ -34,9 +34,27 @@ export interface Session {
   tracking: Tracking | null
 }
 
-/** 'identity' is the extra check an uploaded picture gets: does it show the verified face? */
-export type CheckKey = 'face' | 'facing' | 'size' | 'framing' | 'light' | 'sharp' | 'expression' | 'identity'
-export type PictureOrigin = 'camera' | 'upload'
+/** 'identity' is the extra check an uploaded picture gets: does it show the verified face?
+ * 'pose' is the one check a pose capture gets instead of 'facing'/'framing'/'expression' (see checks.py). */
+export type CheckKey = 'face' | 'facing' | 'size' | 'framing' | 'light' | 'sharp' | 'expression' | 'identity' | 'pose'
+export type PoseKey = 'front' | 'left' | 'right' | 'up' | 'down'
+export type PictureOrigin = 'camera' | 'upload' | `pose:${PoseKey}`
+/** 'front' first: the pose a person is actually in for most of a meeting, so the one most worth
+ * a second reference sample. The other four also calibrate how far this person's head turns. */
+export const POSE_KEYS: PoseKey[] = ['front', 'left', 'right', 'up', 'down']
+export const POSE_LABEL: Record<PoseKey, string> = {
+  front: 'Facing the camera',
+  left: 'Turned to one side',
+  right: 'Turned to the other side',
+  up: 'Tilted up',
+  down: 'Tilted down',
+}
+
+/** One registered pose: when it was captured, and the angle measured (yaw for left/right, pitch for up/down). */
+export interface RegisteredPose {
+  captured_at: string
+  angle_deg: number
+}
 
 /** One enrolment check and what it found (neuropresence/enrolment/checks.py). */
 export interface Check {
@@ -51,11 +69,14 @@ export interface Check {
   tip?: string
 }
 
-/** Who the user is: the face verified live with the camera. Only its signature is kept, never the picture. */
+/** Who the user is: the face verified live with the camera. Only its signature is kept, never the picture.
+ * poses: the richer signature, turned to each side and tilted up/down (see enrolment/checks.py), also
+ * used to calibrate how far the reenactment engine lets this person's own head move. */
 export interface FaceIdentity {
   id: string
   verified_at: string // local time, ISO format
   checks: Check[]
+  poses: Partial<Record<PoseKey, RegisteredPose>>
 }
 
 /** The meeting picture's record. The picture itself is fetched from enrolledPictureUrl. */
@@ -97,6 +118,8 @@ export interface Preview {
   state: SessionState
   message: string
   input: string | null
+  /** null for the ordinary frontal capture; which pose is being registered otherwise. */
+  pose: PoseKey | null
   checks: Check[] | null
   /** The one thing to fix first. Empty when every check passes. */
   hint: string
@@ -272,6 +295,9 @@ export const api = {
 
   enrolmentGuide: () => request<EnrolmentGuide>('/api/enrolment/guide'),
   startPreview: (input: string) => request<Status>('/api/enrolment/preview/start', { method: 'POST', ...json({ input }) }),
+  /** Opens the camera to register one pose; /take and /confirm are the same calls as the frontal capture. */
+  startPosePreview: (pose: PoseKey, input: string) =>
+    request<Status>(`/api/enrolment/pose/${pose}/start`, { method: 'POST', ...json({ input }) }),
   stopPreview: () => request<Status>(STOP_PREVIEW_PATH, { method: 'POST' }),
   /** Takes the best frame of a short burst. Refused with the thing to fix if no frame passes the checks. */
   takePicture: () => request<Candidate>('/api/enrolment/take', { method: 'POST' }),

@@ -296,6 +296,102 @@ def evaluate(image_bgr, track, origin="camera"):
     return [face] + [Check(key, label, False, "") for key, label in UNMEASURED]
 
 
+# ------------------------------------------------------- pose capture
+#
+# After the face is verified (front-on, step one), the person registers five more pictures of
+# themselves: facing the camera again, turned to each side, and tilted up and down. Two things
+# come of it: a richer face signature (an uploaded meeting picture, or a live face, is compared
+# against whichever of these looks most like it, not only the step-one capture) weighted toward
+# the pose people are actually in for most of a meeting, since facing the camera is registered
+# again here on its own; and a measured range for how far this particular person's head actually
+# turns, from the four turned/tilted ones, which replaces the fixed, one-person guess the
+# reenactment engine otherwise clamps motion to (see reenactment/engine.py, calibrate_pose_range).
+#
+# The turned/tilted ones are not front-on, so the facing/size/framing/expression checks do not
+# apply to them: only that one face is in view, it is turned the way asked, and the picture is
+# lit and sharp enough to embed. "front" reuses the same facing limits as step one.
+
+MIN_PROFILE_YAW_DEG = 35.0  # a side capture must turn at least this far for the angle to be worth measuring ...
+MAX_PROFILE_YAW_DEG = 85.0  # ... and not so far the face is edge-on and barely visible
+MIN_TILT_PITCH_DEG = 12.0  # an up/down capture must tilt at least this far ...
+MAX_TILT_PITCH_DEG = 40.0  # ... and not so far the chin or forehead hides the face
+
+# "front" first: it is the pose a person is actually in for most of a meeting, so it is the one
+# most worth a second, fresh reference sample. The others calibrate the range of motion; this one
+# does not (there is nothing to measure an extreme of), it only strengthens the identity signature.
+POSE_KEYS = ("front", "left", "right", "up", "down")
+
+
+def _front(m):
+    """Facing the camera, the same limits as the step-one capture (see _facing)."""
+    worst = max(abs(m["yaw_deg"]) / MAX_YAW_DEG, abs(m["pitch_deg"]) / MAX_PITCH_DEG, abs(m["roll_deg"]) / MAX_ROLL_DEG)
+    hint = ""
+    if abs(m["yaw_deg"]) > MAX_YAW_DEG:
+        hint = "Turn to face the camera directly."
+    elif abs(m["pitch_deg"]) > MAX_PITCH_DEG:
+        hint = "Level your chin: not tipped up or down."
+    elif abs(m["roll_deg"]) > MAX_ROLL_DEG:
+        hint = "Straighten your head: it's tilted."
+    return Check("pose", "Facing the camera", not hint, hint, round(worst, 2))
+
+
+def _profile(m):
+    """Turned to one side. Which side is not checked here: left and right use the same window,
+    on whichever sign of yaw the camera measures; the caller tells them apart by the sign."""
+    yaw = m["yaw_deg"]
+    hint = ""
+    if abs(yaw) < MIN_PROFILE_YAW_DEG:
+        hint = "Turn your head further to the side."
+    elif abs(yaw) > MAX_PROFILE_YAW_DEG:
+        hint = "That's turned too far: ease back a little so the face stays in view."
+    return Check("pose", "Turned to the side", not hint, hint, round(yaw, 1))
+
+
+def _tilt_up(m):
+    # A positive pitch is a lowered chin (see _facing); "up" is the other way.
+    up = -m["pitch_deg"]
+    hint = ""
+    if up < MIN_TILT_PITCH_DEG:
+        hint = "Tilt your head back a little further, looking up."
+    elif up > MAX_TILT_PITCH_DEG:
+        hint = "That's tilted too far back: ease down a little."
+    return Check("pose", "Tilted up", not hint, hint, round(up, 1))
+
+
+def _tilt_down(m):
+    down = m["pitch_deg"]
+    hint = ""
+    if down < MIN_TILT_PITCH_DEG:
+        hint = "Tilt your head down a little further, chin toward your chest."
+    elif down > MAX_TILT_PITCH_DEG:
+        hint = "That's tilted too far down: ease up a little."
+    return Check("pose", "Tilted down", not hint, hint, round(down, 1))
+
+
+_POSE_CHECK = {"front": _front, "left": _profile, "right": _profile, "up": _tilt_up, "down": _tilt_down}
+POSE_LABEL = {"front": "Facing the camera", "left": "Turned to the side", "right": "Turned to the side",
+              "up": "Tilted up", "down": "Tilted down"}
+
+
+def judge_pose(measurements, pose):
+    """The checks for one pose-capture frame: the angle itself, then light and sharp, reusing
+    the camera wording (a pose capture is always live; there is no uploaded equivalent)."""
+    m = measurements
+    return [_POSE_CHECK[pose](m), _light(m, upload=False), _sharp(m, upload=False)]
+
+
+def evaluate_pose(image_bgr, track, pose):
+    """Run the pose-capture checks on a picture and its tracked face. Returns the list of Checks."""
+    if track.status is TrackStatus.NO_FACE:
+        face = Check("face", "One face in view", False, "No face was found. Sit in front of the camera.")
+    elif track.status is TrackStatus.MULTIPLE_FACES:
+        face = Check("face", "One face in view", False, "More than one face was found. Only you should be in the picture.")
+    else:
+        return [Check("face", "One face in view", True, "")] + judge_pose(measure(image_bgr, track), pose)
+    return [face, Check("pose", POSE_LABEL[pose], False, ""), Check("light", "Enough light", False, ""),
+            Check("sharp", "Sharp", False, "")]
+
+
 def all_passed(checks):
     return all(check.passed for check in checks)
 

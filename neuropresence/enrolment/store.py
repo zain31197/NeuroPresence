@@ -18,29 +18,45 @@ folder without it is an unfinished save and is treated as empty.
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+from .checks import POSE_KEYS
+
 PICTURE, NEUTRAL, SIGNATURE, RECORD = "picture.png", "neutral.png", "signature.npy", "record.json"
 IDENTITY, IDENTITY_RECORD = "identity.npy", "identity.json"
+POSES_RECORD = "poses.json"  # which poses are registered and what each measured, beside their own pose_<key>.npy
 
 
 @dataclass
 class FaceIdentity:
-    """Who the user is: the signature of the face that sat in front of the camera."""
+    """Who the user is: the signature of the face that sat in front of the camera, and,
+    once registered, how they look turned to each side and tilted up and down.
+
+    poses maps "left"/"right"/"up"/"down" to {"signature", "angle_deg", "captured_at", "checks"}.
+    A picture (live or uploaded) is compared against whichever of these looks most like it, not
+    only the front-on signature; and angle_deg across the poses is what calibrates the
+    reenactment engine's own range of motion to this person (see reenactment/engine.py).
+    """
 
     id: str  # changes every time the face is verified again
     verified_at: str  # local time, ISO format
     checks: list  # what each check found on the frame it was taken from, as dicts
     signature: np.ndarray
+    poses: dict = field(default_factory=dict)
 
     def summary(self):
-        """Everything about it except the signature itself."""
-        return {"id": self.id, "verified_at": self.verified_at, "checks": self.checks}
+        """Everything about it except the signatures themselves."""
+        return {
+            "id": self.id,
+            "verified_at": self.verified_at,
+            "checks": self.checks,
+            "poses": {pose: {"captured_at": p["captured_at"], "angle_deg": p["angle_deg"]} for pose, p in self.poses.items()},
+        }
 
 
 @dataclass
@@ -135,7 +151,9 @@ class EnrolmentStore:
         """
         try:
             record = json.loads((self.folder / IDENTITY_RECORD).read_text())
-            return FaceIdentity(record["id"], record["verified_at"], record["checks"], np.load(self.folder / IDENTITY))
+            face = FaceIdentity(record["id"], record["verified_at"], record["checks"], np.load(self.folder / IDENTITY))
+            face.poses = self._load_poses()
+            return face
         except (OSError, ValueError, KeyError):
             pass
         older = self.load()
@@ -144,13 +162,44 @@ class EnrolmentStore:
         return self._write_identity(FaceIdentity(older.id, older.enrolled_at, older.checks, older.signature))
 
     def save_identity(self, signature, checks):
-        """Replace the stored face signature and return it."""
+        """Replace the stored face signature and return it. Any registered poses are
+        for this face specifically, so a newly verified face starts with none."""
+        self._unlink(POSES_RECORD, *(self._pose_file(pose) for pose in POSE_KEYS))
         now = datetime.now()
         return self._write_identity(FaceIdentity(now.strftime("%Y%m%dT%H%M%S%f"), now.isoformat(timespec="seconds"),
                                                  checks, np.asarray(signature, dtype=np.float32)))
 
     def remove_identity(self):
-        self._unlink(IDENTITY_RECORD, IDENTITY)
+        self._unlink(IDENTITY_RECORD, IDENTITY, POSES_RECORD, *(self._pose_file(pose) for pose in POSE_KEYS))
+
+    # ------------------------------------------------------------- poses
+
+    def save_pose(self, pose, signature, angle_deg, checks):
+        """Add or replace one registered pose ("left", "right", "up" or "down") for the
+        current face. Raises ValueError if no face has been verified yet."""
+        if pose not in POSE_KEYS:
+            raise ValueError(f"Unknown pose: {pose}")
+        if not (self.folder / IDENTITY).exists():
+            raise ValueError("Verify your face before registering a pose.")
+        now = datetime.now()
+        np.save(self.folder / self._pose_file(pose), np.asarray(signature, dtype=np.float32))
+        record = self._read_json(POSES_RECORD) or {}
+        record[pose] = {"captured_at": now.isoformat(timespec="seconds"), "angle_deg": float(angle_deg), "checks": checks}
+        self._write_json(POSES_RECORD, record)
+        return record[pose]
+
+    def _load_poses(self):
+        record = self._read_json(POSES_RECORD) or {}
+        poses = {}
+        for pose, meta in record.items():
+            path = self.folder / self._pose_file(pose)
+            if pose in POSE_KEYS and path.exists():
+                poses[pose] = {**meta, "signature": np.load(path)}
+        return poses
+
+    @staticmethod
+    def _pose_file(pose):
+        return f"pose_{pose}.npy"
 
     # ------------------------------------------------------------- helpers
 
@@ -164,6 +213,12 @@ class EnrolmentStore:
         temporary = self.folder / (name + ".tmp")
         temporary.write_text(json.dumps(content, indent=2))
         os.replace(temporary, self.folder / name)
+
+    def _read_json(self, name):
+        try:
+            return json.loads((self.folder / name).read_text())
+        except (OSError, ValueError):
+            return None
 
     def _unlink(self, *names):
         for name in names:

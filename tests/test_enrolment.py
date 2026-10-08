@@ -6,7 +6,7 @@ import pytest
 
 from neuropresence.capture import TrackResult, TrackStatus
 from neuropresence.enrolment import (EnrolmentStore, all_passed, evaluate, first_hint, first_tip, make_candidate,
-                                     prepare)
+                                     make_pose_candidate, prepare)
 from neuropresence.enrolment import checks as c
 
 # ------------------------------------------------------------ a good face
@@ -208,7 +208,7 @@ def textured(shape=(360, 640, 3), seed=0):
     return np.repeat(grey[:, :, None], 3, axis=2)
 
 
-def tracked(yaw=0.0, lip_gap_px=2.0, blink=0.1, box=FACE_BOX):
+def tracked(yaw=0.0, pitch=0.0, lip_gap_px=2.0, blink=0.1, box=FACE_BOX):
     """A tracker result for one face filling the box, mouth nearly closed."""
     x, y, w, h = box
     rng = np.random.default_rng(1)
@@ -217,7 +217,7 @@ def tracked(yaw=0.0, lip_gap_px=2.0, blink=0.1, box=FACE_BOX):
     middle = x + w / 2
     points[c.UPPER_LIP], points[c.LOWER_LIP] = (middle, y + 120), (middle, y + 120 + lip_gap_px)
     points[c.MOUTH_LEFT], points[c.MOUTH_RIGHT] = (middle - 30, y + 121), (middle + 30, y + 121)
-    return TrackResult(TrackStatus.OK, 1.0, landmarks=points, bbox=box, pose_deg=(yaw, 0.0, 0.0),
+    return TrackResult(TrackStatus.OK, 1.0, landmarks=points, bbox=box, pose_deg=(yaw, pitch, 0.0),
                        blendshapes={"eyeBlinkLeft": blink, "eyeBlinkRight": blink, "mouthSmileLeft": 0.1,
                                     "mouthSmileRight": 0.1, "jawOpen": 0.05})
 
@@ -282,6 +282,92 @@ def test_without_exactly_one_face_nothing_else_is_judged(status, hint):
     assert len(checks) == 7 and not any(check.passed for check in checks)
     assert first_hint(checks) == hint
     assert [check.hint for check in checks[1:]] == [""] * 6
+
+
+# -------------------------------------------------------------- pose capture
+
+
+def test_a_side_capture_passes_within_the_profile_window():
+    found = {ch.key: ch for ch in c.judge_pose({**GOOD, "yaw_deg": 60.0}, "left")}
+    assert found["pose"].passed and found["pose"].value == 60.0
+
+
+@pytest.mark.parametrize("yaw, hint", [
+    (20.0, "Turn your head further to the side."),
+    (90.0, "That's turned too far: ease back a little so the face stays in view."),
+])
+def test_a_side_capture_outside_the_window_says_which_way_to_correct(yaw, hint):
+    found = {ch.key: ch for ch in c.judge_pose({**GOOD, "yaw_deg": yaw}, "left")}
+    assert not found["pose"].passed and found["pose"].hint == hint
+
+
+def test_left_and_right_use_the_same_window_distinguished_by_sign():
+    # Which side is not built into the check: a capture passes "left" or "right" the same way,
+    # on whichever sign of yaw the camera measures. The caller (runtime.py) tells them apart and
+    # requires the two captures to be opposite signs, so the same turn cannot be used for both.
+    left = {ch.key: ch for ch in c.judge_pose({**GOOD, "yaw_deg": -60.0}, "left")}
+    right = {ch.key: ch for ch in c.judge_pose({**GOOD, "yaw_deg": 60.0}, "right")}
+    assert left["pose"].passed and right["pose"].passed
+
+
+@pytest.mark.parametrize("pitch, pose, hint", [
+    (5.0, "up", "Tilt your head back a little further, looking up."),
+    (-50.0, "up", "That's tilted too far back: ease down a little."),
+    (-25.0, "up", ""),
+    (5.0, "down", "Tilt your head down a little further, chin toward your chest."),
+    (50.0, "down", "That's tilted too far down: ease up a little."),
+    (25.0, "down", ""),
+])
+def test_tilt_capture_checks_the_right_direction(pitch, pose, hint):
+    found = {ch.key: ch for ch in c.judge_pose({**GOOD, "pitch_deg": pitch}, pose)}
+    assert found["pose"].hint == hint
+    assert found["pose"].passed == (hint == "")
+
+
+def test_an_up_tilt_mistakenly_done_as_a_down_tilt_fails_the_down_check():
+    # Looking up (negative pitch) should not quietly pass as a "down" capture.
+    found = {ch.key: ch for ch in c.judge_pose({**GOOD, "pitch_deg": -25.0}, "down")}
+    assert not found["pose"].passed
+
+
+def test_pose_capture_still_checks_light_and_sharpness():
+    found = {ch.key: ch for ch in c.judge_pose({**GOOD, "yaw_deg": 60.0, "sharpness": 6.0}, "left")}
+    assert found["pose"].passed and not found["sharp"].passed
+
+
+@pytest.mark.parametrize("status, hint", [
+    (TrackStatus.NO_FACE, "No face was found. Sit in front of the camera."),
+    (TrackStatus.MULTIPLE_FACES, "More than one face was found. Only you should be in the picture."),
+])
+def test_pose_capture_without_one_face_is_not_judged(status, hint):
+    checks = c.evaluate_pose(textured(), TrackResult(status, 1.0), "left")
+    assert len(checks) == 4 and not any(check.passed for check in checks)
+    assert checks[0].hint == hint
+
+
+def test_a_good_side_capture_passes_every_check():
+    checks = c.evaluate_pose(textured(), tracked(yaw=60.0), "left")
+    assert [ch.key for ch in checks] == ["face", "pose", "light", "sharp"]
+    assert c.all_passed(checks)
+
+
+def test_a_good_tilt_capture_passes_every_check():
+    checks = c.evaluate_pose(textured(), tracked(pitch=-25.0), "up")
+    assert c.all_passed(checks)
+    checks = c.evaluate_pose(textured(), tracked(pitch=25.0), "down")
+    assert c.all_passed(checks)
+
+
+def test_a_pose_candidate_carries_its_pose_specific_origin_and_checks():
+    candidate = make_pose_candidate(textured(), tracked(yaw=60.0), "left")
+    assert candidate.passed and candidate.origin == "pose:left"
+    assert [ch.key for ch in candidate.checks] == ["face", "pose", "light", "sharp"]
+    assert candidate.neutral_face.shape == (256, 256, 3)
+
+
+def test_a_pose_candidate_without_a_face_cannot_be_used():
+    candidate = make_pose_candidate(textured(), TrackResult(TrackStatus.NO_FACE, 1.0), "up")
+    assert not candidate.passed and candidate.landmarks is None and candidate.neutral_face is None
 
 
 # -------------------------------------------------------------- candidates
@@ -372,7 +458,7 @@ def test_the_face_signature_is_kept_apart_from_the_meeting_picture(tmp_path):
     loaded = store.load_identity()
     assert loaded.id == face.id and loaded.verified_at == face.verified_at
     assert np.allclose(loaded.signature, vector)
-    assert loaded.summary() == {"id": face.id, "verified_at": face.verified_at, "checks": [{"key": "face", "passed": True}]}
+    assert loaded.summary() == {"id": face.id, "verified_at": face.verified_at, "checks": [{"key": "face", "passed": True}], "poses": {}}
     # Only the signature and its record are on disk: no picture of the face is kept.
     assert sorted(path.name for path in tmp_path.iterdir()) == ["identity.json", "identity.npy"]
 
@@ -400,3 +486,63 @@ def test_an_uploaded_picture_from_before_the_change_is_not_taken_for_the_face(tm
     store = EnrolmentStore(tmp_path)
     enrol(store, origin="upload")  # nobody sat in front of the camera for this one
     assert store.load_identity() is None
+
+
+# ----------------------------------------------------------- registered poses
+
+
+def test_a_pose_cannot_be_registered_before_the_face_is(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    with pytest.raises(ValueError, match="Verify your face"):
+        store.save_pose("left", np.zeros(512, np.float32), 60.0, [])
+
+
+def test_registered_poses_round_trip_with_the_face(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    store.save_identity(np.linspace(0, 1, 512, dtype=np.float32), [{"key": "face", "passed": True}])
+    left = np.full(512, 0.1, dtype=np.float32)
+    up = np.full(512, 0.2, dtype=np.float32)
+    store.save_pose("left", left, -60.0, [{"key": "pose", "passed": True}])
+    store.save_pose("up", up, -25.0, [{"key": "pose", "passed": True}])
+
+    face = store.load_identity()
+    assert set(face.poses) == {"left", "up"}
+    assert np.allclose(face.poses["left"]["signature"], left)
+    assert face.poses["left"]["angle_deg"] == -60.0
+    assert np.allclose(face.poses["up"]["signature"], up)
+    assert face.summary()["poses"]["left"] == {"captured_at": face.poses["left"]["captured_at"], "angle_deg": -60.0}
+
+
+def test_registering_a_pose_again_replaces_it(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    store.save_identity(np.zeros(512, np.float32), [])
+    store.save_pose("left", np.full(512, 0.1, np.float32), 50.0, [])
+    store.save_pose("left", np.full(512, 0.9, np.float32), 70.0, [])
+    face = store.load_identity()
+    assert len(face.poses) == 1
+    assert face.poses["left"]["angle_deg"] == 70.0
+    assert np.allclose(face.poses["left"]["signature"], 0.9)
+
+
+def test_verifying_the_face_again_clears_poses_registered_for_the_old_one(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    store.save_identity(np.zeros(512, np.float32), [])
+    store.save_pose("left", np.full(512, 0.1, np.float32), 50.0, [])
+    store.save_identity(np.ones(512, np.float32), [])  # the face is verified again, a new signature
+    assert store.load_identity().poses == {}
+
+
+def test_forgetting_the_face_removes_its_poses_too(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    store.save_identity(np.zeros(512, np.float32), [])
+    store.save_pose("left", np.full(512, 0.1, np.float32), 50.0, [])
+    store.remove_identity()
+    assert store.load_identity() is None
+    assert list(tmp_path.iterdir()) == []  # nothing of the face or its poses left behind
+
+
+def test_an_unknown_pose_key_is_rejected(tmp_path):
+    store = EnrolmentStore(tmp_path)
+    store.save_identity(np.zeros(512, np.float32), [])
+    with pytest.raises(ValueError, match="Unknown pose"):
+        store.save_pose("sideways", np.zeros(512, np.float32), 60.0, [])

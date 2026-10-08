@@ -140,6 +140,32 @@ class ReenactmentEngine:
         self._steady = OneEuro(KEYPOINT_MIN_CUTOFF_HZ, KEYPOINT_BETA)
         self._posture_at = None  # when the posture was last looked at
         self._settling = False  # True while a held posture is being taken as the new rest position
+        # The generic defaults, until (and unless) calibrate_pose_range fits them to this person.
+        self.pose_range_deg = dict(POSE_RANGE_DEG)
+        self.scale_range = SCALE_RANGE
+
+    def calibrate_pose_range(self, *, yaw_extreme_deg=None, pitch_up_extreme_deg=None, pitch_down_extreme_deg=None):
+        """Replace the generic pose-range clamp with one fitted to this person's own registered
+        poses, instead of the default (set by looking at one person's picture turned in steps).
+
+        Each `most` is set to the angle this person actually showed, turned to the side or tilted
+        up/down during enrolment (see enrolment/checks.py: left/right register yaw, up/down
+        register pitch). `free`, the range followed exactly before easing starts, keeps the same
+        ratio to `most` that the default pair had, so a person who turns further also gets to move
+        further before the engine starts easing them to a stop, rather than everyone easing at the
+        same fixed angle regardless of their own range.
+
+        An axis whose extreme is not given (None) keeps whatever it already had: this can be
+        called once per registered pose as it comes in, or once with everything at the end.
+        """
+        updated = dict(self.pose_range_deg)
+        if yaw_extreme_deg is not None:
+            most = max(abs(yaw_extreme_deg), POSE_RANGE_DEG["yaw"][0])
+            updated["yaw"] = (most * (POSE_RANGE_DEG["yaw"][0] / POSE_RANGE_DEG["yaw"][1]), most)
+        if pitch_up_extreme_deg is not None or pitch_down_extreme_deg is not None:
+            most = max(abs(pitch_up_extreme_deg or 0.0), abs(pitch_down_extreme_deg or 0.0), POSE_RANGE_DEG["pitch"][0])
+            updated["pitch"] = (most * (POSE_RANGE_DEG["pitch"][0] / POSE_RANGE_DEG["pitch"][1]), most)
+        self.pose_range_deg = updated
 
     def _use_tensorrt(self):
         """Run the warping network and the generator through TensorRT (see accelerate.py for the measurements).
@@ -338,7 +364,7 @@ class ReenactmentEngine:
         self._posture_at = now
         rest = self._reference["info"]
         # How far the head is from rest on its worst axis, in free ranges: above 1 it is outside.
-        away = max(float((driving[axis] - rest[axis]).abs().max()) / POSE_RANGE_DEG[axis][0] for axis in POSE_RANGE_DEG)
+        away = max(float((driving[axis] - rest[axis]).abs().max()) / self.pose_range_deg[axis][0] for axis in self.pose_range_deg)
         if away > 1.0:
             self._settling = True
         elif away < POSTURE_SETTLED:
@@ -392,10 +418,10 @@ class ReenactmentEngine:
 
         size = driving["scale"] / ref["info"]["scale"]
         if limit:
-            turned = {axis: ref["info"][axis] + soft_limit(driving[axis] - ref["info"][axis], *POSE_RANGE_DEG[axis])
-                      for axis in POSE_RANGE_DEG}
+            turned = {axis: ref["info"][axis] + soft_limit(driving[axis] - ref["info"][axis], *self.pose_range_deg[axis])
+                      for axis in self.pose_range_deg}
             rotation = self._rotation(turned["pitch"], turned["yaw"], turned["roll"])
-            size = 1.0 + soft_limit(size - 1.0, *SCALE_RANGE)
+            size = 1.0 + soft_limit(size - 1.0, *self.scale_range)
         rotation_new = (rotation @ ref["rotation"].permute(0, 2, 1)) @ s["rotation"]
         expression_new = s["info"]["exp"] + (driving["exp"] - ref["info"]["exp"])
         scale_new = s["info"]["scale"] * size

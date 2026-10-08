@@ -102,7 +102,7 @@ Supervisor: Muhammad Aamir Gulzar
 
 | Stage | State |
 |---|---|
-| Enrolment | Working: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face (`neuropresence/enrolment`) |
+| Enrolment | Working: the face is verified live with the camera and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down) for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face (`neuropresence/enrolment`) |
 | 1–2 Capture, tracking, driving signal | Working, with the crop and keypoints steadied (`neuropresence/capture`, `neuropresence/capture/steady.py`) |
 | 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
 | 4 Identity preservation | Identity similarity (CSIM) is measured (`neuropresence/identity`); the live monitor and fallback are not started |
@@ -153,16 +153,17 @@ Every figure in the app comes from the running pipeline or from a saved result f
 
 ## Enrolment
 
-Enrolment has two steps, and they answer two different questions.
+Enrolment has three steps, and they answer three different questions.
 
 1. **Who are you? Verify your face with the camera.** The camera runs with seven checks on every frame. The picture is taken after a count of three, as the sharpest open-eyed frame of a half-second burst. It is used only to make a face signature (an ArcFace embedding, 512 numbers) and is not stored.
-2. **What should people see? Upload your meeting picture.** A picture you choose, with the light and background you want. It goes through the same seven checks and one more: its face is compared with the signature from step 1, and it is accepted only if they are the same person. This is the picture a camera session animates.
+2. **How far does your head actually move? Register five poses.** Facing the camera again, turned to each side, tilted up and down. Each gets four checks (one face, turned the way asked, light, sharp) instead of the seven above. Two things come of it: the face signature grows richer, since an uploaded picture or a live face is then compared against whichever of up to six registered angles looks most like it, not only the step-one capture; and the reenactment engine's own clamp on how far the head is allowed to move is fitted to this person's own registered left/right/up/down extremes, instead of a generic default set by looking at one person turned in steps. Required once per verified face before step 3 will accept a new upload; a meeting picture enrolled before this step existed is not retroactively blocked.
+3. **What should people see? Upload your meeting picture.** A picture you choose, with the light and background you want. It goes through the same seven checks and one more: its face is compared with every signature from steps 1 and 2, and it is accepted only if the best match is the same person. This is the picture a camera session animates.
 
 When a session starts, the still picture is shown until you are seen at rest (facing the camera, mouth closed, eyes open; three seconds at most). That frame is the neutral pose, and all movement is measured from it, so a photograph from another camera keeps its proportions. "Reset neutral pose" in the Live Studio takes a new one.
 
 So nobody's picture can be animated except that of the person who sat in front of the camera. Every output frame is made from the meeting picture, so a fault in it shows in all of them, which is why it is checked before it is kept.
 
-What is stored, as plain files in `data/enrolment/`: the face signature and its record (`identity.npy`, `identity.json`), and the meeting picture with its face crop (which sets the neutral pose), its own signature, and a record of what the checks found and how well it matched the face. "Remove picture" deletes the picture and leaves the face; "Forget my face" deletes everything.
+What is stored, as plain files in `data/enrolment/`: the face signature and its record (`identity.npy`, `identity.json`), each registered pose's own signature and the angle measured (`pose_<name>.npy`, `poses.json`), and the meeting picture with its face crop (which sets the neutral pose), its own signature, and a record of what the checks found and how well it matched the face. "Remove picture" deletes the picture and leaves the face and its poses; "Forget my face" deletes everything, poses included. Verifying the face again clears any poses registered for the face before it, since they are specific to that signature.
 
 **How alike is the same person?** `python scripts/study_same_person.py` measured the similarity of face signatures on the sample material (`results/same_person_study.json`). Of 300 pairs of different people none scored above 0.27; of 550 pairs of the same person none scored below 0.42. The limit is 0.35. Two limits of this measurement: the same-person pairs are frames of one clip, so a picture from another day and camera will score lower than they do, and 25 people is a small set. It will be repeated on the team's own pictures when the consent gate is built.
 

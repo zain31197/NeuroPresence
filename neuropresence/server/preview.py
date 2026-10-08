@@ -8,7 +8,7 @@ import threading
 import time
 from concurrent.futures import Future
 
-from ..enrolment import make_candidate, prepare
+from ..enrolment import make_candidate, make_pose_candidate, prepare
 from ..enrolment.checks import outline_for
 from .session import FramePair, SessionError, SessionState
 
@@ -39,12 +39,16 @@ class EnrolmentPreview:
         self._outline = None  # where the face should be, as shares of the frame, for the app to draw
         self._taking = None  # the picture request in progress, if any
         self._watched_at = 0.0  # when a frame was last fetched for showing
+        self._pose = None  # None for the ordinary frontal capture; "left"/"right"/"up"/"down" for a pose capture
 
     @property
     def active(self):
         return self.state in (SessionState.STARTING, SessionState.RUNNING)
 
-    def start(self, source, label):
+    def start(self, source, label, pose=None):
+        """pose, if given, switches every frame to the pose-capture checks (see checks.py:
+        evaluate_pose) instead of the ordinary frontal ones: the picture is judged on being
+        turned the right way, not on facing the camera, and there is no outline to draw."""
         with self._lock:
             if self.active:
                 raise SessionError("The camera is already open.")
@@ -52,6 +56,7 @@ class EnrolmentPreview:
             self._pair = self._checks = self._taking = self._outline = None
             self._hint, self._tip, self._ready = "", "", False
             self._watched_at = time.perf_counter()
+            self._pose = pose
             self.state, self.message, self.input_label = SessionState.STARTING, "Opening the camera", label
             self._thread = threading.Thread(target=self._run, args=(source,), name="enrolment-preview", daemon=True)
             self._thread.start()
@@ -95,12 +100,14 @@ class EnrolmentPreview:
                 "state": self.state.value,
                 "message": self.message,
                 "input": self.input_label,
+                "pose": self._pose,
                 "checks": self._checks if running else None,
                 "hint": self._hint if running else "",
                 "tip": self._tip if running else "",
                 # True once every check has held steadily: a picture can be taken now.
                 "ready": self._ready if running else False,
                 # A face that fills this box passes the size and framing checks with room to spare.
+                # Only set for the ordinary frontal capture: a pose capture has no fixed target box.
                 "outline": self._outline if running else None,
                 "taking": self._taking is not None,
             }
@@ -142,11 +149,12 @@ class EnrolmentPreview:
                 continue
             last = item.index
             frame = prepare(item.image)
-            if frame.shape[:2] != shape:  # the outline depends only on the shape of the camera's picture
+            pose = self._pose
+            if pose is None and frame.shape[:2] != shape:  # the outline depends only on the shape of the camera's picture
                 shape = frame.shape[:2]
                 outline = outline_for(frame.shape[1], frame.shape[0])
             track = tracker.process(frame)
-            candidate = make_candidate(frame, track, "camera")
+            candidate = make_pose_candidate(frame, track, pose) if pose else make_candidate(frame, track, "camera")
             now = time.perf_counter()
             good_since = (good_since or now) if candidate.passed else None
             summary = candidate.summary()

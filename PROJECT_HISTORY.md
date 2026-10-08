@@ -2,11 +2,11 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (7 October 2026)
+## Where the project stands (8 October 2026)
 
 | Stage | State |
 |---|---|
-| Enrolment (once, before any session) | Working, in two steps: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
+| Enrolment (once, before any session) | Working, in three steps: the face is verified live with the camera and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down), for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
 | 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing, a face crop that holds still while the head does |
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
 | 3. Reenactment | Working, 18 frames per second live against a target of 24; the render target is met |
@@ -29,7 +29,7 @@ Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sampl
 | Flicker, against real video | 0.74 times (0.89) | at most 1 time |
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 
-Tests: 182 for the engine and server, 29 for the web app, all passing.
+Tests: 217 for the engine and server, 29 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -243,6 +243,29 @@ Compiling needs Triton, which PyTorch does not ship for Windows; the `triton-win
 
 **Decision, 8 October 2026.** The speed work stops here for FYP-I at about 19 frames a second live, with the render and delay targets met and quality intact. The 24 frames a second target stays open and is recorded as not met.
 
+### 8 October 2026: enrolment, uploaded-picture checks and pose registration
+
+Approved by Talha (reenactment and identity owner) after testing enrolment on his own camera and a real uploaded photo, using Claude Code to write and test the change, as the rest of this log discloses.
+
+**What was found.** Uploading a casual, real workplace photo (sitting back from the camera, more of the room in view) turned up two faults. First, the size check's hint said "Move closer to the camera," which is an instruction for someone live at a camera, not for a photo already taken; every check an upload fails reused the camera's own wording regardless. Second, the photo was refused on size alone (103 px of face height, under the 200 px floor) even though its face signature matched the verified face at 0.74, comfortably over the 0.35 limit: the size check protects how sharp the output looks, which is a different question from whose face it is, and the two had not been told apart.
+
+**What was built**
+
+- **Upload-specific wording** (`enrolment/checks.py`). Every check's hint now reads differently by origin: the camera keeps its live instructions ("Move closer," "Tilt the camera up"), an upload asks for a different photo instead ("Choose a photo where your face is larger"). `judge`/`evaluate` take an `origin` argument; the default is `"camera"`, so nothing already enrolled changes.
+- **Reframing before the stored-size downscale** (`server/runtime.py: _upload_candidate`, `_reframe_on_face`). A wide upload with a small face is first cropped tightly around the face in the file as given, before it is brought down to the 1280 px stored size; downscaling the whole photo first, as the straightforward path did, throws away resolution on background the output never uses. If the file genuinely lacks the detail, the crop cannot invent it, and the picture is still refused, now for a reason about the photo rather than a camera instruction that does not apply to it.
+- **Size becomes a warning once identity is confirmed** (`server/runtime.py: _accept_small_face_once_identity_is_confirmed`). Identity is who the picture is of; size is only how sharp the animation looks. Once ArcFace confirms an upload is the enrolled person, a face still too small after reframing no longer blocks it, only warns in the tip a passing check already carries. Left blocking when anything else also fails: a small face on a photo that is also blurred or badly lit is still refused, on that other ground.
+- **Pose registration**, a new step between verifying the face and uploading the picture (`enrolment/checks.py`, `store.py`, `candidate.py`; `server/preview.py`, `runtime.py`, `app.py`; `web/src/screens/enrolment/PoseCapture.tsx`). Five more pictures are registered: facing the camera again, turned to each side, tilted up, tilted down. Each gets four checks instead of the frontal seven (one face, turned the right way, light, sharp); "facing the camera" reuses the step-one facing limits, the turned/tilted ones ask for 35° to 85° of yaw or 12° to 40° of pitch. Two things come of it:
+  - A richer face signature: an uploaded picture or a live face is compared against the best match of up to six registered signatures (the step-one capture plus up to five poses), not only the first.
+  - A measured range of motion (`reenactment/engine.py: calibrate_pose_range`). The generic clamp (free 12°/8°, most 22°/15°, yaw/pitch, set by looking at one person turned in steps) is replaced per person by their own registered left/right/up/down extremes, at the same free:most ratio the generic pair used, so the clamp fits how far this person actually turns instead of one earlier guess.
+  - Uploading a new meeting picture is refused until all five are registered (`check_upload`); a meeting picture enrolled before this step existed is not retroactively blocked from being viewed or used, only a new upload is gated.
+
+**Checked.** 217 engine/server tests (up from 182), covering the reframe and warning logic, each pose's angle window and its hints, store persistence and cleanup of the registered poses, the calibration arithmetic, and the API wiring, all passing; `tsc` and the web build clean; the 29 existing web tests unaffected. Walked through by hand on the real engine and a real camera: verify face, register all five poses with live hints responding to real head angles, upload blocked until they are done, then accepted.
+
+**Open items added**
+
+- The calibrated range of motion has been exercised through the server's own tests, not yet watched on a live session actually using one person's own registered poses while they move.
+- Whether a second frontal reference sample ("facing the camera" registered again, beside the step-one capture) measurably improves the identity match over the single step-one sample alone has not been measured.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -273,6 +296,10 @@ Compiling needs Triton, which PyTorch does not ship for Windows; the `triton-win
 | A speed change is kept only if the full benchmark shows quality unchanged | Half precision for the movement-reading network was faster and brought the tremble back |
 | A posture held for a few seconds becomes the rest position | A head held at an angle on a body that never moves looks glued on; a nod or a turn still shows |
 | The head keeps to a range of movement and to its size | The body in the picture stays still; beyond about 15 degrees of nod or 22 of turn the head looks wrong on it |
+| An upload gets its own wording for every check (Talha, 8 October 2026) | A picture already taken cannot be told to move closer or tilt up; the hint has to ask for a different photo instead |
+| A small face is a warning, not a block, once identity is confirmed | Size protects sharpness, identity protects whose face it is; they are different questions, and only one of them is who it is of |
+| Pose registration is required before a *new* upload, but not retroactive on an existing meeting picture | Forcing it on someone who already finished enrolling under the old flow would be a regression for no benefit to them |
+| "Facing the camera" is registered again as one of the five poses, not reused from step one | It is the pose a person is actually in for most of a meeting, so it is the one most worth a second, fresh reference sample |
 
 ## Problems found and how they were fixed
 
@@ -302,7 +329,7 @@ Compiling needs Triton, which PyTorch does not ship for Windows; the `triton-win
 - The GPU memory figure counts only what PyTorch holds. TensorRT keeps its own memory, so since 8 October the figure in the app and the benchmark is too low and has to be read from the driver instead.
 - TensorRT and its engines have only been built and run on the Windows machine. On Kubuntu the same code should convert on first start, but that has not been tried.
 - Three of the eight benchmark clips still tremble more than their real video (1.36, 1.15, 1.20). The filters were tuned on four clips and at 25 to 30 frames a second; the live loop runs at about 7, where they have not been measured.
-- The natural head range was set by looking at one picture turned in steps, not by a measurement over many faces, and it has not been watched on a real camera yet.
+- The natural head range's generic default was set by looking at one picture turned in steps, not by a measurement over many faces; it is now replaced per person by their own registered poses (8 October 2026), but that calibration itself has not been watched on a real camera yet, and no one person's registered range has been checked against how far they can actually, comfortably turn.
 - The hold and fade have been tested with stand-ins, not watched on a real camera.
 - The progress plan does not yet list the web app.
 - The proposal inconsistencies listed under 5 October are still to be settled in the mid report.

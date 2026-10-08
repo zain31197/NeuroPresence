@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
-from .checks import Check, all_passed, as_dicts, evaluate, first_hint, first_tip, judge, measure
+from .checks import Check, all_passed, as_dicts, evaluate, evaluate_pose, first_hint, first_tip, judge, judge_pose, measure
 
 
 @dataclass
@@ -50,4 +50,18 @@ def make_candidate(image_bgr, track, origin):
     # Sharper is better, and so are wider-open eyes: this picks the still, unblinking frame.
     score = measurements["sharpness"] * (1.0 - measurements["eye_closed"])
     return Candidate(image_bgr, origin, judge(measurements, origin), track.landmarks,
+                     square_face_crop(image_bgr, track.bbox), score)
+
+
+def make_pose_candidate(image_bgr, track, pose):
+    """Check a prepared picture of the user turned to one side or tilted up/down, for
+    registering that pose (see checks.py: richer identity signature, and a measured range
+    for how far this person actually turns, used to calibrate the reenactment engine)."""
+    origin = f"pose:{pose}"
+    if not track.ok:
+        return Candidate(image_bgr, origin, evaluate_pose(image_bgr, track, pose), None, None)
+    measurements = measure(image_bgr, track)
+    score = measurements["sharpness"] * (1.0 - measurements["eye_closed"])
+    checks = [Check("face", "One face in view", True, "")] + judge_pose(measurements, pose)
+    return Candidate(image_bgr, origin, checks, track.landmarks,
                      square_face_crop(image_bgr, track.bbox), score)
