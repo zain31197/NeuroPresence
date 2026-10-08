@@ -33,3 +33,11 @@ python-multipart==0.0.32
 # Tests
 pytest==9.1.1
 httpx==0.28.1
+
+# PyTorch compiles the networks for the GPU with Triton. On Linux it comes with PyTorch;
+# on Windows it is this separate build. Without it the app still runs, just slower.
+triton-windows<3.7; sys_platform == "win32"
+
+# TensorRT runs the two networks that draw the picture about twice as fast. It is optional:
+# without it the app falls back to PyTorch's own compiler, and without that to plain PyTorch.
+tensorrt-cu12

@@ -63,9 +63,28 @@ What this says: speed is about three times short of the target and is the main o
 | Identity, pose error, expression error, mouth correlation | 0.896, 0.54°, 0.026, 0.96 | 0.896, 0.53°, 0.026, 0.96 | unchanged |
 | Frame rate | 7.5 fps | 7.3 fps | ≥ 24 fps |
 
-The head also keeps to the range of movement that looks right on a body that stays still: small movements are followed exactly, and a head thrown far back or turned far aside eases to a stop ("Natural head range" in the Live Studio).
+The head also keeps to the range of movement that looks right on a body that stays still: small movements are followed exactly, and a head thrown far back or turned far aside eases to a stop, and a posture held for a few seconds becomes the new rest position, so leaning back in the chair does not leave the head tilted on a still body ("Natural head range" in the Live Studio).
 
-Speed is now the open problem: it is the next step.
+**After the first round of speed work (8 October 2026).** The two networks that draw the picture run with half-precision weights and are compiled for the GPU (about a minute when the models load), and the face is pasted back into the frame on the GPU. Full results: `results/benchmark_fast_windows_rtx5050.json`.
+
+| Measurement | Baseline | Now | Target |
+|---|---|---|---|
+| Frame rate | 7.5 fps | 9.9 fps | ≥ 24 fps |
+| Render per frame | 94 ms | 67 ms | ≤ 42 ms |
+| Whole pipeline per frame | 134 ms | 101 ms | ≤ 150 ms end to end |
+| Peak GPU memory | 1.17 GB | 0.67 GB | ≤ 8 GB |
+| Identity, pose error, expression error, mouth correlation, jitter, flicker | | unchanged | |
+
+**With TensorRT (8 October 2026).** The three networks run through TensorRT: the two that draw the picture in half precision, the one that reads the movement in full precision. The face is tracked on its own thread while the GPU draws. The first start on a machine converts the networks, which takes about a minute and a half; after that they load from `models/tensorrt` in a second. TensorRT is optional: without it the app uses PyTorch's compiler, and without that plain PyTorch. Full results: `results/benchmark_tensorrt_windows_rtx5050.json`.
+
+| Measurement | Baseline | Now | Target |
+|---|---|---|---|
+| Render per frame | 94 ms | 37 ms | ≤ 42 ms |
+| Frame rate, live session | 7.5 fps | 18.7 fps | ≥ 24 fps |
+| Camera to output, live session | about 160 ms | 89 ms | ≤ 150 ms |
+| Identity, pose error, expression error, mouth correlation, jitter, flicker | | unchanged | |
+
+The render and latency targets are met. The frame-rate target is not reached yet.
 
 These clips are studio recordings, not webcam footage of the team, so the numbers will be repeated on the team's own recordings. The proposal-stage measurement of the same unoptimized model was 7.7 fps and 130 ms per frame.
 

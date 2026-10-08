@@ -30,7 +30,7 @@ class FakeEngine:
     def set_reference(self, face):
         self.neutral_faces.append(face.shape)
 
-    def drive(self, face, at=None, steady=False, limit=False):
+    def drive(self, face, at=None, steady=False, limit=False, motion=None):
         self.driven_shapes.append(face.shape)
         return np.full((720, 1280, 3), 200, dtype=np.uint8)
 

@@ -9,7 +9,7 @@ A running record of what was built, what was decided and why, what was measured,
 | Enrolment (once, before any session) | Working, in two steps: the face is verified live with the camera and only its signature is kept; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
 | 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing, a face crop that holds still while the head does |
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
-| 3. Reenactment | Working, about 7.5 frames per second against a target of 24 |
+| 3. Reenactment | Working, 18 frames per second live against a target of 24; the render target is met |
 | 4. Identity | Partly built: similarity to the enrolled picture is measured live; no automatic fallback yet |
 | 5. Consent and disclosure | Partly built: a meeting picture must match the face verified live. The check of the live face before each session, and the mark on the output, are not built |
 | 6. Virtual camera (meeting apps) | Not built |
@@ -20,16 +20,16 @@ Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sampl
 
 | Measurement | Measured | Target |
 |---|---|---|
-| Frame rate | 7.3 fps | at least 24 fps |
-| Render time per frame | 93 ms | at most 42 ms |
-| Whole pipeline per frame | 138 ms | at most 150 ms end to end |
-| Peak GPU memory | 1.17 GB | at most 8 GB |
+| Frame rate | 18.7 fps in a live session, 16.4 in the benchmark (7.5) | at least 24 fps |
+| Render time per frame | 37 ms (94) | at most 42 ms |
+| Whole pipeline per frame | 61 ms in the benchmark; 89 ms from camera to output in a live session (134) | at most 150 ms end to end |
+| Peak GPU memory | not measured since TensorRT (see open items); 0.67 GB before it | at most 8 GB |
 | Identity match (CSIM), self-reenactment | 0.90 | at least 0.80 |
 | Lag behind the driving face | 0.07 frames | none |
-| Flicker, against real video | 0.73 times (0.89) | at most 1 time |
+| Flicker, against real video | 0.74 times (0.89) | at most 1 time |
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 
-Tests: 181 for the engine and server, 29 for the web app, all passing.
+Tests: 182 for the engine and server, 29 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -51,7 +51,7 @@ Proposed and approved on 7 October 2026:
 
 1. Enrolment (built on 7 October 2026)
 2. Capture and tracking (built on 8 October 2026)
-3. Reenactment (next)
+3. Reenactment (speed work done on 8 October 2026: render and delay targets met, frame rate at 19 of 24; the sharper face crop is still open)
 4. Identity
 5. Consent and disclosure
 6. Virtual camera and meeting apps
@@ -196,6 +196,53 @@ So rounding was not the cause, and a crop that never moves still trembled: part 
 
 **The head thrown far back, the same day.** The rule for a head turned too far had been left out of this step, because where the output breaks had not been looked at. Zain then leaned his head back 46 degrees on his camera: the output followed all the way, with the head enlarged and distorted on a body that stayed still. The same picture was rendered with the head turned in steps: natural up to about 12 degrees of nod and 18 of turn, the face stretching from 20 degrees of nod, distorted at 30 to 45. A real head goes further only because the neck and shoulders go with it. The engine now keeps the head to that range (`POSE_RANGE_DEG` in `reenactment/engine.py`): movement is followed exactly up to 8 degrees of nod, 12 of turn and 8 of tilt, then eases toward 15, 22 and 15, which it never passes, and the head keeps its size against the body within 7%. It has its own switch, "Natural head range". Rendered again with the head back 36 degrees: a gentle tilt at normal size. The benchmark is unchanged by it (pose error 0.53 degrees, tremble 0.98, flicker 0.73), because the sample clips stay inside the free range.
 
+### 8 October 2026: reenactment, first round of speed work
+
+Approved by Zain with the instruction to aim for the targets and for something usable in real life. Speed was the largest gap: 7.3 frames a second against 24, with the render step at 93 ms against 42.
+
+**Where the time went, measured** (RTX 5050, each network timed alone): generator 62 ms, warping network 31 ms, the network that reads the movement 16 ms, pasting the face back into a 960 x 1280 picture 25 ms on the CPU, bringing the output to the CPU 2 ms.
+
+**What was tried**
+
+| Change | Result | Kept |
+|---|---|---|
+| A different convolution setting (cudnn.benchmark) | No gain | No |
+| Half-precision weights for the two networks that draw the picture | Render 93 to 86 ms; picture changed by 0.15 of 255 | Yes |
+| The same for the network that reads the movement | 5 ms faster, but the benchmark showed tremble back at 1.46, flicker at 1.12 and mouth correlation down to 0.93 | No |
+| Channels-last memory layout | Slower (96 ms) | No |
+| Pasting the face back on the GPU | 25 to 6 ms on a large picture; the same picture to within 2 of 255 | Yes |
+| Compiling the two drawing networks for the GPU | Render 85 to 66 ms; picture changed by 0.19 of 255; about a minute at start-up | Yes |
+| The compiler in its most thorough mode | 63 ms for a start-up of nearly three minutes | No |
+
+Compiling needs Triton, which PyTorch does not ship for Windows; the `triton-windows` package provides it and is now in `requirements.txt` for Windows only. If compiling fails on a machine the engine runs uncompiled.
+
+**Result, full benchmark on eight clips** (`results/benchmark_fast_windows_rtx5050.json`): 7.3 to 9.9 frames a second, render 93 to 67 ms, the whole pipeline 138 to 101 ms, GPU memory 1.17 to 0.67 GB. Quality unchanged: identity 0.897, pose error 0.53 degrees, expression error 0.026, mouth correlation 0.96, tremble 0.98, flicker 0.74.
+
+**The lesson of the rejected change.** Putting the movement-reading network into half precision looked harmless on one picture and was only 5 ms faster. The full benchmark showed what it cost. Every speed change is judged by the whole benchmark, not by a timing.
+
+**A held posture looked glued on, the same day.** With the head range limited, Zain leaned back in his chair and stayed there: the output held the head tilted at its limit for as long as he sat like that, on a body that never moves. A posture is not a gesture. The engine now treats a pose held beyond the free range as the new rest position: over about three seconds the head eases back to how it sits in the picture, and movement inside the free range is never touched. Rendered on the real engine with the head back 36 degrees and held: 20 degrees from rest after 2 seconds, 10 after 4, under 3 after 8. It is part of the "Natural head range" switch. In the benchmark the pose error rose from 0.53 to 0.63 degrees, which is the cost of deliberately not following a held pose; identity, expression error, mouth correlation, tremble and flicker are unchanged.
+
+**Second round, approved by Zain the same day.**
+
+- **Tracking beside the GPU.** The face is tracked on its own thread while the GPU draws the frame before. Live: 9.9 to 10.5 frames a second. Less than estimated, because tracking was only 12 ms of each frame; the GPU sets the pace.
+- **TensorRT** (`neuropresence/reenactment/accelerate.py`). The generator went from 55 to 25 ms and the warping network from 29 to 14 ms, both in half precision as before. The network that reads the movement went from about 15 to 5 ms in full precision; its readings match the PyTorch version to a thousandth of a degree. Converting takes about a minute and a half the first time on a machine; the engines are then kept in `models/tensorrt` and load in a second. Without TensorRT the engine falls back to PyTorch's compiler, and without that to plain PyTorch.
+
+**Result** (`results/benchmark_tensorrt_windows_rtx5050.json`, and a live session measured with a clip as the camera): render 66 to 37 ms, which meets the 42 ms target; 18.2 frames a second live, with 86 ms from camera to output; 16.4 in the benchmark, which tracks before it draws. Quality unchanged on every measure: identity 0.898, pose error 0.64 degrees, expression error 0.026, mouth correlation 0.955, tremble 0.99, flicker 0.75.
+
+**Third round, the three smaller steps.** The estimate for them had been about 22 frames a second. Measured, they gave half a frame a second:
+
+| Step | Result | Kept |
+|---|---|---|
+| TensorRT built at its highest optimisation level | Render 37.5 ms against 37.8; a slower first build | No |
+| Face crop and movement reading on the tracking thread | 19.8 frames a second, but 121 ms from camera to output, up from 86: the reading needs the GPU, so it queued behind the frame being drawn and held the next one back | No |
+| Only the face crop on the tracking thread, started so it is ready as the GPU comes free | 18.7 frames a second, 89 ms from camera to output | Yes |
+
+**Where this leaves the target.** The render target (37 ms against 42) and the delay target (89 ms against 150) are met. 24 frames a second is not: the live session runs at 18.7. The GPU is now busy for about 46 ms of every frame, 38 of them drawing, so the frame rate is set by the generator and the warping network themselves, and the steps around them are used up. Getting from 19 to 24 on this GPU needs the drawing itself to be about a fifth cheaper: a smaller generator, lower-precision arithmetic (which has to be judged on quality), or a faster GPU. The sharper face crop found during enrolment has not been tried yet.
+
+**8-bit arithmetic tried and rejected.** Zain asked for it to be tried, and dropped if quality fell by much. The generator's convolutions were calibrated on 46 of its real inputs from four sample clips and built in 8-bit; 12 other inputs were kept apart to judge by. It was faster, 14.8 ms against 24.8, which would have brought the live session to about 23 frames a second. But its picture differed from the half-precision one by 28 of 255 on average, a signal-to-noise ratio of 17.5 dB: not the same picture. It was not put into the engine. This was the plain method, every convolution quantised from its smallest and largest values. Quantising only the layers that tolerate it, or training the network for 8-bit, might do better and is a piece of work of its own.
+
+**Decision, 8 October 2026.** The speed work stops here for FYP-I at about 19 frames a second live, with the render and delay targets met and quality intact. The 24 frames a second target stays open and is recorded as not met.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -222,6 +269,9 @@ So rounding was not the cause, and a crop that never moves still trembled: part 
 | Two faces count as the same person from a similarity of 0.35 | Measured: different people scored at most 0.27, the same person at least 0.42 |
 | The neutral pose is the person's resting face at their camera, not the picture's pose | A picture from another camera came out with the head resized and turned while the person sat still |
 | Tremble is removed at its two sources, the crop and the keypoints, with a filter that lets movement through | Each was measured separately; filtering the pose angles instead added delay and made it worse |
+| The frame rate is left at about 19 of the 24 targeted (Zain, 8 October 2026) | The remaining route, 8-bit arithmetic, reached about 23 but changed the picture badly; quality comes first |
+| A speed change is kept only if the full benchmark shows quality unchanged | Half precision for the movement-reading network was faster and brought the tremble back |
+| A posture held for a few seconds becomes the rest position | A head held at an angle on a body that never moves looks glued on; a nod or a turn still shows |
 | The head keeps to a range of movement and to its size | The body in the picture stays still; beyond about 15 degrees of nod or 22 of turn the head looks wrong on it |
 
 ## Problems found and how they were fixed
@@ -249,6 +299,8 @@ So rounding was not the cause, and a crop that never moves still trembled: part 
 - The enrolment study is small: six clips and three pictures. A turned head was found in one clip and closed eyes in two.
 - Even from a good picture the output keeps about 0.4 of the fine detail, and the generator's output is sharper from a larger picture although its network reads the face at a fixed 256 px input. Both point at how the face crop is resampled on the way in. To be looked at under Reenactment.
 - The studio measures a little slower than the benchmark while the page is open.
+- The GPU memory figure counts only what PyTorch holds. TensorRT keeps its own memory, so since 8 October the figure in the app and the benchmark is too low and has to be read from the driver instead.
+- TensorRT and its engines have only been built and run on the Windows machine. On Kubuntu the same code should convert on first start, but that has not been tried.
 - Three of the eight benchmark clips still tremble more than their real video (1.36, 1.15, 1.20). The filters were tuned on four clips and at 25 to 30 frames a second; the live loop runs at about 7, where they have not been measured.
 - The natural head range was set by looking at one picture turned in steps, not by a measurement over many faces, and it has not been watched on a real camera yet.
 - The hold and fade have been tested with stand-ins, not watched on a real camera.

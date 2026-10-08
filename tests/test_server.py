@@ -94,7 +94,7 @@ class FakeEngine:
     def clear_source(self):
         self.source_frame = self.source_crop = None
 
-    def drive(self, face, at=None, steady=False, limit=False):
+    def drive(self, face, at=None, steady=False, limit=False, motion=None):
         return np.full_like(self.source_frame, 200)
 
     def reset_reference(self):

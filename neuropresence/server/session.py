@@ -39,6 +39,55 @@ class _Stopped(Exception):
     """Stop was requested while the session was still starting."""
 
 
+class _Newest:
+    """Holds the newest tracked frame for the drawing loop. An older one that was never taken is dropped.
+
+    Tracking a face takes the CPU about 12 ms and drawing takes the GPU several times that. Doing
+    the tracking on its own thread, while the GPU draws the frame before, takes it out of the time
+    between two output frames.
+    """
+
+    def __init__(self):
+        self._ready = threading.Condition()
+        self._held = None
+        self._dropped = 0
+        self._error = None
+
+    def put(self, item, track, skipped, prepared=None):
+        with self._ready:
+            if self._held is not None:
+                self._dropped += 1  # tracked, but a newer frame arrived before it could be drawn
+            self._dropped += skipped
+            self._held = (item, track, prepared)
+            self._ready.notify_all()
+
+    def wait_until_taken(self, timeout):
+        """Wait until the drawing loop has taken what is held, so no frame is prepared only to be dropped."""
+        with self._ready:
+            if self._held is not None:
+                self._ready.wait(timeout)
+            return self._held is None
+
+    def fail(self, error):
+        with self._ready:
+            self._error = error
+            self._ready.notify()
+
+    def take(self, timeout):
+        """The newest tracked frame as (item, track, frames dropped since the last one), or None after the timeout."""
+        with self._ready:
+            if self._held is None and self._error is None:
+                self._ready.wait(timeout)
+            if self._held is None:
+                if self._error is not None:
+                    raise self._error
+                return None
+            (item, track, prepared), self._held = self._held, None
+            dropped, self._dropped = self._dropped, 0
+            self._ready.notify_all()
+            return item, track, dropped, prepared
+
+
 @dataclass
 class FramePair:
     """A camera frame and, in a live session, the output made from it."""
@@ -79,6 +128,7 @@ class LiveSession:
         self._pair = None
         self._tracking = None
         self._metrics = MetricsWindow()
+        self._draw_seconds = 0.0  # a running average of how long one frame takes to draw
 
     @property
     def active(self):
@@ -150,7 +200,7 @@ class LiveSession:
         feed = tracker = None
         try:
             feed = rt.make_feed(source)
-            self._progress("Loading the models")
+            self._progress("Loading the models and tuning them for this GPU. A minute or two, the first time")
             engine = rt.engine()
             tracker = rt.make_tracker()
             if self.uses_enrolment:
@@ -214,21 +264,57 @@ class LiveSession:
 
     def _loop(self, feed, pipeline):
         rt = self._rt
-        last, pair_id, status = -1, 0, None
+        pair_id, status = 0, None
         held, neutrals = rt.engine_holds, pipeline.neutral_taken
+        newest, tracking_over = _Newest(), threading.Event()
+
+        def track_frames():
+            last = -1
+            try:
+                while not self._stop.is_set() and not tracking_over.is_set():
+                    item = feed.read(after_index=last, timeout=0.5)
+                    if item is None:
+                        if feed.ended:
+                            raise SessionError("The camera stopped delivering frames.")
+                        continue
+                    skipped = item.index - last - 1 if last >= 0 else 0
+                    last = item.index
+                    started = time.perf_counter()
+                    track = pipeline.tracker.process(item.image)
+                    # The face crop too: it is CPU work and does not need the GPU's turn.
+                    newest.put(item, track, skipped, pipeline.prepare(item.image, track, item.captured_at))
+                    ahead = time.perf_counter() - started
+                    # One frame is prepared per frame drawn. It is started late enough to be ready just as
+                    # the GPU comes free, so it is as fresh as it can be when it is drawn.
+                    while not newest.wait_until_taken(0.2):
+                        if self._stop.is_set() or tracking_over.is_set():
+                            return
+                    time.sleep(max(0.0, self._draw_seconds - ahead - 0.004))
+            except Exception as err:  # handed to the drawing loop, which ends the session with it
+                newest.fail(err)
+
+        tracker_thread = threading.Thread(target=track_frames, name="live-tracking", daemon=True)
+        tracker_thread.start()
+        try:
+            self._draw(pipeline, newest, pair_id, status, held, neutrals)
+        finally:
+            tracking_over.set()
+            tracker_thread.join(timeout=5.0)
+
+    def _draw(self, pipeline, newest, pair_id, status, held, neutrals):
+        rt = self._rt
         while not self._stop.is_set():
-            item = feed.read(after_index=last, timeout=0.5)
-            if item is None:
-                if feed.ended:
-                    raise SessionError("The camera stopped delivering frames.")
+            got = newest.take(timeout=0.5)
+            if got is None:
                 continue
-            dropped = item.index - last - 1 if last >= 0 else 0
-            last = item.index
+            item, tracked, dropped, prepared = got
+            drawing = time.perf_counter()
             with rt.engine_lock:
                 pipeline.steady_crop = rt.features.enabled("steady_crop")
                 pipeline.steady_keypoints = rt.features.enabled("steady_keypoints")
                 pipeline.natural_range = rt.features.enabled("natural_range")
-                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment"), at=item.captured_at)
+                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment"), at=item.captured_at,
+                                       track=tracked, prepared=prepared)
                 self._run_commands(item.image, result.track)
                 if rt.engine_holds != held:  # the picture was replaced while running: a new picture, a new neutral pose
                     held = rt.engine_holds
@@ -237,6 +323,7 @@ class LiveSession:
                 neutrals = pipeline.neutral_taken
                 rt.events.add("info", "Neutral pose taken from the camera. Movement is measured from how you sit now.")
             finished = time.perf_counter()
+            self._draw_seconds = 0.8 * self._draw_seconds + 0.2 * (finished - drawing)  # how long the GPU's turn takes
             self._metrics.add(finished, result.timing_ms, (finished - item.captured_at) * 1000,
                               result.live, dropped)
 

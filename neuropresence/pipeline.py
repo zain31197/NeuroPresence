@@ -82,19 +82,45 @@ class Pipeline:
     def waiting_for_neutral(self):
         return self._neutral_deadline is not None
 
-    def step(self, frame_bgr, reenact=True, at=None):
+    def prepare(self, frame_bgr, track, at):
+        """The part of a frame that can be done ahead of its turn on the GPU: the face crop.
+
+        Returns what step() takes as `prepared`, or None if there is no single face. The live
+        session calls this on the tracking thread; whoever calls it owns the steady crop.
+        """
+        if not track.ok:
+            self._crop.reset()
+            return None
+        window = None
+        if self.steady_crop and track.landmarks is not None:
+            face, window = self._crop(frame_bgr, track.landmarks, at, self.crop_scale)
+        else:
+            self._crop.reset()
+            face = square_face_crop(frame_bgr, track.bbox, scale=self.crop_scale)
+        # The reading of the movement is not done here although the engine could (engine.read): it needs
+        # the GPU, so on another thread it only queues behind the frame being drawn. Tried on 8 October
+        # 2026: 1.6 frames a second more, but 35 ms more delay from camera to output.
+        return face, window, None
+
+    def step(self, frame_bgr, reenact=True, at=None, track=None, prepared=None):
         """Process one frame. With reenact=False the face is still tracked but
         the output stays on the enrolled frame. `at` is when the frame was taken,
-        in seconds on any clock; it is what the steadying and the fades are timed by."""
+        in seconds on any clock; it is what the steadying and the fades are timed by.
+        Pass `track` if the face has already been tracked in this frame, as the live
+        session does on another thread while the GPU draws the frame before."""
         start = time.perf_counter()
         at = start if at is None else at
-        track = self.tracker.process(frame_bgr)
+        if track is None:
+            track = self.tracker.process(frame_bgr)
         timing = {"tracker": track.latency_ms}
         face = None
         live = track.ok and reenact
-        window = None
+        window = motion = None
+        ahead = prepared is not None  # the crop and the reading were done before this call
         if live:
-            if self.steady_crop and track.landmarks is not None:
+            if ahead:
+                face, window, motion = prepared
+            elif self.steady_crop and track.landmarks is not None:
                 face, window = self._crop(frame_bgr, track.landmarks, at, self.crop_scale)
             else:
                 self._crop.reset()
@@ -107,10 +133,12 @@ class Pipeline:
                 else:
                     live = False  # not at rest yet: keep showing the still picture
         if live:
-            output = self.engine.drive(face, at=at, steady=self.steady_keypoints, limit=self.natural_range)
+            given = {} if motion is None else {"motion": motion}
+            output = self.engine.drive(face, at=at, steady=self.steady_keypoints, limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)
         else:
-            self._crop.reset()
+            if track is None or not track.ok or not ahead:
+                self._crop.reset()
             output = None
         output = self._settle(output, at)
         timing["total"] = (time.perf_counter() - start) * 1000

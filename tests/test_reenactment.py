@@ -112,3 +112,42 @@ def test_the_head_range_is_followed_exactly_inside_and_eases_to_a_stop_outside()
     steps = soft_limit(torch.linspace(-60, 60, 241), free, most)
     assert torch.all(steps[1:] >= steps[:-1])  # no jump anywhere: more movement in never gives less out
     assert float((steps[1:] - steps[:-1]).max()) <= 0.5 + 1e-4
+
+
+def test_a_held_posture_becomes_the_rest_position_and_a_small_movement_does_not():
+    import torch
+
+    from neuropresence.reenactment.engine import POSE_RANGE_DEG, POSTURE_SETTLED, ReenactmentEngine
+
+    def pose(pitch=0.0, yaw=0.0):
+        return {"pitch": torch.tensor([[pitch]]), "yaw": torch.tensor([[yaw]]), "roll": torch.tensor([[0.0]]),
+                "t": torch.zeros(1, 3), "scale": torch.ones(1, 1)}
+
+    engine = ReenactmentEngine.__new__(ReenactmentEngine)  # only the posture logic: no model is loaded
+    engine._rotation = lambda pitch, yaw, roll: (float(pitch), float(yaw), float(roll))
+    engine._reference = {"info": pose(), "rotation": (0.0, 0.0, 0.0)}
+    engine._posture_at, engine._settling = None, False
+    free = POSE_RANGE_DEG["pitch"][0]
+
+    def away(driving):
+        return float(driving["pitch"] - engine._reference["info"]["pitch"])
+
+    # Small movement, inside the free range, for ten seconds: the rest position does not move at all.
+    for step in range(100):
+        engine._follow_posture(pose(pitch=free * 0.8), at=step * 0.1)
+    assert abs(away(pose(pitch=free * 0.8)) - free * 0.8) < 1e-4 and engine._settling is False
+
+    # Leaning back 36 degrees and staying there, as on a real camera on 8 October 2026.
+    leaning = pose(pitch=-36.0)
+    engine._follow_posture(leaning, at=10.1)
+    assert engine._settling is True and away(leaning) < -30  # at first the head is simply far from rest
+    for step in range(1, 31):
+        engine._follow_posture(leaning, at=10.1 + step * 0.1)
+    assert -36 * 0.45 < away(leaning) < -36 * 0.30  # after three seconds about two thirds of it is taken up
+    for step in range(31, 400):
+        engine._follow_posture(leaning, at=10.1 + step * 0.1)
+    assert abs(away(leaning)) <= free * POSTURE_SETTLED + 0.01 and engine._settling is False  # and then it rests there
+    assert engine._reference["rotation"][0] < -30  # the stored rotation went with the angles
+
+    # Sitting up again is, at first, a movement like any other, and then the new rest position in its turn.
+    assert away(pose()) > 30

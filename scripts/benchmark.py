@@ -241,7 +241,8 @@ def main():
     if video_dir:
         video_dir.mkdir(parents=True, exist_ok=True)
 
-    engine = ReenactmentEngine()
+    engine = ReenactmentEngine(tensorrt=True, compile_networks=True)  # as the app runs it
+    print(f"Networks that draw the picture: {engine.accelerated or 'as they are'}")
     reports, raws = [], []
     with FaceTracker(video=False) as measure:
         scorer = IdentityScorer(tracker=measure)

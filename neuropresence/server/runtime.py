@@ -106,7 +106,9 @@ class IdentityMonitor:
 def _default_engine():
     from ..reenactment import ReenactmentEngine
 
-    return ReenactmentEngine()
+    # TensorRT if it is installed, which is the fastest; otherwise the networks compiled by PyTorch;
+    # otherwise as they are. The first start on a machine takes a minute or two for the conversion.
+    return ReenactmentEngine(tensorrt=True, compile_networks=True)
 
 
 def _default_feed(source):

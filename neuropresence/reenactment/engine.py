@@ -5,6 +5,8 @@ splits their use into "prepare the source once" and "drive one frame", which is
 what a live loop needs, and times each part.
 """
 
+import logging
+import math
 import sys
 import time
 from pathlib import Path
@@ -16,6 +18,8 @@ import torch
 from ..capture.crop import MAX_PICTURE_DIM, limit_size
 from ..capture.steady import OneEuro
 
+log = logging.getLogger("neuropresence.reenactment")
+TENSORRT_DIR = Path(__file__).resolve().parents[2] / "models" / "tensorrt"  # converted engines, kept between runs
 LIVEPORTRAIT_DIR = Path(__file__).resolve().parents[2] / "third_party" / "LivePortrait"
 INPUT_SIZE = 256  # LivePortrait network input
 OUTPUT_SIZE = 512  # LivePortrait generator output
@@ -32,6 +36,13 @@ KEYPOINT_BETA = 400.0  # speeds are in keypoint units per second, which are smal
 # is followed exactly up to the first number, then eases toward the second, which it never passes.
 POSE_RANGE_DEG = {"pitch": (8.0, 15.0), "yaw": (12.0, 22.0), "roll": (8.0, 15.0)}
 SCALE_RANGE = (0.03, 0.07)  # the same for the size of the head: it does not grow or shrink against the body
+
+# A posture is not a gesture. A nod or a turn should show; leaning back in the chair and staying
+# there should not leave the head tilted on a body that never moves, which looks glued on. So a
+# pose held beyond the free range becomes, over a few seconds, the new rest position, and the head
+# eases back to how it sits in the picture. Movement inside the free range is never touched.
+POSTURE_SECONDS = 3.0  # how quickly a held posture becomes the rest position
+POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this share of the free range
 
 
 def soft_limit(value, free, most):
@@ -64,25 +75,136 @@ def _load_liveportrait(root):
     return CropConfig, InferenceConfig, LivePortraitWrapper, get_rotation_matrix, Cropper
 
 
+class _HalfPrecision(torch.nn.Module):
+    """Runs a network with half-precision weights and gives its results back in full precision.
+
+    LivePortrait's own half-precision switch keeps the weights in full precision and converts them
+    on every call. Converting once is faster (measured on the RTX 5050: render 93 to 86 ms) and
+    changes the picture by 0.15 of 255 on average. Only the networks that draw the picture run in
+    half precision; reading the movement, and the keypoint arithmetic, stay in full precision.
+    """
+
+    def __init__(self, network):
+        super().__init__()
+        self.network = network.half()
+
+    def forward(self, *args, **kwargs):
+        def half(value):
+            return value.half() if torch.is_tensor(value) and value.is_floating_point() else value
+
+        def full(value):
+            if torch.is_tensor(value):
+                return value.float()
+            if isinstance(value, dict):
+                return {key: full(item) for key, item in value.items()}
+            if isinstance(value, (list, tuple)):
+                return type(value)(full(item) for item in value)
+            return value
+
+        return full(self.network(*[half(arg) for arg in args], **{key: half(arg) for key, arg in kwargs.items()}))
+
+
 class ReenactmentEngine:
-    def __init__(self, liveportrait_dir=LIVEPORTRAIT_DIR, half_precision=True):
+    def __init__(self, liveportrait_dir=LIVEPORTRAIT_DIR, half_precision=True, compile_networks=False, tensorrt=False):
         CropConfig, InferenceConfig, Wrapper, self._rotation, Cropper = _load_liveportrait(
             Path(liveportrait_dir)
         )
         self._crop_cfg = CropConfig()
-        self._wrapper = Wrapper(InferenceConfig(flag_use_half_precision=half_precision))
+        # The wrapper's own half-precision switch stays off: see _HalfPrecision.
+        self._wrapper = Wrapper(InferenceConfig(flag_use_half_precision=False))
+        if half_precision and torch.cuda.is_available():
+            # Only the two networks that draw the picture. The one that reads the movement stays in full
+            # precision: in half precision its readings were noisier, and the benchmark showed it at once
+            # (tremble 0.98 to 1.46, flicker 0.73 to 1.12, mouth correlation 0.96 to 0.93).
+            for name in ("warping_module", "spade_generator"):
+                setattr(self._wrapper, name, _HalfPrecision(getattr(self._wrapper, name)))
+        self._device = self._wrapper.device
+        self.compiled = False  # True once the two heavy networks have been compiled for this GPU
+        self.accelerated = None  # "tensorrt" or "compiled" once the two networks that draw have been made faster
+        if tensorrt and half_precision and torch.cuda.is_available():
+            self._use_tensorrt()
+        if self.accelerated is None and compile_networks and torch.cuda.is_available():
+            self._compile()
         # The cropper runs once per source, so the CPU is fast enough, and it
         # avoids ONNX Runtime's GPU build, which needs CUDA libraries PyTorch lacks.
         self._cropper = Cropper(crop_cfg=self._crop_cfg, flag_force_cpu=True)
         self._source = None
         self._reference = None
         self._paste = None
+        self._gpu = None
         self.source_frame = None  # the full source image, shown as the static fallback frame
         self.source_crop = None  # 512x512 BGR face crop that the networks animate
-        self.last_crop = None  # 512x512 BGR network output for the latest driven frame
+        self._last_out = None  # the generator's latest output, still on the GPU
         self.last_timing_ms = {}
         self.last_motion = {}
         self._steady = OneEuro(KEYPOINT_MIN_CUTOFF_HZ, KEYPOINT_BETA)
+        self._posture_at = None  # when the posture was last looked at
+        self._settling = False  # True while a held posture is being taken as the new rest position
+
+    def _use_tensorrt(self):
+        """Run the warping network and the generator through TensorRT (see accelerate.py for the measurements).
+
+        The first time on a machine this converts them, which takes about a minute and a half;
+        after that the converted engines are loaded from models/tensorrt. If TensorRT is not
+        installed or the conversion fails, the networks are left as they were.
+        """
+        w = self._wrapper
+        try:
+            from .accelerate import to_tensorrt
+
+            warping, generator = to_tensorrt(w.warping_module.network, w.spade_generator.network, TENSORRT_DIR)
+            feature = torch.zeros(1, 32, 16, 64, 64, device=self._device)
+            keypoints = torch.rand(1, 21, 3, device=self._device) * 0.2
+            kept = w.warping_module, w.spade_generator
+            w.warping_module, w.spade_generator = warping, generator
+            try:
+                w.warp_decode(feature, keypoints, keypoints * 1.01)  # prove it runs before relying on it
+                torch.cuda.synchronize()
+            except Exception:
+                w.warping_module, w.spade_generator = kept
+                raise
+            self.accelerated = "tensorrt"
+        except Exception as err:
+            log.warning("TensorRT is not used: %s", (str(err).splitlines() or [type(err).__name__])[0][:200])
+            return
+        # The network that reads the movement, separately: if it does not convert, the other two still run fast.
+        reader = w.motion_extractor
+        try:
+            from .accelerate import motion_to_tensorrt
+
+            w.motion_extractor = motion_to_tensorrt(reader, TENSORRT_DIR)
+            w.get_kp_info(torch.rand(1, 3, 256, 256, device=self._device))
+            torch.cuda.synchronize()
+        except Exception as err:
+            w.motion_extractor = reader
+            log.warning("The movement reader stays in PyTorch: %s", (str(err).splitlines() or [type(err).__name__])[0][:200])
+
+    def _compile(self):
+        """Compile the warping network and the generator for this GPU: about a minute, once per start.
+
+        Measured on the RTX 5050: render 85 to 66 ms, the picture changed by 0.19 of 255. PyTorch's
+        compiler needs Triton, which on Windows comes from the triton-windows package. If it is
+        missing or the compile fails, the networks are left as they were and the engine still works.
+        """
+        w = self._wrapper
+        heavy = [m.network if isinstance(m, _HalfPrecision) else m for m in (w.warping_module, w.spade_generator)]
+        kept = [(holder, holder.network) for holder in (w.warping_module, w.spade_generator) if isinstance(holder, _HalfPrecision)]
+        if len(kept) != 2:
+            return  # only the half-precision arrangement has been measured
+        try:
+            for holder, network in kept:
+                holder.network = torch.compile(network)
+            feature = torch.zeros(1, 32, 16, 64, 64, device=self._device)
+            keypoints = torch.rand(1, 21, 3, device=self._device) * 0.2
+            for _ in range(3):  # the first call does the compiling; the next ones settle it
+                w.warp_decode(feature, keypoints, keypoints * 1.01)
+            torch.cuda.synchronize()
+            self.compiled = True
+            self.accelerated = "compiled"
+        except Exception as err:
+            for (holder, _), network in zip(kept, heavy):
+                holder.network = network
+            log.warning("The networks could not be compiled and run as they are: %s", str(err).splitlines()[0][:200])
 
     def set_source(self, image_bgr):
         """Crop the source face and cache everything that does not change per frame."""
@@ -112,6 +234,7 @@ class ReenactmentEngine:
         self.source_frame = image_bgr
         self.source_crop = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2BGR)
         self._paste = self._prepare_paste_back(image_bgr, to_frame)
+        self._gpu = None  # the GPU's copy of it, made when first needed
         self.reset_reference()
 
     def _prepare_paste_back(self, frame_bgr, to_frame):
@@ -137,6 +260,46 @@ class ReenactmentEngine:
             "background": (1.0 - mask_roi) * frame_bgr[y0:y1, x0:x1].astype(np.float32),
         }
 
+    @property
+    def last_crop(self):
+        """The generator's 512x512 output for the latest driven frame, as a BGR picture."""
+        if self._last_out is None:
+            return None
+        return cv2.cvtColor(self._wrapper.parse_output(self._last_out)[0], cv2.COLOR_RGB2BGR)
+
+    def _prepare_compose(self):
+        """What the GPU needs to blend the generator's output into the frame: done once per picture.
+
+        The same arithmetic as _paste_back, on the GPU: for every pixel of the region the face
+        covers, where in the 512x512 output it comes from, the blending mask, and the part of the
+        frame that shows through. Blending there and bringing back one finished region is faster
+        than bringing the output back and blending on the CPU.
+        """
+        p = self._paste
+        x0, y0, x1, y1 = p["roi"]
+        to_crop = cv2.invertAffineTransform(p["to_roi"])
+        xs, ys = np.meshgrid(np.arange(x1 - x0, dtype=np.float32), np.arange(y1 - y0, dtype=np.float32))
+        u = to_crop[0, 0] * xs + to_crop[0, 1] * ys + to_crop[0, 2]
+        v = to_crop[1, 0] * xs + to_crop[1, 1] * ys + to_crop[1, 2]
+        # grid_sample wants positions from -1 to 1 across the picture, measured at pixel centres.
+        grid = np.stack([(2.0 * u + 1.0) / OUTPUT_SIZE - 1.0, (2.0 * v + 1.0) / OUTPUT_SIZE - 1.0], axis=-1)
+        chw = lambda image: torch.from_numpy(np.ascontiguousarray(image.transpose(2, 0, 1))).to(self._device)[None]  # noqa: E731
+        return {"grid": torch.from_numpy(grid).to(self._device)[None], "mask": chw(p["mask"]) * 255.0,
+                "background": chw(p["background"])}
+
+    def _compose(self, out):
+        """Blend the generator's output (1x3x512x512, RGB, 0 to 1, on the GPU) into the source frame."""
+        if self._gpu is None:
+            self._gpu = self._prepare_compose()
+        g = self._gpu
+        bgr = out[:, [2, 1, 0]].clamp(0.0, 1.0).float()
+        warped = torch.nn.functional.grid_sample(bgr, g["grid"], mode="bilinear", padding_mode="zeros", align_corners=False)
+        region = (g["mask"] * warped + g["background"]).clamp_(0.0, 255.0).to(torch.uint8)
+        x0, y0, x1, y1 = self._paste["roi"]
+        frame = self.source_frame.copy()
+        frame[y0:y1, x0:x1] = region[0].permute(1, 2, 0).cpu().numpy()
+        return frame
+
     def _paste_back(self, crop_bgr):
         p = self._paste
         x0, y0, x1, y1 = p["roi"]
@@ -148,12 +311,13 @@ class ReenactmentEngine:
     def clear_source(self):
         """Forget the source picture. drive() cannot be used until set_source() is called again."""
         self._source = self._paste = self._reference = None
-        self.source_frame = self.source_crop = self.last_crop = None
+        self.source_frame = self.source_crop = self._last_out = None
 
     def reset_reference(self):
         """Forget the neutral driving pose; the next driven frame becomes the new neutral."""
         self._reference = None
         self._steady.reset()
+        self._posture_at, self._settling = None, False
 
     def set_reference(self, driving_face_bgr):
         """Declare this cropped driving face to be the neutral pose.
@@ -165,6 +329,27 @@ class ReenactmentEngine:
         info, rotation = self._read_motion(driving_face_bgr)
         self._reference = {"info": info, "rotation": rotation}
         self._steady.reset()
+        self._posture_at, self._settling = None, False
+
+    def _follow_posture(self, driving, at):
+        """Let a posture held beyond the free range become the rest position, a little each frame."""
+        now = time.perf_counter() if at is None else at
+        elapsed = 0.0 if self._posture_at is None else min(max(now - self._posture_at, 0.0), 0.5)
+        self._posture_at = now
+        rest = self._reference["info"]
+        # How far the head is from rest on its worst axis, in free ranges: above 1 it is outside.
+        away = max(float((driving[axis] - rest[axis]).abs().max()) / POSE_RANGE_DEG[axis][0] for axis in POSE_RANGE_DEG)
+        if away > 1.0:
+            self._settling = True
+        elif away < POSTURE_SETTLED:
+            self._settling = False
+        if not self._settling or elapsed == 0.0:
+            return
+        share = 1.0 - math.exp(-elapsed / POSTURE_SECONDS)
+        moved = dict(rest)
+        for key in ("pitch", "yaw", "roll", "t", "scale"):  # where the head is, not what the face is doing
+            moved[key] = rest[key] + (driving[key] - rest[key]) * share
+        self._reference = {"info": moved, "rotation": self._rotation(moved["pitch"], moved["yaw"], moved["roll"])}
 
     def _read_motion(self, driving_face_bgr):
         w = self._wrapper
@@ -172,7 +357,15 @@ class ReenactmentEngine:
         info = w.get_kp_info(w.prepare_source(cv2.cvtColor(face, cv2.COLOR_BGR2RGB)))
         return info, self._rotation(info["pitch"], info["yaw"], info["roll"])
 
-    def drive(self, driving_face_bgr, at=None, steady=False, limit=False):
+    def read(self, driving_face_bgr):
+        """Read the movement from a driving face crop, to be handed to drive() as `motion`.
+
+        It does not depend on the picture being animated, so the live session does it on the
+        tracking thread while the GPU is still drawing the frame before.
+        """
+        return self._read_motion(driving_face_bgr)
+
+    def drive(self, driving_face_bgr, at=None, steady=False, limit=False, motion=None):
         """Animate the source with one cropped driving face.
 
         Returns the source frame (same size as the source image, BGR) with the
@@ -190,9 +383,11 @@ class ReenactmentEngine:
         w, s = self._wrapper, self._source
 
         start = self._now()
-        driving, rotation = self._read_motion(driving_face_bgr)
+        driving, rotation = motion if motion is not None else self._read_motion(driving_face_bgr)
         if self._reference is None:
             self._reference = {"info": driving, "rotation": rotation}
+        if limit:
+            self._follow_posture(driving, at)
         ref = self._reference
 
         size = driving["scale"] / ref["info"]["scale"]
@@ -222,11 +417,10 @@ class ReenactmentEngine:
         motion_done = self._now()
 
         out = w.warp_decode(s["feature"], s["kp"], kp_driving)["out"]
-        crop_rgb = w.parse_output(out)[0]
         render_done = self._now()
 
-        self.last_crop = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2BGR)
-        frame = self._paste_back(self.last_crop)
+        self._last_out = out
+        frame = self._compose(out) if out.is_cuda else self._paste_back(self.last_crop)
         self.last_timing_ms = {
             "motion": (motion_done - start) * 1000,
             "render": (render_done - motion_done) * 1000,

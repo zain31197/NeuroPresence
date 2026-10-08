@@ -41,7 +41,8 @@ DEFAULTS = (
         "natural_range",
         "Natural head range",
         "Keep the head within the range that looks right on a body that stays still. Small movements are followed "
-        "exactly; a head thrown far back or turned far to the side eases to a stop.",
+        "exactly; a head thrown far back or turned far to the side eases to a stop, and a posture held for a few "
+        "seconds becomes the new rest position.",
         True,
     ),
     Feature(
