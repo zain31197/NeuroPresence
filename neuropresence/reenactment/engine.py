@@ -44,6 +44,19 @@ SCALE_RANGE = (0.03, 0.07)  # the same for the size of the head: it does not gro
 POSTURE_SECONDS = 3.0  # how quickly a held posture becomes the rest position
 POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this share of the free range
 
+# The model draws about as sharply as the face crop it is given, and that crop is softened on its way
+# down to the model's 256 pixels. Strengthening its edges a little first gives the detail back. Measured
+# on five pictures (8 October 2026), as the output's fine detail against the picture's own:
+#   as it was 0.73 (worst picture 0.57);  at 0.2: 1.08 (worst 0.87);  at 0.5: 1.58, more than the picture has.
+# Identity match to the picture stayed at 0.99. Averaging the picture down more carefully, the "correct"
+# way, made the output softer (0.76 of what it was).
+#
+# It is off (0.0) because it is not free. In the full benchmark, at 0.1 and at 0.2 alike, the head
+# tremble went from 0.99 of real video to 1.035, past its target of 1.0, and flicker from 0.75 to 0.81
+# and 0.86: a sharper picture shows small movements more. At 0.1 the output keeps 0.93 of the picture's
+# detail in place of 0.73. Whether that is worth 4% more tremble is a choice, not a measurement.
+SOURCE_SHARPEN = 0.0
+
 
 def soft_limit(value, free, most):
     """`value` unchanged while within `free` of zero, then easing toward `most`, which it never passes."""
@@ -106,6 +119,8 @@ class _HalfPrecision(torch.nn.Module):
 
 class ReenactmentEngine:
     def __init__(self, liveportrait_dir=LIVEPORTRAIT_DIR, half_precision=True, compile_networks=False, tensorrt=False):
+        # How much of the card was free before anything was loaded: the engine's own use is measured from it.
+        self._gpu_free_before = torch.cuda.mem_get_info()[0] if torch.cuda.is_available() else None
         CropConfig, InferenceConfig, Wrapper, self._rotation, Cropper = _load_liveportrait(
             Path(liveportrait_dir)
         )
@@ -247,8 +262,9 @@ class ReenactmentEngine:
                                   flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
         w = self._wrapper
-        source = w.prepare_source(cv2.resize(crop_rgb, (INPUT_SIZE, INPUT_SIZE),
-                                             interpolation=cv2.INTER_AREA))
+        small = cv2.resize(crop_rgb, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_AREA).astype(np.float32)
+        small += SOURCE_SHARPEN * (small - cv2.GaussianBlur(small, (0, 0), 1.0))  # see SOURCE_SHARPEN
+        source = w.prepare_source(np.clip(small, 0, 255).astype(np.uint8))
         info = w.get_kp_info(source)
         self._source = {
             "info": info,
@@ -460,6 +476,16 @@ class ReenactmentEngine:
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         return time.perf_counter()
+
+    def gpu_memory_gb(self):
+        """GPU memory the engine holds, in GB, as the driver sees it.
+
+        PyTorch's own count leaves out what TensorRT holds, so this is the drop in the card's free
+        memory since the engine began loading. Other programs that start or stop meanwhile shift it.
+        """
+        if self._gpu_free_before is None:
+            return 0.0
+        return max(0.0, (self._gpu_free_before - torch.cuda.mem_get_info()[0]) / 1024**3)
 
     @staticmethod
     def peak_vram_gb():

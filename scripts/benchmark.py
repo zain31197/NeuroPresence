@@ -154,7 +154,7 @@ def run_pair(pair, engine, scorer, measure, max_frames, video_dir):
         "frames_fallback": fallback,
         "latency_ms": {stage: summarise(values) for stage, values in timings.items()},
         "fps": round(1000 / float(np.mean(timings["total"])), 2),
-        "peak_vram_gb": round(engine.peak_vram_gb(), 2),
+        "peak_vram_gb": round(engine.gpu_memory_gb(), 2),
         "csim": summarise_scores(raw["csim"], TARGETS["csim"]),
         "output_frames_without_one_face": len(raw["index"]) - len(raw["csim"]),
     }
@@ -289,7 +289,8 @@ def main():
         },
         "notes": [
             "pipeline_ms covers tracker, crop, motion, render and compose; it excludes camera capture and display.",
-            "peak_vram_gb is memory allocated by PyTorch for the pipeline, not memory reserved.",
+            "peak_vram_gb is the drop in the card's free memory since the engine began loading, as the driver "
+            "reports it, so it includes what TensorRT holds. Other programs on the GPU can shift it.",
             "CSIM compares each output frame with the source image. A face that never moved would score 1.0, "
             "so read it together with the motion errors.",
             "csim_real_video is the same CSIM measured on the real driving frames of the same person.",

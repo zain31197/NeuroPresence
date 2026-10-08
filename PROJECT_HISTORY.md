@@ -23,7 +23,7 @@ Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sampl
 | Frame rate | 18.7 fps in a live session, 16.4 in the benchmark (7.5) | at least 24 fps |
 | Render time per frame | 37 ms (94) | at most 42 ms |
 | Whole pipeline per frame | 61 ms in the benchmark; 89 ms from camera to output in a live session (134) | at most 150 ms end to end |
-| Peak GPU memory | not measured since TensorRT (see open items); 0.67 GB before it | at most 8 GB |
+| Peak GPU memory | 1.28 GB, read from the driver so that it includes TensorRT (1.17) | at most 8 GB |
 | Identity match (CSIM), self-reenactment | 0.90 | at least 0.80 |
 | Lag behind the driving face | 0.07 frames | none |
 | Flicker, against real video | 0.74 times (0.89) | at most 1 time |
@@ -51,8 +51,8 @@ Proposed and approved on 7 October 2026:
 
 1. Enrolment (built on 7 October 2026)
 2. Capture and tracking (built on 8 October 2026)
-3. Reenactment (speed work done on 8 October 2026: render and delay targets met, frame rate at 19 of 24; the sharper face crop is still open)
-4. Identity
+3. Reenactment (done on 8 October 2026: render and delay targets met, frame rate at 19 of 24; a sharper face crop is measured and available, off by default)
+4. Identity (next)
 5. Consent and disclosure
 6. Virtual camera and meeting apps
 
@@ -241,6 +241,11 @@ Compiling needs Triton, which PyTorch does not ship for Windows; the `triton-win
 
 **8-bit arithmetic tried and rejected.** Zain asked for it to be tried, and dropped if quality fell by much. The generator's convolutions were calibrated on 46 of its real inputs from four sample clips and built in 8-bit; 12 other inputs were kept apart to judge by. It was faster, 14.8 ms against 24.8, which would have brought the live session to about 23 frames a second. But its picture differed from the half-precision one by 28 of 255 on average, a signal-to-noise ratio of 17.5 dB: not the same picture. It was not put into the engine. This was the plain method, every convolution quantised from its smallest and largest values. Quantising only the layers that tolerate it, or training the network for 8-bit, might do better and is a piece of work of its own.
 
+**The two things left over in this step.**
+
+- **The GPU memory figure.** PyTorch's count leaves out what TensorRT holds, so the app and the benchmark showed too little. The engine now reads the drop in the card's free memory since it began loading, from the driver: 1.28 GB. Other programs starting or stopping on the GPU can shift that reading.
+- **The sharper face crop: measured, and left off.** The model draws about as sharply as the crop it is given. On five pictures, the output's fine detail against the picture's own was 0.73; averaging the picture down more carefully made it softer (0.76 of that); a Lanczos filter raised it to 0.99 on average but unevenly (0.64 to 1.80); strengthening the crop's edges before the model sees it raised it steadily: 0.86 at a strength of 0.05, 0.93 at 0.1, 1.00 at 0.15, 1.08 at 0.2, with identity unchanged at 0.99. The full benchmark then showed the cost: at 0.1 and at 0.2 alike the head tremble went from 0.99 to 1.035, past its target of 1.0, and flicker from 0.75 to 0.81 and 0.86. A run with the sharpening off confirmed it was the cause (tremble 0.994). It is in the engine as `SOURCE_SHARPEN` and set to 0, so every target met stays met. Turning it to 0.1 is a choice between a visibly sharper face and 4% more tremble, and is left to Zain.
+
 **Decision, 8 October 2026.** The speed work stops here for FYP-I at about 19 frames a second live, with the render and delay targets met and quality intact. The 24 frames a second target stays open and is recorded as not met.
 
 ### 8 October 2026: enrolment, uploaded-picture checks and pose registration
@@ -265,6 +270,18 @@ Approved by Talha (reenactment and identity owner) after testing enrolment on hi
 
 - The calibrated range of motion has been exercised through the server's own tests, not yet watched on a live session actually using one person's own registered poses while they move.
 - Whether a second frontal reference sample ("facing the camera" registered again, beside the step-one capture) measurably improves the identity match over the single step-one sample alone has not been measured.
+
+### 8 October 2026: mid report
+
+Zain asked for the FYP-I mid report before step 4: LaTeX source and PDF in the university's template, following the mid-evaluation guidelines and the report rubric (Form 3), with a dummy picture wherever a diagram or screenshot belongs, because Sana Ullah draws the diagrams by hand, and with no hyphens in the text. A first draft came to 175 pages. Zain then asked for 115 to 120 pages, written as the state of the work at the mid evaluation, and gave the proposal committee's decision of 14 September 2026 (approved with minor modifications) with its comments.
+
+- **Where.** `F26_FYP1_Mid_Report_LaTeX_Complete/`, which git ignores: `main.tex`, the files in `chapters/`, `references/references.bib` (23 sources, all cited), 13 dummy pictures in `ThesisFigs/` (nine diagrams, four screenshots), `DIAGRAMS_TO_DRAW.txt` (what each diagram has to show), `make_generated_tables.py` (writes the commit table and the list of tests from the repository; run before each build) and `NeuroPresence_FYP1_Mid_Report.pdf` (118 pages, 56 tables).
+- **Content.** Every chapter and appendix of the template is filled from the result files, the README and the code: numbered requirements by module with acceptance checks and a traceability table; a design chapter that describes each diagram box by box; the benchmark per clip. Both test suites were run for it: 182 passed in 75 s, 29 passed.
+- **The committee's comments.** Ten points, each with an action, a status and evidence in the action register (chapter 3 and appendix A): presentation, latency and its mitigation, resource use, holding the targets beside meeting software, the original contribution against DeepFaceLive and LivePortrait, the fallback when lips lose synchronization, priorities, what is cut first, liveness, and Urdu.
+- **Changes to the template, in `main.tex` only.** `longtable` and `booktabs` are loaded and `\projecttitle` and the student names defined (the template uses them without defining them); citations are set to numbered (the class asks for author and year, which stops the build with the IEEE bibliography style); the second copy of the contents lists is removed; chapters start on the next page, so there are no empty pages. Built with Tectonic, because the Windows machine has no LaTeX. It has not been compiled on Overleaf or with pdfLaTeX.
+- **Written into the report as plans, for the team to confirm.** New planned requirements that answer the committee: a liveness prompt at verification and before each session (two random actions out of blink, turn left, turn right, open mouth, each within three seconds); a delay watchdog that shows the still picture while the delay is above 150 ms; the microphone delayed to match the video; the targets measured during a call in Meet and Zoom. The order of the second iteration (virtual camera first, the frame-rate attempt last and limited to one week). The order of cuts if time runs short (phone relay, then Urdu, then the audio-driven mode, then the second baseline). The five proposal inconsistencies of 5 October as settled before; owners for the two modules the proposal does not name (Enrolment: Zain; web app: shared).
+- **Left for the team, four places marked "TO FILL".** What Talha and Sana Ullah have done so far, the tag for the mid evaluation, and the supervisor meeting log.
+- **Seen in the benchmark file while writing.** Per clip, three clips tremble more than their real video (1.32, 1.08, 1.22) and one flickers more (d18, 1.38). The mean identity match is above 0.80 on every clip, but 22% of the frames of d6 and 59% of the cross-identity clip are below it.
 
 ## Decisions and their reasons
 
@@ -326,14 +343,15 @@ Approved by Talha (reenactment and identity owner) after testing enrolment on hi
 - The enrolment study is small: six clips and three pictures. A turned head was found in one clip and closed eyes in two.
 - Even from a good picture the output keeps about 0.4 of the fine detail, and the generator's output is sharper from a larger picture although its network reads the face at a fixed 256 px input. Both point at how the face crop is resampled on the way in. To be looked at under Reenactment.
 - The studio measures a little slower than the benchmark while the page is open.
-- The GPU memory figure counts only what PyTorch holds. TensorRT keeps its own memory, so since 8 October the figure in the app and the benchmark is too low and has to be read from the driver instead.
 - TensorRT and its engines have only been built and run on the Windows machine. On Kubuntu the same code should convert on first start, but that has not been tried.
 - Three of the eight benchmark clips still tremble more than their real video (1.36, 1.15, 1.20). The filters were tuned on four clips and at 25 to 30 frames a second; the live loop runs at about 7, where they have not been measured.
 - The natural head range's generic default was set by looking at one picture turned in steps, not by a measurement over many faces; it is now replaced per person by their own registered poses (8 October 2026), but that calibration itself has not been watched on a real camera yet, and no one person's registered range has been checked against how far they can actually, comfortably turn.
 - The hold and fade have been tested with stand-ins, not watched on a real camera.
 - The progress plan does not yet list the web app.
-- The proposal inconsistencies listed under 5 October are still to be settled in the mid report.
-- The mid report is being written from the university's LaTeX template in a local folder that git ignores, by Zain's decision on 7 October 2026. The design diagrams and the panel action register are not in this repository yet.
+- The proposal inconsistencies listed under 5 October are settled in the draft of the mid report (8 October 2026); the team has not confirmed the settlements yet.
+- The mid report is in a local folder that git ignores, by Zain's decision on 7 October 2026. Still missing from it: the design diagrams and screenshots (13 dummy pictures stand in), the two other members' contributions, the meeting log, and the tag for the mid evaluation.
+- Nothing has been measured with a meeting application running beside the system. The committee asked about exactly this; it waits for the virtual camera.
+- The repository shows commits from one account only. The rubric asks for commits from all members.
 
 ## External components and tools
 

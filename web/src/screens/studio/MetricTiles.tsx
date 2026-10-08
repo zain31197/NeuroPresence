@@ -144,7 +144,7 @@ export function MetricTiles({ benchmark }: { benchmark: Benchmark | null }) {
 
       <Figure
         label="GPU memory"
-        about="The most GPU memory the pipeline has held since the engine started, as allocated by PyTorch."
+        about="The most GPU memory the engine has held: the drop in the card's free memory since the models began loading, as the driver reports it. Other programs on the GPU can shift it."
         value={gpu?.peak_gb}
         digits={2}
         unit="GB"

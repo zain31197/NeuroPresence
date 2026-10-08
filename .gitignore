@@ -4,6 +4,42 @@
 
 # Mid-evaluation report: the university's LaTeX template and the report text - keep local
 F26_FYP1_Mid_Report_LaTeX_Complete/
+# The same under any other name: a copy, a zip, a folder sent back by a teammate
+*[Mm]id[_\- ][Rr]eport*
+*[Ff]inal[_\- ][Rr]eport*
+
+# Archives, wherever they are put (report zips, Overleaf downloads)
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+
+# Office documents and slides (reports, presentations, forms with names and roll numbers)
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+~$*
+
+# LaTeX build files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.toc
+*.xdv
+*.synctex.gz
+*.log
+
+# Programs downloaded for local use (the LaTeX compiler)
+*.exe
 
 # Python
 __pycache__/
@@ -23,6 +59,7 @@ env/
 *.onnx
 *.engine
 *.trt
+*.plan
 pretrained_weights/
 checkpoints/
 
@@ -47,6 +84,10 @@ enrollment/
 .idea/
 Thumbs.db
 .DS_Store
+desktop.ini
+*.swp
+*.bak
+*.tmp
 
 # Downloaded models (fetch with scripts/download_models.py)
 models/

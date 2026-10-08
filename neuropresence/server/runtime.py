@@ -180,6 +180,7 @@ class Runtime:
         # Which picture the engine currently animates: ("enrolment", id), ("sample", n) or None.
         self.engine_holds = None
         self._samples_used = 0
+        self._gpu_peak = 0.0
 
         self.store = EnrolmentStore(Path(data_dir) / "enrolment")
         self.enrolment = self.store.load()  # the meeting picture
@@ -605,7 +606,14 @@ class Runtime:
         """
         if self._engine is None:
             return None
-        return self._gpu_probe()
+        info = self._gpu_probe()
+        # PyTorch's count leaves out TensorRT's memory, so the engine's own reading from the driver replaces it.
+        measure = getattr(self._engine, "gpu_memory_gb", None)
+        if info is not None and measure is not None:
+            used = round(measure(), 2)
+            self._gpu_peak = max(self._gpu_peak, used)
+            info = {**info, "allocated_gb": used, "peak_gb": self._gpu_peak}
+        return info
 
     def status(self):
         enrolment = self.enrolment
