@@ -1,0 +1,196 @@
+{
+  "date": "2026-10-09T03:28:21",
+  "machine": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "gpu": "NVIDIA GeForce RTX 5050"
+  },
+  "clip": "d6",
+  "limit_ms": 150.0,
+  "identity_scored_every_seconds": 0.5,
+  "seconds_watched_per_case": 24.0,
+  "cases": [
+    {
+      "case": "alone",
+      "frames": 490,
+      "fps": 20.4,
+      "delay_ms": {
+        "mean": 82.1,
+        "p95": 97.1,
+        "p99": 104.0,
+        "max": 109.2
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 79.3,
+        "highest": 85.5
+      },
+      "render_ms": {
+        "mean": 38.3,
+        "p99": 41.5
+      },
+      "share_of_frames_over_limit": 0.0,
+      "longest_seconds_over_limit": 0.0,
+      "most_frames_over_limit_in_a_row": 0
+    },
+    {
+      "case": "GPU busy elsewhere 25% of the time",
+      "frames": 388,
+      "fps": 16.2,
+      "delay_ms": {
+        "mean": 93.4,
+        "p95": 113.2,
+        "p99": 118.4,
+        "max": 124.8
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 88.7,
+        "highest": 97.7
+      },
+      "render_ms": {
+        "mean": 46.5,
+        "p99": 54.5
+      },
+      "share_of_frames_over_limit": 0.0,
+      "longest_seconds_over_limit": 0.0,
+      "most_frames_over_limit_in_a_row": 0
+    },
+    {
+      "case": "GPU busy elsewhere 50% of the time",
+      "frames": 312,
+      "fps": 13.0,
+      "delay_ms": {
+        "mean": 109.9,
+        "p95": 133.9,
+        "p99": 142.0,
+        "max": 150.8
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 105.0,
+        "highest": 115.7
+      },
+      "render_ms": {
+        "mean": 55.2,
+        "p99": 69.1
+      },
+      "share_of_frames_over_limit": 0.003,
+      "longest_seconds_over_limit": 0.07,
+      "most_frames_over_limit_in_a_row": 1
+    },
+    {
+      "case": "GPU busy elsewhere 75% of the time",
+      "frames": 237,
+      "fps": 9.9,
+      "delay_ms": {
+        "mean": 133.5,
+        "p95": 154.6,
+        "p99": 161.2,
+        "max": 172.6
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 126.3,
+        "highest": 141.6
+      },
+      "render_ms": {
+        "mean": 68.5,
+        "p99": 83.4
+      },
+      "share_of_frames_over_limit": 0.127,
+      "longest_seconds_over_limit": 0.21,
+      "most_frames_over_limit_in_a_row": 2
+    },
+    {
+      "case": "GPU busy elsewhere 100% of the time",
+      "frames": 174,
+      "fps": 7.3,
+      "delay_ms": {
+        "mean": 171.0,
+        "p95": 195.3,
+        "p99": 203.6,
+        "max": 220.0
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 162.0,
+        "highest": 183.2
+      },
+      "render_ms": {
+        "mean": 80.3,
+        "p99": 86.6
+      },
+      "share_of_frames_over_limit": 0.96,
+      "longest_seconds_over_limit": 13.0,
+      "most_frames_over_limit_in_a_row": 93
+    },
+    {
+      "case": "alone again",
+      "frames": 491,
+      "fps": 20.5,
+      "delay_ms": {
+        "mean": 82.7,
+        "p95": 98.5,
+        "p99": 106.1,
+        "max": 109.6
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 79.3,
+        "highest": 87.8
+      },
+      "render_ms": {
+        "mean": 37.7,
+        "p99": 40.8
+      },
+      "share_of_frames_over_limit": 0.0,
+      "longest_seconds_over_limit": 0.0,
+      "most_frames_over_limit_in_a_row": 0
+    }
+  ],
+  "identity_monitor_rate": [
+    {
+      "case": "identity scored every 0.5 s",
+      "frames": 502,
+      "fps": 20.9,
+      "delay_ms": {
+        "mean": 80.6,
+        "p95": 95.6,
+        "p99": 99.4,
+        "max": 104.7
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 78.6,
+        "highest": 82.9
+      },
+      "render_ms": {
+        "mean": 37.6,
+        "p99": 41.0
+      },
+      "share_of_frames_over_limit": 0.0,
+      "longest_seconds_over_limit": 0.0,
+      "most_frames_over_limit_in_a_row": 0
+    },
+    {
+      "case": "identity scored every 0.25 s",
+      "frames": 483,
+      "fps": 20.1,
+      "delay_ms": {
+        "mean": 83.6,
+        "p95": 101.3,
+        "p99": 107.1,
+        "max": 111.6
+      },
+      "delay_ms_mean_of_two_seconds": {
+        "lowest": 78.8,
+        "highest": 88.5
+      },
+      "render_ms": {
+        "mean": 38.4,
+        "p99": 41.6
+      },
+      "share_of_frames_over_limit": 0.0,
+      "longest_seconds_over_limit": 0.0,
+      "most_frames_over_limit_in_a_row": 0
+    }
+  ],
+  "notes": [
+    "A live session through the server's own session code, with a sample clip in place of the camera. No browser is attached and no virtual camera exists yet.",
+    "The delay is from a frame arriving from the feed to its output being ready.",
+    "The load is a second process running convolutions for the given share of every 50 ms. It is not a meeting application; it shows what happens when the GPU has to be shared."
+  ]
+}

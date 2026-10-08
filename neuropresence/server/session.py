@@ -12,10 +12,14 @@ import numpy as np
 from ..capture import TrackStatus
 from ..capture.crop import square_face_crop
 from ..pipeline import Pipeline
+from ..targets import TARGETS
 from .metrics import MetricsWindow
+from .watchdog import DelayWatchdog
 
 SAMPLE_SOURCE_SECONDS = 10.0
 MAX_FRONTAL_ANGLE_DEG = 20.0
+# The watchdog starts reading this long after the first frame, when the session has found its pace.
+WATCHDOG_AFTER_SECONDS = 2.0
 
 STATUS_EVENTS = {
     TrackStatus.NO_FACE: ("warning", "No face in view. Showing the enrolled picture."),
@@ -129,10 +133,25 @@ class LiveSession:
         self._tracking = None
         self._metrics = MetricsWindow()
         self._draw_seconds = 0.0  # a running average of how long one frame takes to draw
+        self.run = 0  # counts the sessions started, so a watcher can tell a new one from the last
+        # Two reasons to show the still picture although a face is being tracked. The identity
+        # monitor sets the first (see runtime.py); the session sets the second itself.
+        self.identity_hold = False
+        self.delay_hold = False
+        self._watchdog = DelayWatchdog(TARGETS["end_to_end_ms"])
+        self._anchor = threading.Event()  # a fresh neutral pose has been asked for
 
     @property
     def active(self):
         return self.state in (SessionState.STARTING, SessionState.RUNNING)
+
+    def request_anchor(self):
+        """Take a fresh neutral pose with the next frame at rest, and start the filters again."""
+        self._anchor.set()
+
+    def hold_for_identity(self, hold):
+        """Show the still picture (True) until this is called again with False."""
+        self.identity_hold = bool(hold)
 
     # ------------------------------------------------------------ control
 
@@ -143,6 +162,10 @@ class LiveSession:
             self._stop.clear()
             self._metrics = MetricsWindow()
             self._pair = self._tracking = self._started_at = None
+            self.run += 1
+            self.identity_hold = self.delay_hold = False
+            self._watchdog.reset()
+            self._anchor.clear()
             self.uses_enrolment = uses_enrolment
             opening = "Opening the camera" if isinstance(source, int) else "Opening the clip"
             self.state, self.message, self.input_label = SessionState.STARTING, opening, label
@@ -191,6 +214,8 @@ class LiveSession:
             "frames": self._metrics.total_frames if running else 0,
             "metrics": self._metrics.summary() if running else None,
             "tracking": tracking if running else None,
+            # Why the still picture is shown although a face is in view, if it is.
+            "holds": {"identity": running and self.identity_hold, "delay": running and self.delay_hold},
         }
 
     # ---------------------------------------------------------- the thread
@@ -313,8 +338,11 @@ class LiveSession:
                 pipeline.steady_crop = rt.features.enabled("steady_crop")
                 pipeline.steady_keypoints = rt.features.enabled("steady_keypoints")
                 pipeline.natural_range = rt.features.enabled("natural_range")
-                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment"), at=item.captured_at,
-                                       track=tracked, prepared=prepared)
+                if self._anchor.is_set():
+                    self._anchor.clear()
+                    pipeline.wait_for_neutral()
+                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment") and not self.identity_hold,
+                                       at=item.captured_at, track=tracked, prepared=prepared, show=not self.delay_hold)
                 self._run_commands(item.image, result.track)
                 if rt.engine_holds != held:  # the picture was replaced while running: a new picture, a new neutral pose
                     held = rt.engine_holds
@@ -324,8 +352,9 @@ class LiveSession:
                 rt.events.add("info", "Neutral pose taken from the camera. Movement is measured from how you sit now.")
             finished = time.perf_counter()
             self._draw_seconds = 0.8 * self._draw_seconds + 0.2 * (finished - drawing)  # how long the GPU's turn takes
-            self._metrics.add(finished, result.timing_ms, (finished - item.captured_at) * 1000,
-                              result.live, dropped)
+            delay_ms = (finished - item.captured_at) * 1000
+            self._metrics.add(finished, result.timing_ms, delay_ms, result.live, dropped)
+            self._watch_delay(delay_ms, finished, drawn="render" in result.timing_ms)
 
             if result.status is not status:
                 if status is not None or result.status is not TrackStatus.OK:
@@ -342,6 +371,27 @@ class LiveSession:
                                        result.status.value, track.landmarks if track.ok else None,
                                        crop_window=result.crop_window)
                 self._tracking = tracking
+
+    def _watch_delay(self, delay_ms, finished, drawn):
+        """Hold the live picture back while it is arriving too late (see watchdog.py)."""
+        rt = self._rt
+        if not rt.features.enabled("delay_watchdog"):
+            self.delay_hold = False
+            self._watchdog.reset()
+            return
+        # Only frames that were drawn say how late the picture is, and not the first ones of a session.
+        if not drawn or finished - self._started_at < WATCHDOG_AFTER_SECONDS:
+            return
+        held = self._watchdog.sample(delay_ms, finished)
+        if held == self.delay_hold:
+            return
+        self.delay_hold = held
+        limit, mean = self._watchdog.limit_ms, self._watchdog.mean_ms
+        if held:
+            rt.events.add("warning", f"The picture is arriving late: {mean:.0f} ms on average, above the limit of "
+                                     f"{limit:.0f} ms. Showing the still picture until it recovers.")
+        else:
+            rt.events.add("info", f"The delay is back to {mean:.0f} ms. Reenactment resumed.")
 
     def _run_commands(self, frame, track):
         while True:

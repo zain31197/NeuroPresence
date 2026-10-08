@@ -46,6 +46,20 @@ DEFAULTS = (
         True,
     ),
     Feature(
+        "identity_guard",
+        "Identity fallback",
+        "Act when the output stops looking like your picture. A short dip is ignored; a lasting one takes a fresh "
+        "neutral pose; and if that does not help, the still picture is shown until you resume.",
+        True,
+    ),
+    Feature(
+        "delay_watchdog",
+        "Delay watchdog",
+        "Show the still picture while the delay from camera to output stays above its limit, so that lips that "
+        "move late are never shown.",
+        True,
+    ),
+    Feature(
         "tracking_overlay",
         "Tracking overlay",
         "Draw the tracked face landmarks, and the window the face crop is cut from, on the camera preview.",

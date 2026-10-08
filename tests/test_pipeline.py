@@ -163,6 +163,21 @@ def test_a_lost_face_is_held_for_a_moment_then_fades_to_the_still_picture():
     assert pipeline.step(FRAME, at=2.0).output.mean() == 200
 
 
+def test_a_frame_that_is_held_back_is_drawn_but_not_shown():
+    """While the output is arriving too late the frames are still drawn, so the delay stays
+    measured, but what is shown goes to the still picture as it does for a lost face."""
+    engine = FakeEngine()
+    pipeline = Pipeline(Switchable(), engine)
+    assert pipeline.step(FRAME, at=0.0).output.mean() == 200
+    held = pipeline.step(FRAME, at=0.1, show=False)
+    assert held.live is False and held.output.mean() == 200  # the last shown frame, for a moment
+    assert "render" in held.timing_ms and len(engine.driven_shapes) == 2  # it was drawn all the same
+    assert pipeline.step(FRAME, at=1.0, show=False).output.mean() == 50  # then the still picture
+    assert len(engine.driven_shapes) == 3
+    back = pipeline.step(FRAME, at=1.1)
+    assert back.live is True and 50 < back.output.mean() < 200  # and it fades back in
+
+
 def test_the_crop_window_is_reported_and_holds_still_against_tracker_noise():
     engine, tracker = FakeEngine(), Switchable()
     pipeline = Pipeline(tracker, engine)

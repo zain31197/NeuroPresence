@@ -13,7 +13,7 @@ from dataclasses import replace
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
 from ..enrolment import POSE_KEYS, Check, EnrolmentStore, make_candidate, prepare
 from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
-from ..identity import SAME_PERSON_CSIM
+from ..identity import SAME_PERSON_CSIM, GuardState, IdentityGuard
 from ..targets import TARGETS
 from .benchmarks import latest_benchmark
 from .features import FeatureSet
@@ -51,19 +51,25 @@ class EventLog:
 
 
 class IdentityMonitor:
-    """Scores the live output against the picture it is made from, about once a second.
+    """Scores the live output against the picture it is made from, twice a second, and acts on it.
 
-    It runs on its own thread so the pipeline never waits for it. This is the
-    measuring half of the identity stage; reacting to a low score is not built.
+    It runs on its own thread so the pipeline never waits for it: one score takes the CPU about
+    50 ms, and scoring four times a second left the frame rate and the delay where they were
+    (results/delay_study.json). What a low score leads to is decided by the guard (identity/guard.py):
+    nothing for a short dip, a fresh neutral pose for a lasting one, and the still picture if that
+    does not help. The still picture then stays until the person resumes.
     """
 
-    def __init__(self, runtime, interval=1.0):
+    def __init__(self, runtime, interval=0.5):
         self._rt = runtime
         self._interval = interval
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = None
         self._state = {"available": False, "csim": None, "reason": "Starts with the first session."}
+        self.guard = IdentityGuard()
+        self._guard_lock = threading.Lock()
+        self._watching = None  # the session and the picture the readings of the guard belong to
 
     def ensure_started(self):
         if self._thread is None:
@@ -77,11 +83,68 @@ class IdentityMonitor:
 
     def snapshot(self):
         with self._lock:
-            return dict(self._state)
+            state = dict(self._state)
+        with self._guard_lock:
+            guard = self.guard
+            state["guard"] = {
+                "enabled": self._rt.features.enabled("identity_guard"),
+                "state": guard.state.value,
+                # How long the still picture has been shown, for the prompt that offers to resume.
+                "seconds": round(time.perf_counter() - guard.since, 1) if guard.state is GuardState.FALLBACK else None,
+                "mean": None if guard.mean is None else round(guard.mean, 3),
+                "low": guard.low,
+            }
+        return state
+
+    def resume(self):
+        """Go live again after a fallback: a fresh neutral pose, and the next seconds have to prove it."""
+        session = self._rt.session
+        with self._guard_lock:
+            if not session.identity_hold:
+                raise SessionError("The output is not on hold.")
+            self.guard.resume(time.perf_counter())
+            session.request_anchor()
+            session.hold_for_identity(False)
+        self._rt.events.add("info", "Reenactment resumed with a fresh neutral pose.")
 
     def _set(self, **state):
         with self._lock:
             self._state = state
+
+    def _follow(self, session):
+        """A new session, a new picture or the switch turned off: what the guard knew no longer holds."""
+        watching = (session.run, self._rt.engine_holds)
+        enabled = self._rt.features.enabled("identity_guard")
+        with self._guard_lock:
+            changed = watching != self._watching
+            self._watching = watching
+            if changed or (not enabled and (self.guard.state is not GuardState.STEADY or session.identity_hold)):
+                self.guard.reset()
+                session.hold_for_identity(False)
+        return enabled
+
+    def _act(self, score):
+        session, events = self._rt.session, self._rt.events
+        with self._guard_lock:
+            if session.identity_hold:
+                return
+            action = self.guard.sample(score, time.perf_counter())
+            mean, reason = self.guard.mean, self.guard.reason
+            if action == "anchor":
+                session.request_anchor()
+            elif action == "fallback":
+                session.hold_for_identity(True)
+        if action == "anchor" and reason == "changed":
+            events.add("info", f"The match has stepped down since the last neutral pose (identity {mean:.2f}). "
+                               "Taking the neutral pose again.")
+        elif action == "anchor":
+            events.add("warning", f"The output has stopped matching your picture (identity {mean:.2f} over the last "
+                                  "seconds). Taking a fresh neutral pose.")
+        elif action == "fallback":
+            events.add("warning", f"The output does not match your picture (identity {mean:.2f}). Showing the still "
+                                  "picture until you resume.")
+        elif action == "recovered":
+            events.add("info", f"Identity match is back ({mean:.2f}).")
 
     def _run(self):
         try:
@@ -91,7 +154,9 @@ class IdentityMonitor:
             return
         held, source_embedding = None, None
         while not self._stop.wait(self._interval):
-            pair = self._rt.session.latest_pair()
+            session = self._rt.session
+            guarding = self._follow(session)
+            pair = session.latest_pair()
             if pair is None or not pair.live:
                 self._set(available=True, csim=None, reason=None)
                 continue
@@ -99,12 +164,17 @@ class IdentityMonitor:
                 if self._rt.engine_holds != held:
                     held = self._rt.engine_holds
                     source_embedding = self._rt.source_signature(scorer)
-                embedding = None if source_embedding is None else scorer.embed(pair.output)
-                csim = None if embedding is None else round(scorer.similarity(source_embedding, embedding), 3)
-                self._set(available=True, csim=csim, reason=None)
+                if source_embedding is None:
+                    self._set(available=True, csim=None, reason=None)
+                    continue
+                embedding = scorer.embed(pair.output)
+                score = None if embedding is None else scorer.similarity(source_embedding, embedding)
+                self._set(available=True, csim=None if score is None else round(score, 3), reason=None)
             except Exception as err:
                 self._set(available=False, csim=None, reason=f"Identity scoring failed: {err}")
                 return
+            if guarding:
+                self._act(score)
 
 
 def _default_engine():
@@ -257,6 +327,10 @@ class Runtime:
     def reset_neutral(self):
         self.session.call(lambda frame, track: self.engine().reset_reference())
         self.events.add("info", "Neutral pose reset.")
+
+    def resume_reenactment(self):
+        """Go live again after the identity monitor put the still picture up."""
+        self.identity.resume()
 
     # ---------------------------------------------------------- enrolment
 

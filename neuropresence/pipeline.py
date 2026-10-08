@@ -102,12 +102,16 @@ class Pipeline:
         # 2026: 1.6 frames a second more, but 35 ms more delay from camera to output.
         return face, window, None
 
-    def step(self, frame_bgr, reenact=True, at=None, track=None, prepared=None):
+    def step(self, frame_bgr, reenact=True, at=None, track=None, prepared=None, show=True):
         """Process one frame. With reenact=False the face is still tracked but
         the output stays on the enrolled frame. `at` is when the frame was taken,
         in seconds on any clock; it is what the steadying and the fades are timed by.
         Pass `track` if the face has already been tracked in this frame, as the live
-        session does on another thread while the GPU draws the frame before."""
+        session does on another thread while the GPU draws the frame before.
+
+        With show=False the frame is drawn all the same, so that its timings stay real,
+        but it is held back and the output goes to the enrolled frame as it does for a
+        lost face. The live session does this while its output is arriving too late."""
         start = time.perf_counter()
         at = start if at is None else at
         if track is None:
@@ -136,6 +140,8 @@ class Pipeline:
             given = {} if motion is None else {"motion": motion}
             output = self.engine.drive(face, at=at, steady=self.steady_keypoints, limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)
+            if not show:
+                output, live = None, False
         else:
             if track is None or not track.ok or not ahead:
                 self._crop.reset()

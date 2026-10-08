@@ -32,6 +32,22 @@ export interface Session {
   frames: number
   metrics: Metrics | null
   tracking: Tracking | null
+  /** Why the still picture is shown although a face is in view, if it is. */
+  holds?: { identity: boolean; delay: boolean }
+}
+
+/** What the identity monitor is doing about the score (see identity/guard.py in the engine). */
+export interface IdentityGuard {
+  /** The "Identity fallback" switch. */
+  enabled: boolean
+  /** 'anchoring': a fresh neutral pose was taken. 'fallback': the still picture is shown until the person resumes. */
+  state: 'steady' | 'dipping' | 'anchoring' | 'fallback'
+  /** How long the still picture has been shown, in seconds. Null unless the state is 'fallback'. */
+  seconds: number | null
+  /** The mean of the last seconds that the last decision was taken on. */
+  mean: number | null
+  /** Below this mean the output no longer counts as matching the picture. */
+  low: number
 }
 
 /** 'identity' is the extra check an uploaded picture gets: does it show the verified face?
@@ -164,7 +180,7 @@ export interface Targets {
 export interface Status {
   session: Session
   enrolment: Enrolment
-  identity: { available: boolean; csim: number | null; reason: string | null }
+  identity: { available: boolean; csim: number | null; reason: string | null; guard?: IdentityGuard }
   features: Feature[]
   gpu: { name: string; total_gb: number; allocated_gb: number; peak_gb: number } | null
   targets: Targets
@@ -321,6 +337,8 @@ export const api = {
   startSession: (input: string) => request<Status>('/api/session/start', { method: 'POST', ...json({ input }) }),
   stopSession: () => request<Status>('/api/session/stop', { method: 'POST' }),
   resetNeutral: () => request<{ ok: boolean }>('/api/session/neutral', { method: 'POST' }),
+  /** Go live again after the identity monitor put the still picture up. A fresh neutral pose is taken. */
+  resumeSession: () => request<Status>('/api/session/resume', { method: 'POST' }),
   setFeature: (key: string, enabled: boolean) =>
     request<Feature>(`/api/features/${encodeURIComponent(key)}`, { method: 'PATCH', ...json({ enabled }) }),
 }

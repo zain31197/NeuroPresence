@@ -105,7 +105,7 @@ Supervisor: Muhammad Aamir Gulzar
 | Enrolment | Working: the face is verified live with the camera and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down) for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face (`neuropresence/enrolment`) |
 | 1–2 Capture, tracking, driving signal | Working, with the crop and keypoints steadied (`neuropresence/capture`, `neuropresence/capture/steady.py`) |
 | 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
-| 4 Identity preservation | Identity similarity (CSIM) is measured (`neuropresence/identity`); the live monitor and fallback are not started |
+| 4 Identity preservation | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until you resume (`neuropresence/identity/guard.py`). A delay watchdog shows the still picture while the output arrives too late (`neuropresence/server/watchdog.py`) |
 | 5 Consent and disclosure | Partly built: a meeting picture must match the face verified live. Checking the live face before each session, and the mark on the output, are not started |
 | 6 Virtual camera | Not started |
 | Evaluation | Benchmark of speed, identity and temporal stability (`scripts/benchmark.py`, `neuropresence/evaluation`) |
@@ -131,7 +131,7 @@ The first benchmark run also downloads the RAFT optical-flow weights (21 MB) thr
 The web app is the place to run the system and to test each feature. It has a landing page and two screens, in the order they are used:
 
 - **Enrolment**: verify your face with the camera, then upload the picture people will see. The camera is shown with a face outline and seven checks that update as you move; the picture tells you the one thing to fix next. An uploaded picture is refused if it is not of the same person.
-- **Live Studio**: camera and output side by side, the live figures against their targets, where each frame's time goes, an event list, and a switch for every feature.
+- **Live Studio**: camera and output side by side, the live figures against their targets, where each frame's time goes, an event list, and a switch for every feature. When the output stops matching your picture, or arrives too late, the still picture is shown and the screen says why; after an identity fallback one button resumes.
 
 Build it once (this needs Node.js; it was built and tested with version 24), then start the engine:
 
@@ -223,6 +223,8 @@ python scripts/live.py --source-image me.jpg   # live reenactment; q quits, r re
 python scripts/benchmark.py                    # speed, identity, motion and stability on the sample clips
 python scripts/study_enrolment.py              # what the enrolled picture's faults and face size cost (about 15 minutes)
 python scripts/study_same_person.py            # how alike two faces must be to count as the same person
+python scripts/study_identity_guard.py         # the identity score in normal use and under faults (about 20 minutes)
+python scripts/study_delay.py                  # delay and frame rate of a live session, alone and beside GPU load
 python -m pytest                               # engine and server tests
 cd web && npm test                             # front-end tests
 ```
@@ -253,6 +255,41 @@ Three points about reading them:
 The identity score aligns faces with five MediaPipe landmarks instead of InsightFace's own detector. `scripts/validate_alignment.py` compares the two on 36 sample faces: the similarity scores differ by 0.015 on average (0.077 at most) and correlate at 0.993 (`results/alignment_validation.json`).
 
 The demo overlays face landmarks, head pose (yaw, pitch, roll), jaw opening, frame rate, and tracker latency. With no face or more than one face in frame it shows a banner and reports the frame as not usable for reenactment.
+
+## Identity fallback and delay watchdog
+
+Two things can make the live output worse than the still picture: it stops looking like the person, or it arrives late. Both are watched during a session, and both have a switch in the Live Studio.
+
+**Identity.** The output is scored against the enrolled picture twice a second (CSIM, on its own thread; one score takes the CPU about 48 ms). `python scripts/study_identity_guard.py` measured what that score looks like (`results/identity_guard_study.json`):
+
+| Case | Mean | Lowest frame | What the guard does with the recorded scores |
+|---|---|---|---|
+| Normal use, 8 pairs of the benchmark | 0.89 | 0.72 | Nothing, on any pair |
+| Head pushed 30° / 45° past its range, head range off | 0.73 / 0.55 | 0.59 / 0.44 | Ends on the still picture in 75% / 100% of runs, after about 4.5 s |
+| Head turned 45° further, head range off | 0.65 | 0.47 | Ends on the still picture in 90% of runs |
+| The same 45° with the head range on | 0.85 and 0.83 | 0.70 | Nothing for the nod; for the turn, the still picture in 5% of runs |
+| Mouth covered in the camera picture | 0.72 | 0.59 | Acts in about half the runs |
+| Expression three times too strong | 0.79 | 0.43 | Ends on the still picture in 39% of runs |
+
+Single frames cannot be judged: 9% of normal frames are below the 0.80 the project aims for on average. So the guard (`neuropresence/identity/guard.py`) reads the mean of the last three seconds. Below 0.75, which no three seconds of normal use reached (the lowest was 0.82), it takes a fresh neutral pose and starts the filters again. If the next seconds are still below, or two readings in a row fall under 0.50, the still picture is shown and stays until you press "Resume reenactment". A dip of a second or so does nothing.
+
+The same table shows what the natural head range is worth: with it off, a head pushed 45° brings the match down to 0.55; with it on, it stays at 0.85.
+
+Run in a real session, with the mouth covered in a sample clip, the guard took a fresh neutral pose 3.5 s after the cover appeared, and the match returned to 0.91. That showed a fault in the first version: the cover had become part of the neutral pose, so the output was off once the cover was gone (0.80 where it had been 0.86). A fresh neutral pose that helped is now watched, and when the match steps down again the neutral pose is taken once more; in the same run it then returned to 0.86.
+
+**Delay.** `python scripts/study_delay.py` runs a live session on a sample clip and keeps the GPU busy from a second process (`results/delay_study.json`). The load is artificial; it stands in for a meeting application and is not one.
+
+| GPU busy elsewhere | Frame rate | Delay, mean | Frames over 150 ms |
+|---|---|---|---|
+| Not at all | 20.4 fps | 82 ms | 0% |
+| 25% of the time | 16.2 fps | 93 ms | 0% |
+| 50% of the time | 13.0 fps | 110 ms | under 1% |
+| 75% of the time | 9.9 fps | 134 ms | 13% |
+| All the time | 7.3 fps | 171 ms | 96% |
+
+Late frames are dropped and never queued, so the frame rate falls first and the delay follows slowly. The watchdog (`neuropresence/server/watchdog.py`) reads the mean delay of the last two seconds. Above 150 ms the still picture is shown; the frames are still drawn, hidden, so that the delay stays measured, and the live picture returns when the mean has been under 135 ms for a second. In a real session beside a fully loaded GPU it held the picture back 3.5 s after the load began and released it within two seconds of the load ending.
+
+These figures are for a 480 px sample clip with no browser attached; a camera session with a larger picture runs slower (18.7 fps and 89 ms on 8 October). What a real meeting application takes from the GPU has not been measured: that needs the virtual camera.
 
 ## Project history
 

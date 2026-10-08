@@ -1,4 +1,4 @@
-import { ArrowRight, Clapperboard, Play, Square, Video } from 'lucide-react'
+import { ArrowRight, Clapperboard, Play, RotateCcw, Square, Video } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, buttonClass, Spinner } from '../../components/ui/Button'
@@ -11,6 +11,7 @@ import { clock } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
 import { EnrolledPicture } from './EnrolledPicture'
 import { EventsPanel } from './EventsPanel'
+import { promptSecondsLeft } from './holds'
 import { LatencyBreakdown } from './LatencyBreakdown'
 import { MetricTiles } from './MetricTiles'
 import { Monitors } from './Monitors'
@@ -41,6 +42,38 @@ function SessionPill({ session }: { session: Session }) {
   )
 }
 
+/**
+ * The identity monitor has put the still picture up. For a few seconds this asks what to do;
+ * with no answer the still picture simply stays, and the way back is one button.
+ */
+function IdentityHold({ shownFor, busy, onResume }: { shownFor: number | null; busy: boolean; onResume: () => void }) {
+  const [staying, setStaying] = useState(false)
+  const left = promptSecondsLeft(shownFor, staying)
+  return (
+    <Notice
+      className="mt-5"
+      tone="critical"
+      title={left > 0 ? 'The output stopped matching your picture' : 'Showing your still picture'}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          {left > 0 && (
+            <Button size="sm" onClick={() => setStaying(true)}>
+              Stay on the still picture
+            </Button>
+          )}
+          <Button size="sm" variant="primary" icon={<RotateCcw className="size-3.5" />} busy={busy} onClick={onResume}>
+            Resume reenactment
+          </Button>
+        </div>
+      }
+    >
+      {left > 0
+        ? `Your still picture is shown in its place. Resume with a fresh neutral pose, or it stays on the still picture in ${left} s.`
+        : 'The output stopped matching your enrolled picture, and a fresh neutral pose did not bring it back. It stays on the still picture until you resume.'}
+    </Notice>
+  )
+}
+
 export function LiveStudio() {
   const { status, connection } = useStudio()
   const toast = useToast()
@@ -58,6 +91,9 @@ export function LiveStudio() {
   const inputs = status?.inputs ?? []
   // A camera session animates the enrolled picture, so there has to be one. A sample clip brings its own.
   const needsPicture = !active && input.startsWith('camera') && !!status && status.enrolment.record === null
+  const running = session?.state === 'running'
+  const heldForIdentity = running && !!session?.holds?.identity
+  const heldForDelay = running && !!session?.holds?.delay && !heldForIdentity
 
   const act = async (work: () => Promise<unknown>) => {
     setPending(true)
@@ -129,6 +165,15 @@ export function LiveStudio() {
       {session?.state === 'error' && (
         <Notice className="mt-5" title="The session stopped" tone="critical">
           {session.message}
+        </Notice>
+      )}
+      {heldForIdentity && (
+        <IdentityHold shownFor={status?.identity.guard?.seconds ?? null} busy={pending} onResume={() => act(api.resumeSession)} />
+      )}
+      {heldForDelay && (
+        <Notice className="mt-5" title="The picture is arriving late">
+          The delay from camera to output is above {status?.targets.end_to_end_ms} ms, so your still picture is shown: lips that move late are
+          worse than a still face. Reenactment returns by itself once the delay is back under the limit.
         </Notice>
       )}
       {needsPicture && connection === 'open' && (

@@ -12,12 +12,13 @@ from neuropresence.capture import TrackResult, TrackStatus
 from neuropresence.capture.feed import FeedFrame
 from neuropresence.enrolment import checks as limits
 from neuropresence.enrolment import POSE_KEYS, make_candidate, prepare
-from neuropresence.identity import SAME_PERSON_CSIM
+from neuropresence.identity import SAME_PERSON_CSIM, IdentityGuard
 from neuropresence.server import create_app
 from neuropresence.server.metrics import MetricsWindow
 from neuropresence.server.runtime import Runtime
 from neuropresence.server.session import FramePair, SessionError
 from neuropresence.server.stream import pack_frame, unpack_frame
+from neuropresence.server.watchdog import DelayWatchdog
 
 FACE_BOX = (220, 75, 200, 215)  # x, y, w, h: one well-placed face in a 640 x 360 picture
 
@@ -37,6 +38,7 @@ class FakeFeed:
     """Hands out a new frame every few milliseconds."""
 
     is_camera = True
+    lag = 0.0  # set to hand out frames that are already this many seconds old
 
     def __init__(self):
         self.index = -1
@@ -46,7 +48,7 @@ class FakeFeed:
     def read(self, after_index=-1, timeout=1.0):
         time.sleep(0.005)
         self.index += 2  # every other frame is "dropped"
-        return FeedFrame(FRAME.copy(), self.index, time.perf_counter())
+        return FeedFrame(FRAME.copy(), self.index, time.perf_counter() - self.lag)
 
     def close(self):
         self.closed = True
@@ -85,6 +87,7 @@ class FakeEngine:
         self.source_crop = None
         self.last_timing_ms = {"motion": 2.0, "render": 3.0, "compose": 1.0}
         self.resets = 0
+        self.drives = 0
         self.neutral_faces = []
         self.pose_calibration = None  # the kwargs calibrate_pose_range was last called with
 
@@ -101,6 +104,7 @@ class FakeEngine:
         self.source_frame = self.source_crop = None
 
     def drive(self, face, at=None, steady=False, limit=False, motion=None):
+        self.drives += 1
         return np.full_like(self.source_frame, 200)
 
     def reset_reference(self):
@@ -249,7 +253,10 @@ def test_status_when_nothing_has_happened(parts):
                                               "taking": False}}
     assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
                                                                 "steady_keypoints": True, "natural_range": True,
+                                                                "identity_guard": True, "delay_watchdog": True,
                                                                 "tracking_overlay": False}
+    assert found["session"]["holds"] == {"identity": False, "delay": False}
+    assert found["identity"]["guard"]["state"] == "steady" and found["identity"]["guard"]["enabled"] is True
     assert [i["id"] for i in found["inputs"]] == ["camera:0", "camera:1", "camera:2", "sample:d0"]
     assert found["targets"]["fps"] == 24.0
     assert parts["engines"] == []  # the models are not loaded until they are needed
@@ -817,6 +824,128 @@ def test_identity_is_scored_while_live(parts):
     start(parts)
     parts["runtime"].identity._interval = 0.02
     assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.9, seconds=4.0)
+
+
+def watch_identity_quickly(parts):
+    """The guard counts seconds. For a test, let it decide on a fraction of a second of readings."""
+    runtime = parts["runtime"]
+    runtime.identity.guard = IdentityGuard(window=0.3)
+    runtime.identity._interval = 0.02
+    return runtime, runtime.scorer(), parts["client"]
+
+
+def test_a_lasting_identity_drop_takes_a_fresh_neutral_pose_and_then_shows_the_still_picture(parts):
+    start(parts)
+    runtime, scorer, client = watch_identity_quickly(parts)
+    engine = parts["engines"][0]
+    assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.9, seconds=4.0)
+    resets = engine.resets
+
+    scorer.alike = 0.6  # the output stops looking like the picture, and stays that way
+    assert wait_for(lambda: any("Taking a fresh neutral pose" in message for message in events(parts)), seconds=4.0)
+    assert wait_for(lambda: engine.resets > resets)  # the neutral pose was taken again
+    assert wait_for(lambda: status(parts)["session"]["holds"]["identity"], seconds=4.0)
+    assert status(parts)["identity"]["guard"]["state"] == "fallback"
+    assert any("Showing the still picture until you resume" in message for message in events(parts))
+    # The session goes on, tracking the face, with the enrolled picture as its output.
+    assert wait_for(lambda: runtime.session.latest_pair().output.mean() == pytest.approx(FRAME.mean()))
+    pair = runtime.session.latest_pair()
+    assert pair.live is False and pair.status == "ok"
+    assert status(parts)["session"]["state"] == "running"
+    assert status(parts)["identity"]["guard"]["seconds"] is not None
+
+    scorer.alike = 0.9  # whatever was wrong has passed, and the person asks to go live again
+    assert client.post("/api/session/resume").status_code == 200
+    assert wait_for(lambda: runtime.session.latest_pair().live is True)
+    assert wait_for(lambda: any("Identity match is back" in message for message in events(parts)), seconds=4.0)
+    assert status(parts)["session"]["holds"]["identity"] is False
+    assert status(parts)["identity"]["guard"]["state"] == "steady"
+
+
+def test_a_short_identity_dip_changes_nothing(parts):
+    start(parts)
+    runtime, scorer, _ = watch_identity_quickly(parts)
+    runtime.identity.guard = IdentityGuard(window=3.0)  # as in use: a dip of a tenth of a second is far too short
+    assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.9, seconds=4.0)
+    scorer.alike = 0.6
+    assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.6, seconds=4.0)
+    scorer.alike = 0.9
+    time.sleep(0.2)
+    assert status(parts)["session"]["holds"]["identity"] is False
+    assert not any("neutral pose" in message and "matching" in message for message in events(parts))
+
+
+def test_resume_is_refused_when_nothing_is_on_hold(parts):
+    start(parts)
+    reply = parts["client"].post("/api/session/resume")
+    assert reply.status_code == 409 and "not on hold" in reply.json()["detail"]
+
+
+def test_identity_fallback_can_be_switched_off(parts):
+    start(parts)
+    runtime, scorer, client = watch_identity_quickly(parts)
+    client.patch("/api/features/identity_guard", json={"enabled": False})
+    scorer.alike = 0.2
+    assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.2, seconds=4.0)
+    time.sleep(0.3)
+    assert status(parts)["session"]["holds"]["identity"] is False  # measured, shown, and not acted on
+
+    client.patch("/api/features/identity_guard", json={"enabled": True})
+    assert wait_for(lambda: status(parts)["session"]["holds"]["identity"], seconds=4.0)
+    client.patch("/api/features/identity_guard", json={"enabled": False})  # switching it off lets the output go live
+    assert wait_for(lambda: status(parts)["session"]["holds"]["identity"] is False, seconds=4.0)
+    assert wait_for(lambda: runtime.session.latest_pair().live is True)
+
+
+def test_a_new_session_starts_with_a_clean_identity_record(parts):
+    start(parts)
+    runtime, scorer, client = watch_identity_quickly(parts)
+    scorer.alike = 0.2
+    assert wait_for(lambda: status(parts)["session"]["holds"]["identity"], seconds=4.0)
+    client.post("/api/session/stop")
+    scorer.alike = 0.9
+    start(parts)
+    assert status(parts)["session"]["holds"]["identity"] is False
+    assert wait_for(lambda: runtime.session.latest_pair().live is True)
+    assert wait_for(lambda: status(parts)["identity"]["guard"]["state"] == "steady", seconds=4.0)
+
+
+def watch_delay_quickly(parts, monkeypatch):
+    """The watchdog reads the mean of two seconds. For a test, a fifth of a second."""
+    monkeypatch.setattr("neuropresence.server.session.WATCHDOG_AFTER_SECONDS", 0.0)
+    parts["runtime"].session._watchdog = DelayWatchdog(150.0, window=0.2, clear_seconds=0.05)
+
+
+def test_a_picture_that_arrives_late_is_held_back_until_the_delay_recovers(parts, monkeypatch):
+    watch_delay_quickly(parts, monkeypatch)
+    start(parts)
+    runtime, engine, feed = parts["runtime"], parts["engines"][0], parts["feeds"][-1]
+    assert status(parts)["session"]["holds"]["delay"] is False
+
+    feed.lag = 0.3  # every frame is already 300 ms old when the session gets it
+    assert wait_for(lambda: status(parts)["session"]["holds"]["delay"], seconds=4.0)
+    assert any("arriving late" in message for message in events(parts))
+    assert wait_for(lambda: runtime.session.latest_pair().output.mean() == pytest.approx(FRAME.mean()))
+    assert runtime.session.latest_pair().live is False
+    drawn = engine.drives
+    assert wait_for(lambda: engine.drives > drawn + 5)  # still drawn, so that the delay stays measured
+    assert status(parts)["session"]["metrics"]["render_ms"] == 3.0
+
+    feed.lag = 0.0
+    assert wait_for(lambda: status(parts)["session"]["holds"]["delay"] is False, seconds=4.0)
+    assert wait_for(lambda: runtime.session.latest_pair().live is True)
+    assert any("The delay is back" in message for message in events(parts))
+
+
+def test_the_delay_watchdog_can_be_switched_off(parts, monkeypatch):
+    watch_delay_quickly(parts, monkeypatch)
+    start(parts)
+    feed = parts["feeds"][-1]
+    feed.lag = 0.3
+    assert wait_for(lambda: status(parts)["session"]["holds"]["delay"], seconds=4.0)
+    parts["client"].patch("/api/features/delay_watchdog", json={"enabled": False})
+    assert wait_for(lambda: status(parts)["session"]["holds"]["delay"] is False)
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().live is True)  # late, and shown all the same
 
 
 def test_starting_twice_and_unknown_inputs_are_refused(parts):

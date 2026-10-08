@@ -2,7 +2,7 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (8 October 2026)
+## Where the project stands (9 October 2026)
 
 | Stage | State |
 |---|---|
@@ -10,7 +10,7 @@ A running record of what was built, what was decided and why, what was measured,
 | 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing, a face crop that holds still while the head does |
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
 | 3. Reenactment | Working, 18 frames per second live against a target of 24; the render target is met |
-| 4. Identity | Partly built: similarity to the enrolled picture is measured live; no automatic fallback yet |
+| 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
 | 5. Consent and disclosure | Partly built: a meeting picture must match the face verified live. The check of the live face before each session, and the mark on the output, are not built |
 | 6. Virtual camera (meeting apps) | Not built |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
@@ -29,7 +29,7 @@ Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sampl
 | Flicker, against real video | 0.74 times (0.89) | at most 1 time |
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 
-Tests: 217 for the engine and server, 29 for the web app, all passing.
+Tests: 248 for the engine and server, 37 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -52,8 +52,8 @@ Proposed and approved on 7 October 2026:
 1. Enrolment (built on 7 October 2026)
 2. Capture and tracking (built on 8 October 2026)
 3. Reenactment (done on 8 October 2026: render and delay targets met, frame rate at 19 of 24; a sharper face crop is measured and available, off by default)
-4. Identity (next)
-5. Consent and disclosure
+4. Identity (built on 9 October 2026, with the delay watchdog)
+5. Consent and disclosure (next)
 6. Virtual camera and meeting apps
 
 ## Before this repository
@@ -283,6 +283,53 @@ Zain asked for the FYP-I mid report before step 4: LaTeX source and PDF in the u
 - **Left for the team, four places marked "TO FILL".** What Talha and Sana Ullah have done so far, the tag for the mid evaluation, and the supervisor meeting log.
 - **Seen in the benchmark file while writing.** Per clip, three clips tremble more than their real video (1.32, 1.08, 1.22) and one flickers more (d18, 1.38). The mean identity match is above 0.80 on every clip, but 22% of the frames of d6 and 59% of the cross-identity clip are below it.
 
+### 9 October 2026: identity, the fourth feature, with the delay watchdog
+
+Approved by Zain on 9 October. The score of the output against the enrolled picture was already measured live; this step makes the system act on it. The delay watchdog was built in the same step, because it ends in the same place: the still picture.
+
+**What the score looks like, measured before any limit was set** (`scripts/study_identity_guard.py`, `results/identity_guard_study.json`). Normal use, the eight pairs of the benchmark, 1,128 frames: mean 0.89, the lowest frame 0.72, and 9% of frames below the 0.80 that is the target on average; the lowest mean of any three seconds was 0.82. Then four clips with one thing wrong at a time:
+
+| Fault | Mean | Lowest frame |
+|---|---|---|
+| Head pushed 30 / 45 degrees past its range, head range off | 0.73 / 0.55 | 0.59 / 0.44 |
+| Head turned 45 degrees further, head range off | 0.65 | 0.47 |
+| The same two at 45 degrees with the head range on | 0.85 / 0.83 | 0.70 |
+| Mouth covered in the camera picture | 0.72 | 0.59 |
+| Expression three times too strong | 0.79 | 0.43 |
+| Head 0.75 times its size | 0.79 | 0.70 |
+| Neutral pose taken at the least restful frame | 0.85 | 0.66 |
+| Another person driving the picture | 0.77 | 0.60 |
+
+Three things follow. Single frames cannot be judged. The natural head range is what keeps the face recognisable at large angles (0.55 without it, 0.85 with it), which had not been measured before. And the score does not see everything: a neutral pose taken at a bad moment, or another person at the camera, stay near the normal range. The second is the consent check's job, not this stage's.
+
+**What was built**
+
+- **The guard** (`neuropresence/identity/guard.py`). It reads the mean of the last three seconds. Below 0.75 it asks for a fresh neutral pose and the filters start again. If the next seconds are still below, or two readings in a row fall under 0.50, the still picture is shown and stays. A dip of a second or so does nothing. A second drop within 30 seconds of a neutral pose that helped goes straight to the still picture. It keeps no clock of its own, so it can be run over a recording.
+- **The monitor** scores twice a second in place of once. One score takes the CPU 48 ms; at four a second the frame rate and delay of a session did not move (`results/delay_study.json`).
+- **The delay watchdog** (`neuropresence/server/watchdog.py`). It reads the mean delay of the last two seconds. Above 150 ms the still picture is shown; the frames are still drawn, hidden, so the delay stays measured, and the live picture returns when the mean has been under 135 ms for a second.
+- **In the session.** The pipeline can draw a frame without showing it (`step(show=False)`). Both holds use the hold and fade that a lost face already had.
+- **In the web app.** Two new switches, "Identity fallback" and "Delay watchdog". The identity figure says what the guard is doing. When the still picture goes up for identity, a notice asks for five seconds whether to resume or stay, then stays, with one button to resume (`POST /api/session/resume`, which takes a fresh neutral pose and gives the output a few seconds to prove itself). A late picture gets its own notice and returns by itself.
+
+**The guard run over the recorded scores**, two readings a second, each clip repeated as if the fault went on: nothing on any of the eight normal pairs; the still picture in every run with the head pushed 45 degrees and in 90% with it turned 45 degrees, about 4.5 s after the fault starts; in 75% at 30 degrees; in about half with the mouth covered, whose scores sit on the level; in 5% with the head range on.
+
+**In a real session**, on the real engine and scorer, with the lower face covered in a sample clip from one frame to the next: the guard took a fresh neutral pose 3.5 s after the cover appeared, and the match returned to 0.91 while the cover lasted. **This showed a fault the recordings could not.** The cover had become part of the neutral pose, so once it was taken away the output was off (0.80, where it had been 0.86). A fresh neutral pose that helped is now watched: when the match steps down by 0.08 or more from what it reached, the neutral pose is taken once more. In the same run that came 2 s after the cover was removed, and the match returned to 0.86.
+
+**How the delay behaves when the GPU is shared** (`scripts/study_delay.py`, `results/delay_study.json`; a second process keeps the GPU busy for a set share of the time, on a 480 px sample clip with no browser attached):
+
+| GPU busy elsewhere | Frame rate | Delay, mean | Frames over 150 ms |
+|---|---|---|---|
+| Not at all | 20.4 | 82 ms | 0% |
+| 25% of the time | 16.2 | 93 ms | 0% |
+| 50% of the time | 13.0 | 110 ms | under 1% |
+| 75% of the time | 9.9 | 134 ms | 13% |
+| All the time | 7.3 | 171 ms | 96% |
+
+The frame rate falls first and the delay follows slowly, because late frames are dropped and not queued. The limit is passed only when something else holds the GPU three quarters of the time or more. In a real session beside a fully loaded GPU the watchdog held the picture back 3.5 s after the load began and released it within two seconds of the load ending. This is the first measurement of the system beside other GPU work, which the proposal committee asked about; it is an artificial load, not a meeting application.
+
+**Checked.** 248 engine and server tests (31 new: each level of the guard, the watchdog, the hidden frame, and both in a session through the server) and 37 web tests (8 new), all passing. The full benchmark is unchanged (`results/benchmark_identity_windows_rtx5050.json`): 16.3 frames a second, render 36.8 ms, identity 0.898, tremble 0.99, flicker 0.75. A session alone ran at 20.9 frames a second and 80 ms before the change and 20.4 to 20.9 and 81 to 83 ms after it. Looked at in a browser at 1440 px with a scripted session: the prompt, the notice after five seconds, the resume, the late picture and its return, with no errors in the console.
+
+**Not the same figures as on 8 October.** The 18.7 frames a second and 89 ms of that day were a camera-sized picture; the delay study uses a 480 px sample clip, where a session runs at about 21 and 82 ms. The two are not a before and after.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -311,6 +358,10 @@ Zain asked for the FYP-I mid report before step 4: LaTeX source and PDF in the u
 | Tremble is removed at its two sources, the crop and the keypoints, with a filter that lets movement through | Each was measured separately; filtering the pose angles instead added delay and made it worse |
 | The frame rate is left at about 19 of the 24 targeted (Zain, 8 October 2026) | The remaining route, 8-bit arithmetic, reached about 23 but changed the picture badly; quality comes first |
 | A speed change is kept only if the full benchmark shows quality unchanged | Half precision for the movement-reading network was faster and brought the tremble back |
+| The identity score is judged as a mean over three seconds, with 0.75 as the level | 9% of normal frames are below 0.80; no three seconds of normal use averaged below 0.82, and outputs that look wrong average 0.73 or less |
+| A fresh neutral pose is tried before the still picture | It costs the viewer a moment and cures a neutral pose gone wrong; the still picture stays until the person acts |
+| A fresh neutral pose that helped is watched, and taken once more if the match steps down | Seen live: taken while the mouth was covered, it made the cover part of the neutral pose |
+| The delay is judged as a mean over two seconds, and late frames are still drawn while hidden | Single frames pass 150 ms long before the session does; drawing hidden keeps the delay measured, so the picture can return by itself |
 | A posture held for a few seconds becomes the rest position | A head held at an angle on a body that never moves looks glued on; a nod or a turn still shows |
 | The head keeps to a range of movement and to its size | The body in the picture stays still; beyond about 15 degrees of nod or 22 of turn the head looks wrong on it |
 | An upload gets its own wording for every check (Talha, 8 October 2026) | A picture already taken cannot be told to move closer or tilt up; the hint has to ask for a different photo instead |
@@ -335,6 +386,11 @@ Zain asked for the FYP-I mid report before step 4: LaTeX source and PDF in the u
 
 ## Open items
 
+- The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
+- A covered mouth is caught in only about half the runs, because its scores sit on the level, and until the guard acts the mouth is drawn smeared.
+- A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. The step-down rule repairs the one case seen (a covered mouth); others may exist.
+- After an identity fallback the still picture stays until the person resumes, and the prompt is in the Live Studio only. Once the output goes to a meeting through the virtual camera, the person may not be looking at the Live Studio.
+- The delay watchdog has been tried against an artificial GPU load, not against a meeting application.
 - The pipeline has been run on one team member's face only, and never on Kubuntu.
 - The benchmark uses studio sample clips. It has to be repeated on the team's own webcam recordings.
 - The phone camera app used so far draws a name banner into the picture, which ends up in the output.

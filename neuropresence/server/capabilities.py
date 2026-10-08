@@ -43,8 +43,9 @@ STAGES = [
         "key": "identity",
         "name": "Identity",
         "summary": "Checks that the output still looks like the enrolled person.",
-        "status": "partial",
-        "note": "Similarity is measured live. The automatic fallback on identity loss is not built yet.",
+        "status": "working",
+        "note": "Similarity is measured twice a second. A lasting drop takes a fresh neutral pose, and if that does "
+                "not help the still picture is shown until you resume.",
     },
     {
         "key": "consent",

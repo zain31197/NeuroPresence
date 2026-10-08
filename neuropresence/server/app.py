@@ -184,6 +184,12 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         attempt(runtime.reset_neutral)
         return {"ok": True}
 
+    @app.post("/api/session/resume")
+    def resume():
+        """Go live again after an identity fallback."""
+        attempt(runtime.resume_reenactment)
+        return runtime.status()
+
     # --------------------------------------------------------------- features
 
     @app.patch("/api/features/{key}")

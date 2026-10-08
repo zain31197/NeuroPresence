@@ -1,13 +1,14 @@
 import { Info } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Card } from '../../components/ui/Card'
-import { Pill } from '../../components/ui/Pill'
+import { Pill, type Tone } from '../../components/ui/Pill'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { Meter } from '../../components/viz/Meter'
 import { Sparkline } from '../../components/viz/Sparkline'
 import type { Benchmark } from '../../lib/api'
 import { verdict, type Verdict } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
+import { guardNote } from './holds'
 
 const HISTORY_CAPACITY = 240
 const STATUS_INTERVAL_S = 0.25
@@ -26,10 +27,12 @@ interface FigureProps {
   benchmark?: number | null
   /** Shown in place of the target when the figure cannot be measured. */
   unavailable?: string | null
+  /** Something the system is doing about this figure right now, shown beside the verdict. */
+  note?: { text: string; tone: Tone } | null
   children: ReactNode
 }
 
-function Figure({ label, about, value, digits, unit, result, target, benchmark, unavailable, children }: FigureProps) {
+function Figure({ label, about, value, digits, unit, result, target, benchmark, unavailable, note, children }: FigureProps) {
   const known = value !== null && value !== undefined
   const hasBenchmark = benchmark !== null && benchmark !== undefined
   return (
@@ -52,9 +55,10 @@ function Figure({ label, about, value, digits, unit, result, target, benchmark, 
         )}
         <span className="text-[12.5px] font-medium text-ink-500">{unit}</span>
       </p>
-      <div className="mt-2.5 flex h-[22px] items-center">
+      <div className="mt-2.5 flex h-[22px] items-center gap-1.5 overflow-hidden">
         {result === 'good' && <Pill tone="good">On target</Pill>}
         {result === 'off' && <Pill tone="serious">Off target</Pill>}
+        {note && <Pill tone={note.tone}>{note.text}</Pill>}
       </div>
       {/* Two fixed lines, so every figure's trend line starts at the same height. */}
       <p className="mt-2 h-[36px] text-[12px] leading-[18px] text-ink-500">
@@ -130,7 +134,7 @@ export function MetricTiles({ benchmark }: { benchmark: Benchmark | null }) {
 
       <Figure
         label="Identity match"
-        about="How closely the output face matches the enrolled picture (cosine similarity of ArcFace embeddings), checked once a second. A face that never moved would score 1.0."
+        about="How closely the output face matches the enrolled picture (cosine similarity of ArcFace embeddings), checked twice a second. A face that never moved would score 1.0. If the mean of the last three seconds falls below 0.75, a fresh neutral pose is taken, and if that does not help the still picture is shown until you resume."
         value={identity.csim}
         digits={2}
         unit="CSIM"
@@ -138,6 +142,7 @@ export function MetricTiles({ benchmark }: { benchmark: Benchmark | null }) {
         target={`≥ ${targets.csim.toFixed(2)}`}
         benchmark={saved?.csim_self_reenactment}
         unavailable={identity.available ? null : identity.reason}
+        note={status.session.state === 'running' ? guardNote(identity.guard) : null}
       >
         <Sparkline values={series((s) => s.csim)} {...trend} target={targets.csim} format={(v) => v.toFixed(2)} label="Identity match" />
       </Figure>

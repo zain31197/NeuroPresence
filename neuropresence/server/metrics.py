@@ -39,6 +39,7 @@ class MetricsWindow:
                     "stages_ms": None, "dropped_share": None, "live_share": None}
         span = frames[-1][0] - frames[0][0]
         live = [f for f in frames if f[3]]
+        drawn = [f for f in frames if "render" in f[1]]  # also the frames that were drawn and held back
         produced = len(frames) + sum(f[4] for f in frames)
         return {
             # Frames finished per second of wall-clock time.
@@ -47,7 +48,7 @@ class MetricsWindow:
             # From the moment the frame arrived from the camera to the output being ready.
             "end_to_end_ms": round(float(np.mean([f[2] for f in frames])), 1),
             # GPU time of the reenactment stage, over the frames that were reenacted.
-            "render_ms": round(float(np.mean([f[1]["render"] for f in live])), 1) if live else None,
+            "render_ms": round(float(np.mean([f[1]["render"] for f in drawn])), 1) if drawn else None,
             # Where an average frame spends its time. A frame that was not reenacted
             # spends nothing on motion, render and compose, so these add up to pipeline_ms.
             "stages_ms": {stage: round(float(np.mean([f[1].get(stage, 0.0) for f in frames])), 1)
