@@ -2,16 +2,16 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (9 October 2026)
+## Where the project stands (10 October 2026)
 
 | Stage | State |
 |---|---|
-| Enrolment (once, before any session) | Working, in three steps: the face is verified live with the camera and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down), for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
+| Enrolment (once, before any session) | Working, in three steps: the face is verified live with the camera, after the liveness prompt, and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down), for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
 | 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing, a face crop that holds still while the head does |
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
 | 3. Reenactment | Working, 18 frames per second live against a target of 24; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
-| 5. Consent and disclosure | Partly built: a meeting picture must match the face verified live. The check of the live face before each session, and the mark on the output, are not built |
+| 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". Not yet tried by a person at a real camera |
 | 6. Virtual camera (meeting apps) | Not built |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
@@ -28,8 +28,9 @@ Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sampl
 | Lag behind the driving face | 0.07 frames | none |
 | Flicker, against real video | 0.74 times (0.89) | at most 1 time |
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
+| Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 248 for the engine and server, 37 for the web app, all passing.
+Tests: 306 for the engine and server, 46 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -53,8 +54,8 @@ Proposed and approved on 7 October 2026:
 2. Capture and tracking (built on 8 October 2026)
 3. Reenactment (done on 8 October 2026: render and delay targets met, frame rate at 19 of 24; a sharper face crop is measured and available, off by default)
 4. Identity (built on 9 October 2026, with the delay watchdog)
-5. Consent and disclosure (next)
-6. Virtual camera and meeting apps
+5. Consent and disclosure (built on 10 October 2026)
+6. Virtual camera and meeting apps (next)
 
 ## Before this repository
 
@@ -330,6 +331,45 @@ The frame rate falls first and the delay follows slowly, because late frames are
 
 **Not the same figures as on 8 October.** The 18.7 frames a second and 89 ms of that day were a camera-sized picture; the delay study uses a 480 px sample clip, where a session runs at about 21 and 82 ms. The two are not a before and after.
 
+### 10 October 2026: consent and disclosure, the fifth feature
+
+Approved by Zain on 9 October, as three parts: a liveness prompt (two actions chosen at random out of blink, turn left, turn right and open mouth, each within three seconds) before a face is verified and before every camera session; a check that the face at the camera is the registered one; and a visible mark on every output frame. The wording of the mark ("AI reenacted") and its corner (lower left) were taken as defaults, because the two choices put to Zain were not answered. The proposal committee had asked about exactly this: whether a photograph or a video of the user gets past the self likeness check.
+
+**What was measured before any limit was set** (`scripts/study_liveness.py`, `results/liveness_study.json`; no camera was opened).
+
+| What is held to the camera | What happened |
+|---|---|
+| A photograph, held still | Refused in all 1,296 attempts |
+| A photograph tilted by up to 65° or swung from side to side | Reads as a head turn of 32.5° at most, and a turn counts from 35°. Refused in all 12,000 attempts |
+| A photograph with the eyes covered, or with a dark shape over the mouth | Eye score 0.24 at most (a blink needs 0.50); mouth 0.42 at most (an open mouth needs 0.60) |
+| The twelve sample clips played as recordings, from every half second and for every order of actions | Refused in all 3,110 attempts. If no turn were asked for, 1 of 622 would pass |
+| A recording made on purpose, with every action in it one after another (written out as readings, not filmed) | About 1 attempt in 9 passes (11 to 13% with two or three seconds of rest between the actions) |
+| A stand-in that does what is asked (two sample faces: blink and open mouth are frames of the clip, the turns are drawn by the engine) | Passes 20 of 20, in 4.5 to 4.8 s on average. Turning the other way: 0 of 20. Against another person's signature: 0 of 20 |
+| The same person through a whole clip, against its own first frame (1,474 faces) | Lowest match 0.49, against a limit of 0.35 |
+| Another person (132 pairs of clips) | Highest match 0.23 |
+
+**What the measurements changed.** The first limit for a turn was 25°. Two findings moved it. Heads in the sample clips turn up to 30° from rest within three seconds by themselves. And a photograph tilted by 60 to 65° reads as a turn too, the more the nearer the camera is: 12.7° with the camera 3.0 widths of the photograph away, 18.3° at 1.4 widths, 27.8° at 0.8 and 32.5° at 0.6 (the nearest is a camera with a view 80° wide and a photograph that fills its picture). So a turn counts from 35°, which the one real face registered so far reached with room (40° on both sides), and one of the two actions is always a turn: with blink and open mouth alone, a clip of a person talking passed once in 622 attempts.
+
+Two further ways to tell a tilted photograph from a head were tried. Where the nose sits against the eye corners does not tell them apart: the tracker fits its own face model to a flat picture, so the nose moves on a photograph much as on a head (0.08 to 0.09 of the face height at a reading of 25 to 32°, against 0.06 on real heads at 14 to 18°). How much the face narrows does: a real head narrows as its turn says, within 0.10, and a tilted photograph that reads as 25° or more is narrower than that by 0.14 at least. It is not used, because the sample clips hold no head turned beyond 18° and the rule would have been set on a guess; it is the first thing to measure on the team's own camera.
+
+Three things were built and then taken out again: a rule that the face may not jump between two frames (the largest jump in the clips was a quarter of a face height in one frame, so a limit either refuses fast movers or stops nothing; the face match covers a swapped face), a mouth measured from its own rest level (a mouth at rest is at most 0.30 open and wide open starts at 0.60, so the rule never decided anything), and the count of three before the verification picture (the prompt takes its place).
+
+**What was built**
+
+- **The liveness prompt** (`neuropresence/consent/liveness.py`). It is given one tracker reading at a time, with its time, and keeps no clock, so it runs over a recording as it does live. The face has to be seen at rest, facing the camera with mouth closed and eyes open, for half a second plus a wait of random length; then an action is asked for and has three seconds. A turn counts from 35° from where the head was at rest, an open mouth from 0.60 held for 0.3 s, a blink as both eyes closing (0.50, and 0.25 above their own rest level) and opening again within a second. Doing something other than what was asked ends it, except a blink. No face, or two, for more than half a second ends it. After the last action the face has to come back to rest.
+- **The face match** (`neuropresence/consent/check.py`). During the prompt the face is compared about four times a second with every signature registered for the user; the best decides; a miss is looked at again in the next frame and two in a row refuse. The face after a gap in tracking is matched at once. When the prompt is passed one more match is needed. While a face is verified for the first time, the first face seen is the one all later ones, and the picture that is then taken, have to match.
+- **In a session** (`neuropresence/server/session.py`). After the models have loaded and before anything is animated, the camera is shown beside the marked still picture and the check runs. If it is not passed the session ends with the reason, and the engine has not drawn a frame. A sample clip animates its own frame and is not checked.
+- **During a session** (`ConsentWatch`, on the identity monitor's thread). Once a second the camera face is compared with the registered signatures. Three in a row that do not match put the still picture up; two that match bring the live picture back with a fresh neutral pose. This hold takes the place of whatever the identity guard was doing: what the output scored while someone else drove it says nothing about the picture. **This part was not in the description Zain approved.** It was added because step 4 had left it to this step ("another person driving the picture stays near the normal range"), and a check only at the start would have left the hole open.
+- **Pose registration** (Talha's step, 8 October). A pose is now registered only if it matches the verified face. Every registered signature is one the face match accepts, so without this anyone could have registered a pose and then started sessions. On the one real face registered so far the poses matched the capture facing the camera at 0.67 at the lowest.
+- **The disclosure mark** (`neuropresence/consent/disclosure.py`). Drawn in `Pipeline.step` on every live frame as it is made, and once on a copy of the enrolled picture, which is what holds and fades reuse; so every frame that leaves the pipeline carries it, and the stored picture stays as it was uploaded. `scripts/reenact_video.py`, which drives the engine itself, marks what it writes. The label is an eighteenth of the frame high, at least 22 pixels, and costs 0.09 ms a frame.
+- **In the web app.** The prompt is drawn on the camera picture, mirrored, with the time left and, for a turn, an arrow on the side to turn to and a ring that fills as the turn is seen. In the Live Studio a refused check gets its own notice with the reason and a button to try again, and someone else at the camera gets a notice while the still picture is up. On the Enrolment screen the button is "Verify my face", and the list of checks gives way to the prompt while it runs, because a turned head and a blink would show there as faults. The size of the output moved to the lower right of its monitor: it sat on top of the mark.
+
+**In a real session**, on the real engine, tracker and face model, in a browser at 1440 px, with a stand-in as "Camera 0" (a sample face that sits at rest, does what the prompt asks for, and moves like its clip once the session is live): the two prompts were answered and the session went live; another sample face put at the camera during the session got the still picture after three readings, and the live picture returned when the first face came back; the first face doing nothing was refused ("No blink was seen within 3 seconds"); the other face was refused before anything was asked for; and on the Enrolment screen a face was verified after its prompt. No errors in the console.
+
+**Checked.** 306 engine and server tests (58 new: every way the prompt can be passed and failed, the face match, the watch, the mark on every kind of output frame, and all of it through the server) and 46 web tests (9 new), all passing. The full benchmark is unchanged with the mark in place (`results/benchmark_consent_windows_rtx5050.json`): 16.2 frames a second (16.3 before), render 36.7 ms (36.8), identity 0.898 (0.898), tremble 1.00 (0.99), flicker 0.75 (0.75). A session alone ran at 20.8 to 21.0 frames a second and 80 to 81 ms with the watch off and 20.6 to 21.1 and 81 to 82 ms with it on.
+
+**What it does not stop.** No person has answered the prompt at a real camera: the stand-in is not a person and its turns are drawn. A recording made for the purpose passes about one attempt in nine, and attempts are not limited. A face that is itself animated live and fed in as the camera answers the prompt as a person does; the stand-in is exactly that, and it is the honest answer to the committee's question about a video: a recording is stopped, a live puppet is not. And with `--camera-file` a video file can no longer verify a face or start a camera session, which is the point; sessions without a webcam run on the sample clips.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -362,6 +402,11 @@ The frame rate falls first and the delay follows slowly, because late frames are
 | A fresh neutral pose is tried before the still picture | It costs the viewer a moment and cures a neutral pose gone wrong; the still picture stays until the person acts |
 | A fresh neutral pose that helped is watched, and taken once more if the match steps down | Seen live: taken while the mouth was covered, it made the cover part of the neutral pose |
 | The delay is judged as a mean over two seconds, and late frames are still drawn while hidden | Single frames pass 150 ms long before the session does; drawing hidden keeps the delay measured, so the picture can return by itself |
+| One of the two actions asked for is always a turn of the head | A flat picture cannot show it; blinking and an open mouth happen by themselves in any recording of a person talking |
+| A turn counts from 35 degrees | A tilted photograph read as 32.5 degrees at most; heads in the sample clips move 30 by themselves; the one real face registered reached 40 |
+| The face is matched all the way through the prompt, not once before it | Otherwise a photograph could be held up for the match and someone else do the moving |
+| The mark is drawn inside the pipeline and has no switch | A frame that can leave unmarked through some path is the frame that will be shown |
+| No way around the prompt for tests; a video file as camera is refused like any recording | A switch for tests is a switch |
 | A posture held for a few seconds becomes the rest position | A head held at an angle on a body that never moves looks glued on; a nod or a turn still shows |
 | The head keeps to a range of movement and to its size | The body in the picture stays still; beyond about 15 degrees of nod or 22 of turn the head looks wrong on it |
 | An upload gets its own wording for every check (Talha, 8 October 2026) | A picture already taken cannot be told to move closer or tilt up; the hint has to ask for a different photo instead |
@@ -383,9 +428,17 @@ The frame rate falls first and the delay follows slowly, because late frames are
 | On a real camera the face outline was smaller and narrower than a well-placed face, and the hint said to move back | The outline's size was chosen by eye in the web app, apart from the checks, for a face 47% of the picture's height; the measurements say a larger face is better | The outline is worked out beside the check limits and tested against them; the hint tells a well-sized face to shift, not to move back |
 | With an uploaded photograph the head came out too large for the body | Movement was measured from the photograph's own pose, so the difference between the photograph and how the person sits at the camera was applied as movement | The neutral pose is taken from the camera, from the first frame at rest when a session starts; tests for the waiting logic |
 | A fresh copy of the repository could not have built the web app | The ignore rule `data/`, meant for the enrolled picture, also hid `web/src/data/faceMesh.json`, which the landing page needs. Found on 7 October 2026, before the web app was first committed | The rule now names only the project's own data folder (`/data/`) |
+| A photograph held close to the camera and tilted read as a turn of the head of up to 32.5 degrees, above the first limit of 25 | The tracker fits a face model to whatever it is shown, and the nearer a flat picture is, the more its tilt looks like a turn; the first trial had one camera distance only | Measured at four distances, to a tilt at which the face is no longer found; a turn counts from 35 degrees, and one is asked for in every check (10 October 2026) |
+| In the Live Studio the disclosure mark could not be seen | The monitor's own label for the picture size sat in the same corner, on top of it. Seen in the first screenshot of a live session | The size label of the output moved to the lower right |
+| After someone else had sat at the camera, the session could have stayed on the still picture until "Resume" was pressed | The identity guard had reacted to the output of those seconds and kept its own hold after the consent hold ended. Noticed in the browser run, where the guard had taken a fresh neutral pose in that time | A consent hold starts the identity guard afresh and takes the place of its hold |
 
 ## Open items
 
+- No person has answered the liveness prompt at a real camera. Whether 35 degrees is comfortable, whether three seconds is enough, and how often a real user is refused all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
+- A recording made on purpose passes the prompt about one attempt in nine, and attempts are not limited. A live reenactment fed in as the camera passes like a person.
+- How much a face narrows as it turns separates a tilted photograph from a head in the sample material. It needs real heads turned to 35 degrees and beyond before it can be made a rule.
+- Someone else sitting down during a session drives the picture for two to three seconds before the still picture goes up.
+- The mark is small when a meeting application shows the picture small: 22 pixels at least, an eighteenth of the frame. Whether it can still be read there waits for the virtual camera.
 - The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
 - A covered mouth is caught in only about half the runs, because its scores sit on the level, and until the guard acts the mouth is drawn smeared.
 - A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. The step-down rule repairs the one case seen (a covered mouth); others may exist.

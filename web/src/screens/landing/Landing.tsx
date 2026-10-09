@@ -325,7 +325,7 @@ function Safeguards({ stages }: { stages: PipelineStage[] | null }) {
       icon: Fingerprint,
       title: 'Your own face only',
       text: built
-        ? 'Before a session starts, the live face is checked against the enrolled picture. No match, no animation.'
+        ? 'Before a session starts you are asked for two quick actions, chosen at random, and the face at the camera is matched with your verified face all the way through. No match, no animation.'
         : 'A session will start only if the live face matches the enrolled picture. No match, no animation.',
       status: consent,
     },

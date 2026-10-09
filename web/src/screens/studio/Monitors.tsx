@@ -1,5 +1,7 @@
 import { ImageOff, Pause, RotateCcw, ScanFace, Users, VideoOff } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { isAsking } from '../../components/liveness'
+import { LivenessPrompt } from '../../components/LivenessPrompt'
 import { Empty, Monitor, paint, Waiting } from '../../components/Monitor'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -32,6 +34,10 @@ export function Monitors() {
   const session = status?.session
   const running = session?.state === 'running'
   const starting = session?.state === 'starting'
+  // Before a camera session goes live the person is asked for two actions. The camera is shown
+  // meanwhile, mirrored, because the prompt speaks of their own left and right.
+  const consent = session?.consent ?? null
+  const checking = starting && isAsking(consent)
   const record = status?.enrolment.record ?? null
   // A sample clip animates one of its own frames, so its still picture is not the enrolled one.
   const still = session?.source === 'sample' ? 'Still picture' : 'Enrolled picture'
@@ -61,10 +67,10 @@ export function Monitors() {
   }, [onFrame])
 
   useEffect(() => {
-    if (!running) setFrame(null)
-  }, [running])
+    if (!running && !checking) setFrame(null)
+  }, [running, checking])
 
-  const showing = running && frame !== null
+  const showing = (running || checking) && frame !== null
   const pose = session?.tracking?.pose_deg
 
   const resetNeutral = async () => {
@@ -84,7 +90,7 @@ export function Monitors() {
       <div className="grid gap-2 md:grid-cols-2">
         <Monitor
           label="Camera"
-          detail={running ? session?.input : undefined}
+          detail={running ? session?.input : checking && showing ? 'Mirrored' : undefined}
           lit={showing}
           chip={showing && <TrackingChip status={frame.status} />}
           footer={
@@ -98,7 +104,13 @@ export function Monitors() {
             )
           }
         >
-          <canvas ref={camera} role="img" aria-label="Camera preview" className={cn('size-full object-contain', !showing && 'hidden')} />
+          <canvas
+            ref={camera}
+            role="img"
+            aria-label={checking ? 'Camera preview, mirrored' : 'Camera preview'}
+            className={cn('size-full object-contain', !showing && 'hidden', checking && '-scale-x-100')}
+          />
+          {showing && checking && consent && <LivenessPrompt prompt={consent} />}
           {!showing &&
             (starting ? (
               <Waiting message={session?.message} />
@@ -129,6 +141,7 @@ export function Monitors() {
             )
           }
           footer={showing && <span>{`${frame.width} × ${frame.height}`}</span>}
+          footerAt="right"
         >
           <canvas ref={output} role="img" aria-label="Reenacted output" className={cn('size-full object-contain', !showing && 'hidden')} />
           {!showing &&

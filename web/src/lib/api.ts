@@ -33,7 +33,36 @@ export interface Session {
   metrics: Metrics | null
   tracking: Tracking | null
   /** Why the still picture is shown although a face is in view, if it is. */
-  holds?: { identity: boolean; delay: boolean }
+  holds?: { identity: boolean; delay: boolean; consent?: boolean }
+  /** The check a camera session starts with: what is being asked for, or how it ended. Null for a sample clip. */
+  consent?: ConsentPrompt | null
+}
+
+export type LivenessAction = 'blink' | 'turn_left' | 'turn_right' | 'open_mouth'
+
+/**
+ * How the liveness prompt and the face match stand (consent/check.py in the engine). Asked before
+ * a face is verified and before every camera session.
+ */
+export interface ConsentPrompt {
+  /** 'settle': waiting to see the face at rest. 'act': an action is asked for. 'confirming': one last face match. */
+  stage: 'settle' | 'act' | 'confirming' | 'passed' | 'refused' | 'failed'
+  /** Which of the actions is being asked for, counted from 1, and how many there are. */
+  step: number
+  steps: number
+  action: LivenessAction | null
+  /** What to do now, in words. */
+  prompt: string
+  /** How long each action is given, and how much of that is left for the one asked for. */
+  seconds: number
+  seconds_left: number | null
+  /** For a turn of the head: how much of it has been seen, 0 to 1. */
+  progress: number | null
+  /** Why it was refused, in words. Empty otherwise. */
+  reason: string
+  failure?: string | null
+  /** How alike the face at the camera last was to the registered one (CSIM). */
+  match?: number | null
 }
 
 /** What the identity monitor is doing about the score (see identity/guard.py in the engine). */
@@ -145,6 +174,8 @@ export interface Preview {
   /** Where the face should be: a face that fills this box passes the size and framing checks with room to spare. */
   outline?: FaceBox | null
   taking: boolean
+  /** While a face is being verified: what the liveness prompt asks for, or how it ended. */
+  liveness?: ConsentPrompt | null
 }
 
 export interface Enrolment {
@@ -180,7 +211,14 @@ export interface Targets {
 export interface Status {
   session: Session
   enrolment: Enrolment
-  identity: { available: boolean; csim: number | null; reason: string | null; guard?: IdentityGuard }
+  identity: {
+    available: boolean
+    csim: number | null
+    reason: string | null
+    guard?: IdentityGuard
+    /** The consent watch: whether the output is held back because someone else is at the camera. */
+    consent?: { held: boolean; match: number | null }
+  }
   features: Feature[]
   gpu: { name: string; total_gb: number; allocated_gb: number; peak_gb: number } | null
   targets: Targets

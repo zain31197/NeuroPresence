@@ -8,6 +8,8 @@ import threading
 import time
 from concurrent.futures import Future
 
+from ..consent import liveness
+from ..consent.check import THE_FACE_CHANGED
 from ..enrolment import make_candidate, make_pose_candidate, prepare
 from ..enrolment.checks import outline_for
 from .session import FramePair, SessionError, SessionState
@@ -15,6 +17,7 @@ from .session import FramePair, SessionError, SessionState
 READY_SECONDS = 0.4  # the checks must hold this long before a picture can be taken
 BURST_SECONDS = 0.5  # from the first good frame, the best frame of this long is kept
 TAKE_TIMEOUT_SECONDS = 4.0  # give up if no frame passes in this time
+CHECK_TIMEOUT_SECONDS = 45.0  # the liveness prompt before a face is verified ends by itself well within this
 UNWATCHED_SECONDS = 15.0  # nobody has fetched a frame for this long: close the camera
 
 
@@ -38,6 +41,7 @@ class EnrolmentPreview:
         self._ready = False
         self._outline = None  # where the face should be, as shares of the frame, for the app to draw
         self._taking = None  # the picture request in progress, if any
+        self._liveness = None  # how the liveness prompt of that request stands or ended, for the app to show
         self._watched_at = 0.0  # when a frame was last fetched for showing
         self._pose = None  # None for the ordinary frontal capture; "left"/"right"/"up"/"down" for a pose capture
 
@@ -53,7 +57,7 @@ class EnrolmentPreview:
             if self.active:
                 raise SessionError("The camera is already open.")
             self._stop.clear()
-            self._pair = self._checks = self._taking = self._outline = None
+            self._pair = self._checks = self._taking = self._outline = self._liveness = None
             self._hint, self._tip, self._ready = "", "", False
             self._watched_at = time.perf_counter()
             self._pose = pose
@@ -74,8 +78,16 @@ class EnrolmentPreview:
     def take(self):
         """Take the picture: the sharpest, most open-eyed frame of a short burst that passes every check.
 
-        Blocks for a moment. Raises NotGoodEnough, saying what to change, if no frame passes.
+        The picture a face is verified with is taken only after the liveness prompt has been answered
+        (consent/check.py), so that a photograph held to the camera cannot become the user's face. A
+        pose is registered for a face that has been verified already and has no prompt of its own.
+
+        Blocks until it is done. Raises NotGoodEnough, saying what to change, if the prompt is not
+        answered or no frame passes.
         """
+        check = scorer = None
+        if self._pose is None:
+            check, scorer = self._rt.verification_check()
         with self._lock:
             if self.state is not SessionState.RUNNING:
                 raise SessionError("Open the camera first.")
@@ -83,9 +95,10 @@ class EnrolmentPreview:
                 raise SessionError("A picture is already being taken.")
             self._watched_at = time.perf_counter()
             request = {"future": Future(), "best": None, "first_good_at": None,
-                       "deadline": time.perf_counter() + TAKE_TIMEOUT_SECONDS}
-            self._taking = request
-        return request["future"].result(timeout=TAKE_TIMEOUT_SECONDS + 5.0)
+                       "deadline": time.perf_counter() + TAKE_TIMEOUT_SECONDS,
+                       "check": check, "scorer": scorer, "checked": check is None}
+            self._taking, self._liveness = request, None
+        return request["future"].result(timeout=(CHECK_TIMEOUT_SECONDS if check else TAKE_TIMEOUT_SECONDS) + 5.0)
 
     def latest_pair(self):
         """The newest frame, for showing. Fetching it is what keeps the camera open."""
@@ -110,6 +123,8 @@ class EnrolmentPreview:
                 # Only set for the ordinary frontal capture: a pose capture has no fixed target box.
                 "outline": self._outline if running else None,
                 "taking": self._taking is not None,
+                # While a face is being verified: what the liveness prompt asks for, or how it ended.
+                "liveness": self._liveness if running else None,
             }
 
     # ---------------------------------------------------------- the thread
@@ -168,11 +183,36 @@ class EnrolmentPreview:
                 request = self._taking
                 unwatched = now - self._watched_at > UNWATCHED_SECONDS
             if request is not None:
-                self._serve(request, candidate, now)
+                if self._answered(request, candidate, frame, track, item.captured_at, now):
+                    self._serve(request, candidate, now)
             elif unwatched:
                 # A camera left open with no page showing it is a camera filming for nothing.
                 self._rt.events.add("info", "The camera was closed because the Enrolment screen is no longer open.")
                 return
+
+    def _answered(self, request, candidate, frame, track, at, now):
+        """Has the liveness prompt of this request been answered, so that the picture may be taken?"""
+        check = request.get("check")
+        if check is None or request["checked"]:
+            return True
+        if not request.get("began"):
+            # The prompt begins once the picture itself is good. Until then the checks say what to change.
+            if not candidate.passed:
+                if now >= request["deadline"]:
+                    self._settle(None, NotGoodEnough(candidate.summary()["hint"] or "The picture did not pass the checks."))
+                return False
+            request["began"] = True
+        check.frame(liveness.read(track), at)
+        if track.ok and check.wants_face(at):
+            check.face(request["scorer"].embed(frame, track.landmarks), at)
+        with self._lock:
+            self._liveness = check.snapshot(at)
+            self._watched_at = now  # the person is busy answering: the camera is being watched
+        if check.passed is False:
+            self._settle(None, NotGoodEnough(check.reason))
+        elif check.passed:
+            request["checked"], request["deadline"] = True, now + TAKE_TIMEOUT_SECONDS
+        return False  # the picture is taken from the frames that follow
 
     def _serve(self, request, candidate, now):
         if candidate.passed:
@@ -181,8 +221,12 @@ class EnrolmentPreview:
             request["first_good_at"] = request["first_good_at"] or now
         burst_over = request["first_good_at"] is not None and now - request["first_good_at"] >= BURST_SECONDS
         if burst_over or now >= request["deadline"]:
-            if request["best"] is not None:
-                self._settle(request["best"], None)
+            best, check = request["best"], request.get("check")
+            if best is not None and check is not None and not check.same_face(
+                    request["scorer"].embed(best.image, best.landmarks)):
+                self._settle(None, NotGoodEnough(THE_FACE_CHANGED))  # not the face that answered the prompt
+            elif best is not None:
+                self._settle(best, None)
             else:
                 self._settle(None, NotGoodEnough(candidate.summary()["hint"] or "The picture did not pass the checks."))
 

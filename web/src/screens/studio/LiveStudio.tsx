@@ -92,8 +92,12 @@ export function LiveStudio() {
   // A camera session animates the enrolled picture, so there has to be one. A sample clip brings its own.
   const needsPicture = !active && input.startsWith('camera') && !!status && status.enrolment.record === null
   const running = session?.state === 'running'
-  const heldForIdentity = running && !!session?.holds?.identity
-  const heldForDelay = running && !!session?.holds?.delay && !heldForIdentity
+  // Three reasons for the still picture. Someone else at the camera comes first: nothing else matters then.
+  const heldForConsent = running && !!session?.holds?.consent
+  const heldForIdentity = running && !!session?.holds?.identity && !heldForConsent
+  const heldForDelay = running && !!session?.holds?.delay && !heldForIdentity && !heldForConsent
+  // A session that ended because the check before it was not passed can simply be tried again.
+  const refused = session?.state === 'error' && session.consent?.stage === 'refused'
 
   const act = async (work: () => Promise<unknown>) => {
     setPending(true)
@@ -114,7 +118,10 @@ export function LiveStudio() {
             <h1 className="display text-[24px] leading-tight font-semibold">Live Studio</h1>
             {session && <SessionPill session={session} />}
           </div>
-          <p className="mt-1 text-[13.5px] text-ink-500">Drive your enrolled picture from the camera and watch every stage respond.</p>
+          <p className="mt-1 text-[13.5px] text-ink-500">
+            Drive your enrolled picture from the camera and watch every stage respond. A camera session starts with two quick actions, to check
+            that it is you.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -162,9 +169,29 @@ export function LiveStudio() {
           This page reconnects by itself.
         </Notice>
       )}
-      {session?.state === 'error' && (
+      {session?.state === 'error' && !refused && (
         <Notice className="mt-5" title="The session stopped" tone="critical">
           {session.message}
+        </Notice>
+      )}
+      {refused && (
+        <Notice
+          className="mt-5"
+          tone="critical"
+          title={session.consent?.failure === 'identity' ? 'This is not the verified face' : 'The check was not passed'}
+          action={
+            <Button size="sm" variant="primary" icon={<RotateCcw className="size-3.5" />} busy={pending} onClick={() => act(() => api.startSession(input))}>
+              Try again
+            </Button>
+          }
+        >
+          {session.message} Nothing was animated.
+        </Notice>
+      )}
+      {heldForConsent && (
+        <Notice className="mt-5" tone="critical" title="Someone else is at the camera">
+          The face at the camera does not match your verified face, so your still picture is shown. Reenactment returns by itself, with a
+          fresh neutral pose, when you are back.
         </Notice>
       )}
       {heldForIdentity && (

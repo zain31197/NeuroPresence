@@ -2,6 +2,7 @@
 
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from neuropresence.capture import TrackResult, TrackStatus
 from neuropresence.capture.feed import FeedFrame
+from neuropresence.consent import is_marked
 from neuropresence.enrolment import checks as limits
 from neuropresence.enrolment import POSE_KEYS, make_candidate, prepare
 from neuropresence.identity import SAME_PERSON_CSIM, IdentityGuard
@@ -61,6 +63,7 @@ class FakeTracker:
     yaw = 0.0
     pitch = 0.0
     blink = 0.1
+    jaw = 0.25
 
     def process(self, frame):
         if self.status is not TrackStatus.OK:
@@ -73,7 +76,7 @@ class FakeTracker:
         points[limits.UPPER_LIP], points[limits.LOWER_LIP] = (middle, y + 120), (middle, y + 122)
         points[limits.MOUTH_LEFT], points[limits.MOUTH_RIGHT] = (middle - 30, y + 121), (middle + 30, y + 121)
         return TrackResult(self.status, 1.0, landmarks=points, bbox=FACE_BOX, pose_deg=(self.yaw, self.pitch, 0.0),
-                           blendshapes={"jawOpen": 0.25, "eyeBlinkLeft": self.blink, "eyeBlinkRight": self.blink})
+                           blendshapes={"jawOpen": self.jaw, "eyeBlinkLeft": self.blink, "eyeBlinkRight": self.blink})
 
     def close(self):
         pass
@@ -115,15 +118,17 @@ class FakeEngine:
 
 
 class FakeScorer:
-    """Gives every face the same signature. `alike` is how alike it says any two faces are."""
+    """Gives every face the signature `face`. Two faces with the same signature are `alike`; any other two are not."""
 
     alike = 0.9
+    unlike = 0.1
+    face = (1.0, 0.0)
 
     def embed(self, image, landmarks=None):
-        return np.array([1.0, 0.0])
+        return np.array(self.face)
 
     def similarity(self, a, b):
-        return self.alike
+        return self.alike if np.array_equal(a, b) else self.unlike
 
 
 def make_runtime(tmp_path, parts):
@@ -162,6 +167,21 @@ def parts(tmp_path):
 def neutral_pose_at_once(monkeypatch):
     """The stand-in face talks all the time, so do not wait to see it at rest: take the first frame."""
     monkeypatch.setattr("neuropresence.pipeline.NEUTRAL_WAIT_SECONDS", 0.0)
+
+
+@pytest.fixture(autouse=True)
+def consent_at_once(monkeypatch):
+    """The stand-in face never moves, so the check before a session and before a face is verified
+    asks for no action here and does not wait: it passes on the face match alone. The tests of the
+    check itself ask for actions."""
+    monkeypatch.setattr("neuropresence.consent.liveness.ACTIONS_ASKED", 0)
+    monkeypatch.setattr("neuropresence.consent.liveness.REST_SECONDS", 0.0)
+    monkeypatch.setattr("neuropresence.consent.check.SCORE_SECONDS", 0.0)
+
+
+def level(image):
+    """How bright a picture is, read from its upper half: the disclosure mark sits in the lower left corner."""
+    return image[: image.shape[0] // 2].mean()
 
 
 def wait_for(condition, seconds=3.0):
@@ -241,6 +261,38 @@ def events(parts):
     return [event["message"] for event in parts["runtime"].events.since(0)]
 
 
+def ask_for(monkeypatch, *actions, seconds=None):
+    """Make the liveness prompt ask for these actions, at once, in place of two chosen at random."""
+    monkeypatch.setattr("neuropresence.consent.liveness.pick_actions", lambda rng=None, count=None: actions)
+    monkeypatch.setattr("neuropresence.consent.liveness.pick_waits", lambda count, rng=None: (0.0,) * count)
+    if seconds is not None:
+        monkeypatch.setattr("neuropresence.consent.liveness.ACTION_SECONDS", seconds)
+
+
+def answer(parts, told, done):
+    """Do at the camera what the prompt asks for, as a person would, until done() is true.
+    `told` reads what the app is being told. Returns the actions that were asked for, in order."""
+    tracker, asked = parts["tracker"], []
+    deadline = time.perf_counter() + 10.0
+    while not done() and time.perf_counter() < deadline:
+        action = (told() or {}).get("action")
+        if action and action not in asked[-1:]:
+            asked.append(action)
+        tracker.yaw = {"turn_left": 45.0, "turn_right": -45.0}.get(action, 0.0)
+        tracker.jaw = 0.8 if action == "open_mouth" else 0.25
+        if action == "blink":
+            tracker.blink = 0.9
+            time.sleep(0.05)
+            tracker.blink = 0.1
+        time.sleep(0.02)
+    tracker.yaw, tracker.jaw, tracker.blink = 0.0, 0.25, 0.1
+    return asked
+
+
+def preview_state(parts):
+    return status(parts)["enrolment"]["preview"]
+
+
 # ------------------------------------------------------------------ status
 
 
@@ -250,12 +302,13 @@ def test_status_when_nothing_has_happened(parts):
     assert found["enrolment"] == {"face": None, "record": None, "candidate": None,
                                   "preview": {"state": "idle", "message": "", "input": None, "pose": None, "checks": None,
                                               "hint": "", "tip": "", "ready": False, "outline": None,
-                                              "taking": False}}
+                                              "taking": False, "liveness": None}}
     assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
                                                                 "steady_keypoints": True, "natural_range": True,
                                                                 "identity_guard": True, "delay_watchdog": True,
                                                                 "tracking_overlay": False}
-    assert found["session"]["holds"] == {"identity": False, "delay": False}
+    assert found["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
+    assert found["session"]["consent"] is None
     assert found["identity"]["guard"]["state"] == "steady" and found["identity"]["guard"]["enabled"] is True
     assert [i["id"] for i in found["inputs"]] == ["camera:0", "camera:1", "camera:2", "sample:d0"]
     assert found["targets"]["fps"] == 24.0
@@ -390,7 +443,7 @@ def test_verifying_another_face_removes_a_meeting_picture_that_no_longer_matches
     record = enrol(parts)
     verify_face(parts)  # the same person verifies again: the picture stays
     assert status(parts)["enrolment"]["record"]["id"] == record["id"]
-    monkeypatch.setattr(FakeScorer, "alike", 0.1)  # then someone else sits down and verifies theirs
+    monkeypatch.setattr(FakeScorer, "face", (0.0, 1.0))  # then someone else sits down and verifies theirs
     verify_face(parts)
     assert status(parts)["enrolment"]["record"] is None
     assert parts["engines"][0].source_frame is None  # and the model no longer holds it
@@ -848,7 +901,7 @@ def test_a_lasting_identity_drop_takes_a_fresh_neutral_pose_and_then_shows_the_s
     assert status(parts)["identity"]["guard"]["state"] == "fallback"
     assert any("Showing the still picture until you resume" in message for message in events(parts))
     # The session goes on, tracking the face, with the enrolled picture as its output.
-    assert wait_for(lambda: runtime.session.latest_pair().output.mean() == pytest.approx(FRAME.mean()))
+    assert wait_for(lambda: level(runtime.session.latest_pair().output) == pytest.approx(level(FRAME)))
     pair = runtime.session.latest_pair()
     assert pair.live is False and pair.status == "ok"
     assert status(parts)["session"]["state"] == "running"
@@ -925,7 +978,7 @@ def test_a_picture_that_arrives_late_is_held_back_until_the_delay_recovers(parts
     feed.lag = 0.3  # every frame is already 300 ms old when the session gets it
     assert wait_for(lambda: status(parts)["session"]["holds"]["delay"], seconds=4.0)
     assert any("arriving late" in message for message in events(parts))
-    assert wait_for(lambda: runtime.session.latest_pair().output.mean() == pytest.approx(FRAME.mean()))
+    assert wait_for(lambda: level(runtime.session.latest_pair().output) == pytest.approx(level(FRAME)))
     assert runtime.session.latest_pair().live is False
     drawn = engine.drives
     assert wait_for(lambda: engine.drives > drawn + 5)  # still drawn, so that the delay stays measured
@@ -996,7 +1049,7 @@ def test_lost_face_falls_back_and_is_logged(parts):
     pair = parts["runtime"].session.latest_pair()
     assert pair.status == "no_face"
     # Not at once: the last live frame is held for a moment, then fades into the enrolled picture.
-    assert wait_for(lambda: parts["runtime"].session.latest_pair().output.mean() == pytest.approx(FRAME.mean()))
+    assert wait_for(lambda: level(parts["runtime"].session.latest_pair().output) == pytest.approx(level(FRAME)))
     parts["tracker"].status = TrackStatus.OK
     assert wait_for(lambda: parts["runtime"].session.latest_pair().live is True)
     assert "No face in view. Showing the enrolled picture." in events(parts)
@@ -1049,7 +1102,7 @@ def test_stream_sends_status_then_frames(parts):
     header, camera, output = unpack_frame(frame)
     assert header["kind"] == "live" and header["live"] is True and header["status"] == "ok"
     assert cv2.imdecode(np.frombuffer(camera, np.uint8), cv2.IMREAD_COLOR).shape == FRAME.shape
-    assert cv2.imdecode(np.frombuffer(output, np.uint8), cv2.IMREAD_COLOR).mean() == pytest.approx(200, abs=2)
+    assert level(cv2.imdecode(np.frombuffer(output, np.uint8), cv2.IMREAD_COLOR)) == pytest.approx(200, abs=2)
 
 
 def test_stream_survives_a_failing_status_reading(parts):
@@ -1137,3 +1190,189 @@ def test_metrics_separate_render_time_from_the_average_frame():
     for i in range(10, 20):
         window.add(i * 0.1, fallback, 100.0, False, 0)
     assert window.summary(now=7.0)["render_ms"] is None  # nothing was reenacted lately
+
+
+# ----------------------------------------------------- consent and disclosure
+
+
+def test_a_camera_session_starts_only_once_the_prompt_is_answered(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_left", "blink")
+    client, runtime, engine = parts["client"], parts["runtime"], parts["engines"][0]
+    assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 200
+    assert wait_for(lambda: (status(parts)["session"]["consent"] or {}).get("action") == "turn_left")
+    session = status(parts)["session"]
+    assert session["state"] == "starting" and session["message"] == "Checking that it is you"
+    assert session["consent"]["prompt"] == "Turn your head to your left"
+    assert (session["consent"]["step"], session["consent"]["steps"]) == (1, 2)
+    pair = runtime.session.latest_pair()  # the camera is shown meanwhile, beside the still picture
+    assert pair.live is False and is_marked(pair.output) and level(pair.output) == pytest.approx(level(FRAME))
+    assert engine.drives == 0  # nothing is animated before the check has passed
+    asked = answer(parts, lambda: status(parts)["session"]["consent"], lambda: status(parts)["session"]["state"] != "starting")
+    assert asked == ["turn_left", "blink"]
+    assert wait_for(lambda: status(parts)["session"]["state"] == "running")
+    assert status(parts)["session"]["consent"]["stage"] == "passed"
+    assert any(message.startswith("The liveness check was passed") for message in events(parts))
+    assert wait_for(lambda: engine.drives > 0)
+    client.post("/api/session/stop")
+    assert status(parts)["session"]["consent"] is None
+
+
+def test_a_face_that_does_nothing_cannot_start_a_session(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_right", "open_mouth", seconds=0.3)
+    parts["feeds"].clear()
+    parts["client"].post("/api/session/start", json={"input": "camera:0"})  # a photograph: the right face, doing nothing
+    assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+    session = status(parts)["session"]
+    assert session["message"] == "Your head did not turn to your right within 0.3 seconds."
+    assert session["consent"]["stage"] == "refused" and session["consent"]["failure"] == "late"
+    assert session["consent"]["match"] == 0.9  # the face matched: that is not enough
+    assert parts["engines"][0].drives == 0 and parts["feeds"][0].closed
+    assert parts["runtime"].session.latest_pair() is None and session["message"] in events(parts)
+    ask_for(monkeypatch)  # and it can be tried again
+    start(parts)
+
+
+def test_another_person_cannot_start_a_session(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_left", "blink")
+    monkeypatch.setattr(FakeScorer, "face", (0.0, 1.0))  # someone else sits down at the camera
+    parts["client"].post("/api/session/start", json={"input": "camera:0"})
+    asked = answer(parts, lambda: status(parts)["session"]["consent"], lambda: status(parts)["session"]["state"] != "starting")
+    assert asked == []  # refused before anything is asked for
+    session = status(parts)["session"]
+    assert session["state"] == "error"
+    assert session["message"] == ("The face at the camera is not the face that was verified, so the session was not "
+                                  "started. A picture is animated only for the person it belongs to.")
+    assert session["consent"]["failure"] == "identity" and session["consent"]["match"] == 0.1
+    assert parts["engines"][0].drives == 0
+
+
+def test_someone_else_sitting_down_during_a_session_gets_the_still_picture(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.runtime.WATCH_SECONDS", 0.03)
+    start(parts)
+    runtime, _, client = watch_identity_quickly(parts)
+    client.patch("/api/features/identity_guard", json={"enabled": False})  # the consent watch alone is looked at here
+    assert wait_for(lambda: runtime.session.latest_pair().live)
+    assert status(parts)["identity"]["consent"]["held"] is False
+    monkeypatch.setattr(FakeScorer, "face", (0.0, 1.0))  # the person who passed the check gets up, another sits down
+    assert wait_for(lambda: status(parts)["session"]["holds"]["consent"])
+    assert status(parts)["identity"]["consent"] == {"held": True, "match": 0.1}
+    assert wait_for(lambda: level(runtime.session.latest_pair().output) == pytest.approx(level(FRAME)))
+    assert runtime.session.latest_pair().live is False
+    assert ("The face at the camera is not the verified face (match 0.10). Showing the still picture until the "
+            "verified face is back.") in events(parts)
+    neutrals = parts["engines"][0].resets
+    monkeypatch.setattr(FakeScorer, "face", (1.0, 0.0))
+    assert wait_for(lambda: not status(parts)["session"]["holds"]["consent"])
+    assert "The verified face is back (match 0.90). Reenactment resumed." in events(parts)
+    assert wait_for(lambda: runtime.session.latest_pair().live)
+    assert parts["engines"][0].resets > neutrals  # with a fresh neutral pose
+    client.post("/api/session/stop")
+    start(parts)
+    assert status(parts)["session"]["holds"]["consent"] is False
+
+
+def test_a_sample_clip_is_not_checked_and_is_marked_all_the_same(parts):
+    start(parts, "sample:d0")
+    session = status(parts)["session"]
+    assert session["consent"] is None and session["holds"]["consent"] is False
+    assert is_marked(parts["runtime"].session.latest_pair().output)
+
+
+def test_every_frame_a_session_puts_out_carries_the_mark(parts):
+    start(parts)
+    runtime = parts["runtime"]
+    assert wait_for(lambda: runtime.session.latest_pair().live)
+    pair = runtime.session.latest_pair()
+    assert is_marked(pair.output) and not is_marked(pair.camera)
+    _, _, output = unpack_frame(pack_frame(pair))  # and it is still there in what the browser is sent
+    assert is_marked(cv2.imdecode(np.frombuffer(output, np.uint8), cv2.IMREAD_COLOR))
+    parts["tracker"].status = TrackStatus.NO_FACE
+    assert wait_for(lambda: level(runtime.session.latest_pair().output) == pytest.approx(level(FRAME)))
+    assert is_marked(runtime.session.latest_pair().output)  # the still picture too
+    parts["client"].patch("/api/features/reenactment", json={"enabled": False})
+    parts["tracker"].status = TrackStatus.OK
+    assert wait_for(lambda: runtime.session.latest_pair().status == "ok")
+    assert is_marked(runtime.session.latest_pair().output)
+    assert not is_marked(runtime.enrolment.picture)  # what is stored is the picture as it was uploaded
+    assert "disclosure" not in {feature["key"] for feature in status(parts)["features"]}  # and there is no switch for it
+
+
+def test_a_face_is_verified_only_once_the_prompt_is_answered(parts, monkeypatch):
+    ask_for(monkeypatch, "open_mouth", "turn_right")
+    client = parts["client"]
+    client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
+    assert wait_for(lambda: preview_state(parts)["ready"])
+    assert preview_state(parts)["liveness"] is None
+    with ThreadPoolExecutor(1) as pool:
+        taking = pool.submit(client.post, "/api/enrolment/take")
+        assert wait_for(lambda: (preview_state(parts)["liveness"] or {}).get("action") == "open_mouth")
+        assert preview_state(parts)["taking"] and status(parts)["enrolment"]["candidate"] is None
+        asked = answer(parts, lambda: preview_state(parts)["liveness"], taking.done)
+        reply = taking.result(timeout=10.0)
+    assert asked == ["open_mouth", "turn_right"]
+    assert reply.status_code == 200 and reply.json()["passed"]  # the picture is taken after the prompt, facing the camera
+    assert preview_state(parts)["liveness"]["stage"] == "passed"
+    assert client.post("/api/enrolment/confirm").json()["face"] is not None
+
+
+def test_a_photograph_held_to_the_camera_cannot_be_verified(parts, monkeypatch):
+    ask_for(monkeypatch, "turn_left", "blink", seconds=0.3)
+    client = parts["client"]
+    client.post("/api/enrolment/preview/start", json={"input": "camera:0"})
+    assert wait_for(lambda: preview_state(parts)["ready"])
+    refused = client.post("/api/enrolment/take")  # every check on the picture passes; nothing moves
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "Your head did not turn to your left within 0.3 seconds."
+    assert preview_state(parts)["liveness"]["stage"] == "refused" and preview_state(parts)["taking"] is False
+    assert status(parts)["enrolment"]["candidate"] is None and status(parts)["enrolment"]["face"] is None
+    assert client.post("/api/enrolment/confirm").status_code == 409
+
+
+def test_a_pose_of_someone_else_is_not_registered(parts, monkeypatch):
+    verify_face(parts)
+    client = parts["client"]
+    monkeypatch.setattr(FakeScorer, "face", (0.0, 1.0))  # someone else sits down to register a pose
+    parts["tracker"].yaw = -60.0
+    assert client.post("/api/enrolment/pose/left/start", json={"input": "camera:0"}).status_code == 200
+    assert wait_for(lambda: preview_state(parts)["ready"])
+    candidate = client.post("/api/enrolment/take").json()
+    assert candidate["passed"] is False and candidate["checks"][-1]["value"] == 0.1
+    assert candidate["hint"] == "This is not the face you verified with the camera. Only you can register a pose."
+    assert client.post("/api/enrolment/confirm").status_code == 409
+    assert status(parts)["enrolment"]["face"]["poses"] == {}
+
+
+def test_a_session_needs_a_verified_face_and_the_identity_model(parts, monkeypatch):
+    runtime = parts["runtime"]
+    enrol(parts)
+    face, runtime.face = runtime.face, None  # a picture enrolled, and no face to match the camera with
+    refused = parts["client"].post("/api/session/start", json={"input": "camera:0"})
+    assert refused.status_code == 409 and refused.json()["detail"].startswith("Verify your face with the camera first.")
+    runtime.face = face
+
+    def missing():
+        raise FileNotFoundError("w600k_r50.onnx")
+
+    monkeypatch.setattr(runtime, "scorer", missing)
+    parts["client"].post("/api/session/start", json={"input": "camera:0"})
+    assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+    assert status(parts)["session"]["message"].startswith("The identity model is not installed, so it cannot be checked")
+
+
+def test_a_consent_hold_takes_the_place_of_an_identity_hold(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.runtime.WATCH_SECONDS", 0.03)
+    start(parts)
+    runtime, _, client = watch_identity_quickly(parts)
+    assert wait_for(lambda: runtime.session.latest_pair().live)
+    runtime.session.hold_for_identity(True)  # as the guard does when the output has stopped matching the picture
+    monkeypatch.setattr(FakeScorer, "face", (0.0, 1.0))  # and it was someone else at the camera all along
+    assert wait_for(lambda: status(parts)["session"]["holds"]["consent"])
+    assert status(parts)["session"]["holds"]["identity"] is False
+    assert status(parts)["identity"]["guard"]["state"] == "steady"
+    monkeypatch.setattr(FakeScorer, "face", (1.0, 0.0))
+    assert wait_for(lambda: runtime.session.latest_pair().live)  # back by itself: nothing is left to resume
+    assert status(parts)["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
+    assert client.post("/api/session/resume").status_code == 409

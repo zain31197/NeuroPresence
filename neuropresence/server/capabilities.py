@@ -51,9 +51,10 @@ STAGES = [
         "key": "consent",
         "name": "Consent and disclosure",
         "summary": "Animates only the enrolled user's own face and marks the output as synthetic.",
-        "status": "partial",
-        "note": "A meeting picture is accepted only if it matches the face verified live. Checking the live face "
-                "before each session, and the mark on the output, are not built yet.",
+        "status": "working",
+        "note": "Before a face is verified and before every camera session, two actions chosen at random are asked "
+                "for, and the face is matched all the way through. During the session the camera face is compared "
+                "once a second. Every output frame carries the label \"AI reenacted\".",
     },
     {
         "key": "virtual_camera",

@@ -106,7 +106,7 @@ Supervisor: Muhammad Aamir Gulzar
 | 1–2 Capture, tracking, driving signal | Working, with the crop and keypoints steadied (`neuropresence/capture`, `neuropresence/capture/steady.py`) |
 | 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
 | 4 Identity preservation | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until you resume (`neuropresence/identity/guard.py`). A delay watchdog shows the still picture while the output arrives too late (`neuropresence/server/watchdog.py`) |
-| 5 Consent and disclosure | Partly built: a meeting picture must match the face verified live. Checking the live face before each session, and the mark on the output, are not started |
+| 5 Consent and disclosure | Working: before a face is verified and before every camera session, two actions chosen at random are asked for and the face is matched all the way through (`neuropresence/consent/liveness.py`, `check.py`); during a session the camera face is compared once a second; every output frame carries the label "AI reenacted" (`neuropresence/consent/disclosure.py`) |
 | 6 Virtual camera | Not started |
 | Evaluation | Benchmark of speed, identity and temporal stability (`scripts/benchmark.py`, `neuropresence/evaluation`) |
 | Web app | Landing page, Enrolment and Live Studio (`web/`, `neuropresence/server`); Test Lab, Benchmarks and System screens come with the features they belong to |
@@ -130,8 +130,8 @@ The first benchmark run also downloads the RAFT optical-flow weights (21 MB) thr
 
 The web app is the place to run the system and to test each feature. It has a landing page and two screens, in the order they are used:
 
-- **Enrolment**: verify your face with the camera, then upload the picture people will see. The camera is shown with a face outline and seven checks that update as you move; the picture tells you the one thing to fix next. An uploaded picture is refused if it is not of the same person.
-- **Live Studio**: camera and output side by side, the live figures against their targets, where each frame's time goes, an event list, and a switch for every feature. When the output stops matching your picture, or arrives too late, the still picture is shown and the screen says why; after an identity fallback one button resumes.
+- **Enrolment**: verify your face with the camera, then upload the picture people will see. The camera is shown with a face outline and seven checks that update as you move; the picture tells you the one thing to fix next. Before the picture is taken you are asked for two quick actions, so that a photograph cannot be verified. An uploaded picture is refused if it is not of the same person.
+- **Live Studio**: camera and output side by side, the live figures against their targets, where each frame's time goes, an event list, and a switch for every feature. A camera session starts with the liveness prompt, shown on the camera picture; if it is not passed, the screen says why and nothing is animated. When the output stops matching your picture, arrives too late, or someone else sits down at the camera, the still picture is shown and the screen says why; after an identity fallback one button resumes.
 
 Build it once (this needs Node.js; it was built and tested with version 24), then start the engine:
 
@@ -145,7 +145,7 @@ python -m neuropresence.server --open
 
 It opens at http://127.0.0.1:8000. The engine listens on this computer only, and the enrolled picture is kept in `data/enrolment/`, which git ignores. A camera session animates the enrolled picture, so enrol one first. For repeatable tests a session can also be driven from one of the sample clips; a clip animates one of its own frames and enrols nothing.
 
-Two options help when testing: `--camera-file clip.mp4` plays a video file in place of every camera, so the Enrolment screen and camera sessions can be tried without a webcam, and `--data-dir folder` keeps the enrolled picture somewhere other than `data/`.
+Two options help when testing: `--camera-file clip.mp4` plays a video file in place of every camera, so the camera view of the Enrolment screen and its checks can be tried without a webcam, and `--data-dir folder` keeps the enrolled picture somewhere other than `data/`. A video file cannot verify a face or start a camera session: it does not answer the liveness prompt, which is what the prompt is for. Sessions without a webcam run on the sample clips.
 
 While working on the front end, run the engine as above and, in a second terminal, `npm run dev` inside `web/`; the page is then at http://localhost:5173 and reloads as you edit.
 
@@ -155,11 +155,11 @@ Every figure in the app comes from the running pipeline or from a saved result f
 
 Enrolment has three steps, and they answer three different questions.
 
-1. **Who are you? Verify your face with the camera.** The camera runs with seven checks on every frame. The picture is taken after a count of three, as the sharpest open-eyed frame of a half-second burst. It is used only to make a face signature (an ArcFace embedding, 512 numbers) and is not stored.
-2. **How far does your head actually move? Register five poses.** Facing the camera again, turned to each side, tilted up and down. Each gets four checks (one face, turned the way asked, light, sharp) instead of the seven above. Two things come of it: the face signature grows richer, since an uploaded picture or a live face is then compared against whichever of up to six registered angles looks most like it, not only the step-one capture; and the reenactment engine's own clamp on how far the head is allowed to move is fitted to this person's own registered left/right/up/down extremes, instead of a generic default set by looking at one person turned in steps. Required once per verified face before step 3 will accept a new upload; a meeting picture enrolled before this step existed is not retroactively blocked.
+1. **Who are you? Verify your face with the camera.** The camera runs with seven checks on every frame. Once they pass you are asked for two quick actions (the liveness prompt, see Consent and disclosure), and right after it the picture is taken, as the sharpest open-eyed frame of a half-second burst. It has to show the face that answered the prompt. It is used only to make a face signature (an ArcFace embedding, 512 numbers) and is not stored.
+2. **How far does your head actually move? Register five poses.** Facing the camera again, turned to each side, tilted up and down. Each gets four checks (one face, turned the way asked, light, sharp) instead of the seven above. Two things come of it: the face signature grows richer, since an uploaded picture or a live face is then compared against whichever of up to six registered angles looks most like it, not only the step-one capture; and the reenactment engine's own clamp on how far the head is allowed to move is fitted to this person's own registered left/right/up/down extremes, instead of a generic default set by looking at one person turned in steps. A pose is registered only if it matches the verified face, because every signature kept for you is one a session can later be started with. Required once per verified face before step 3 will accept a new upload; a meeting picture enrolled before this step existed is not retroactively blocked.
 3. **What should people see? Upload your meeting picture.** A picture you choose, with the light and background you want. It goes through the same seven checks and one more: its face is compared with every signature from steps 1 and 2, and it is accepted only if the best match is the same person. This is the picture a camera session animates.
 
-When a session starts, the still picture is shown until you are seen at rest (facing the camera, mouth closed, eyes open; three seconds at most). That frame is the neutral pose, and all movement is measured from it, so a photograph from another camera keeps its proportions. "Reset neutral pose" in the Live Studio takes a new one.
+When a session starts, you answer the liveness prompt; then the still picture is shown until you are seen at rest (facing the camera, mouth closed, eyes open; three seconds at most). That frame is the neutral pose, and all movement is measured from it, so a photograph from another camera keeps its proportions. "Reset neutral pose" in the Live Studio takes a new one.
 
 So nobody's picture can be animated except that of the person who sat in front of the camera. Every output frame is made from the meeting picture, so a fault in it shows in all of them, which is why it is checked before it is kept.
 
@@ -225,6 +225,7 @@ python scripts/study_enrolment.py              # what the enrolled picture's fau
 python scripts/study_same_person.py            # how alike two faces must be to count as the same person
 python scripts/study_identity_guard.py         # the identity score in normal use and under faults (about 20 minutes)
 python scripts/study_delay.py                  # delay and frame rate of a live session, alone and beside GPU load
+python scripts/study_liveness.py --stand-in    # what can pass the liveness prompt and the face match (about 15 minutes)
 python -m pytest                               # engine and server tests
 cd web && npm test                             # front-end tests
 ```
@@ -290,6 +291,42 @@ Run in a real session, with the mouth covered in a sample clip, the guard took a
 Late frames are dropped and never queued, so the frame rate falls first and the delay follows slowly. The watchdog (`neuropresence/server/watchdog.py`) reads the mean delay of the last two seconds. Above 150 ms the still picture is shown; the frames are still drawn, hidden, so that the delay stays measured, and the live picture returns when the mean has been under 135 ms for a second. In a real session beside a fully loaded GPU it held the picture back 3.5 s after the load began and released it within two seconds of the load ending.
 
 These figures are for a 480 px sample clip with no browser attached; a camera session with a larger picture runs slower (18.7 fps and 89 ms on 8 October). What a real meeting application takes from the GPU has not been measured: that needs the virtual camera.
+
+## Consent and disclosure
+
+A picture is animated only for the person it belongs to, and every output frame says what it is. This has three parts, and none of them has a switch.
+
+**The liveness prompt** (`neuropresence/consent/liveness.py`). A photograph of you matches your face signature as well as you do, and so does a recording. So before a face is verified, and before every camera session, two actions are asked for, chosen at random out of four: blink, turn your head to your left, turn it to your right, open your mouth. They come one after the other and each has three seconds. One of the two is always a turn of the head. Your face has to be at rest before each is asked for, and the wait before it is of a random length; doing something other than what was asked ends the check, except a blink, because people blink all the time. The camera is shown mirrored with the instruction on it, the time left and, for a turn, how far it has got.
+
+**The face match** (`neuropresence/consent/check.py`). All the way through the prompt the face at the camera is compared, about four times a second, with every signature registered for you (the verified face and the five poses). The best match decides, and 0.35 or more is the same person. A face that does not match is looked at again in the very next frame, and two in a row refuse. So the face that answers is the face that matches: your photograph cannot be held up for the match while someone else does the moving. After the session has started the camera face is still compared once a second. Three readings in a row that do not match put the still picture up; two that match bring the live picture back, with a fresh neutral pose.
+
+**The disclosure mark** (`neuropresence/consent/disclosure.py`). The label "AI reenacted" in the lower left corner of every output frame: live frames, the still picture, and the frames that fade between them. The pipeline draws it as its last step. It is an eighteenth of the frame high and never under 22 pixels, and drawing it takes 0.09 ms a frame.
+
+`python scripts/study_liveness.py --stand-in` measured what the limits rest on, with no camera (`results/liveness_study.json`):
+
+| What is held to the camera | What happened |
+|---|---|
+| A photograph, held still | Refused in all 1,296 attempts |
+| A photograph tilted by up to 65° or swung from side to side | Reads as a head turn of 32.5° at most, and a turn counts from 35°. Refused in all 12,000 attempts |
+| A photograph with the eyes covered, or with a dark shape over the mouth | Eye score 0.24 at most (a blink needs 0.50); mouth 0.42 at most (an open mouth needs 0.60) |
+| The twelve sample clips played as recordings, from every half second and for every order of actions | Refused in all 3,110 attempts. If no turn were asked for, 1 of 622 would pass |
+| A recording made on purpose, with every action in it one after another (written out as readings, not filmed) | About 1 attempt in 9 passes (11 to 13% with two or three seconds of rest between the actions) |
+| A stand-in that does what is asked (two sample faces: blink and open mouth are frames of the clip, the turns are drawn by the engine) | Passes 20 of 20, in 4.5 to 4.8 s on average. Turning the other way: 0 of 20. Against another person's signature: 0 of 20 |
+| The same person through a whole clip, against its own first frame (1,474 faces) | Lowest match 0.49, against a limit of 0.35 |
+| Another person (132 pairs of clips) | Highest match 0.23 |
+
+A turn of the head is what a flat picture does not show, which is why one is always asked for: with blink and open mouth alone, a recording of a person talking passed once. How large a turn a tilted photograph reads as depends on how near the camera is. With the camera 3.0 widths of the photograph away the largest reading was 12.7°, at 1.4 widths 18.3°, at 0.8 widths 27.8° and at 0.6 widths 32.5°. That nearest case is a camera with a view 80° wide and a photograph that fills its whole picture.
+
+A session alone ran at 20.8 to 21.0 frames a second and 80 to 81 ms with the watch during the session off and at 20.6 to 21.1 and 81 to 82 ms with it on. The full benchmark is unchanged with the mark in place (`results/benchmark_consent_windows_rtx5050.json`): 16.2 frames a second (16.3 before), render 36.7 ms (36.8), identity 0.898 (0.898), tremble 1.00 (0.99), flicker 0.75 (0.75).
+
+**What this does not stop, and what has not been measured.**
+
+- No person has answered the prompt at a real camera yet. The stand-in is not a person, and its head turns are drawn by the engine. On the one face registered so far, poses turned 40° matched the capture facing the camera at 0.67 and 0.79.
+- A recording made for the purpose, holding every action, passes about one attempt in nine, and attempts are not limited.
+- A face that is itself animated live and fed in as the camera answers the prompt as a person does. The stand-in used here is exactly that. The prompt stops photographs and recordings, not that.
+- The turn limit of 35° has 2.5° to spare in the hardest case measured. A second measure was looked at, how much a face narrows as it turns, which separates a tilted photograph from a head in the sample material (short of what its turn says by 0.14 or more, against 0.10 at most); it is not used, because the sample clips hold no head turned further than 18° to set it on.
+- Someone else who sits down during a session drives the picture for two to three seconds, until three readings a second apart have not matched.
+- The app runs on the user's own computer. These checks stand in the way of misuse through the app; they do not bind someone who changes the program.
 
 ## Project history
 

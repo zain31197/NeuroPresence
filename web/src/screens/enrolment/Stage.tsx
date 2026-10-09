@@ -1,5 +1,7 @@
 import { Check, ScanFace, TriangleAlert, UserRound, VideoOff } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { isAsking } from '../../components/liveness'
+import { LivenessPrompt } from '../../components/LivenessPrompt'
 import { Empty, Monitor, paint, Waiting } from '../../components/Monitor'
 import { Spinner } from '../../components/ui/Button'
 import { Pill } from '../../components/ui/Pill'
@@ -70,6 +72,9 @@ export function Stage({ mode, preview, candidate, record, count, taking, shots, 
 
   const reviewing = mode === 'review' && candidate !== null
   const enrolled = mode === 'enrolled' && record !== null
+  // While a face is being verified the liveness prompt takes the place of the hints: the person
+  // is asked to turn and to blink, which the checks on the picture would count as faults.
+  const liveness = showing && taking && isAsking(preview?.liveness) ? preview.liveness : null
 
   return (
     <Monitor
@@ -77,7 +82,11 @@ export function Stage({ mode, preview, candidate, record, count, taking, shots, 
       detail={showing ? 'Mirrored' : reviewing ? (candidate.origin === 'camera' ? 'Just taken' : 'Uploaded') : undefined}
       lit={showing || reviewing || enrolled}
       chip={
-        showing && preview ? (
+        liveness ? (
+          <Pill tone="neutral" icon={<ScanFace className="size-3" />} className="bg-white text-ink-800">
+            Liveness check
+          </Pill>
+        ) : showing && preview ? (
           <Progress preview={preview} />
         ) : reviewing ? (
           candidate.passed ? (
@@ -122,7 +131,7 @@ export function Stage({ mode, preview, candidate, record, count, taking, shots, 
         <Empty icon={<UserRound className="size-5" />} title={empty.title} hint={empty.hint} />
       )}
 
-      {showing && preview && <Guidance preview={preview} taking={taking} place="over" />}
+      {liveness ? <LivenessPrompt prompt={liveness} /> : showing && preview && <Guidance preview={preview} taking={taking} place="over" />}
       {showing && count !== null && <Countdown count={count} />}
       {shots > 0 && <div key={shots} aria-hidden="true" className="pointer-events-none absolute inset-0 animate-flash bg-white" />}
     </Monitor>

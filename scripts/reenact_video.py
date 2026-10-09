@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from neuropresence.capture import FaceTracker, FrameSource
 from neuropresence.capture.crop import letterbox, square_face_crop
+from neuropresence.consent.disclosure import mark
 from neuropresence.reenactment import ReenactmentEngine
 from neuropresence.reenactment.engine import OUTPUT_SIZE
 
@@ -72,7 +73,8 @@ def main():
                 timings["render"].append(engine.last_timing_ms["render"])
                 timings["compose"].append(engine.last_timing_ms["compose"])
                 timings["total"].append(total_ms)
-            writer.write(np.hstack([letterbox(frame, OUTPUT_SIZE), letterbox(output, OUTPUT_SIZE)]))
+            # The output is marked as every output is (neuropresence/consent/disclosure.py); the timings above leave it out.
+            writer.write(np.hstack([letterbox(frame, OUTPUT_SIZE), letterbox(mark(output), OUTPUT_SIZE)]))
     writer.release()
 
     if not timings["total"]:

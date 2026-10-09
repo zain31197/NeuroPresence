@@ -38,11 +38,16 @@ class FakeEngine:
 FRAME = np.zeros((480, 640, 3), dtype=np.uint8)
 
 
+def level(output):
+    """How bright the picture is, read from its upper half: the disclosure mark sits in the lower left corner."""
+    return output[: output.shape[0] // 2].mean()
+
+
 def test_one_face_is_reenacted():
     engine = FakeEngine()
     result = Pipeline(FakeTracker(TrackStatus.OK), engine).step(FRAME)
     assert result.live
-    assert result.output.mean() == 200
+    assert level(result.output) == 200
     assert engine.driven_shapes == [(256, 256, 3)]
     assert result.driving_face.shape == (256, 256, 3)
     assert set(result.timing_ms) == {"tracker", "motion", "render", "compose", "total"}
@@ -54,7 +59,7 @@ def test_unusable_frame_falls_back_to_enrolled_frame(status):
     result = Pipeline(FakeTracker(status), engine).step(FRAME)
     assert not result.live
     assert result.status is status
-    assert result.output.mean() == 50
+    assert level(result.output) == 50
     assert engine.driven_shapes == []  # the GPU is not used for unusable frames
     assert result.driving_face is None
     assert set(result.timing_ms) == {"tracker", "total"}
@@ -110,7 +115,7 @@ def test_the_neutral_pose_is_taken_from_the_first_frame_at_rest():
     assert engine.resets == 1 and pipeline.waiting_for_neutral
     for _ in range(2):  # talking, then turned away: the still picture is shown and nothing is measured from them
         result = pipeline.step(FRAME)
-        assert result.live is False and result.output.mean() == 50
+        assert result.live is False and level(result.output) == 50
     assert engine.neutral_faces == [] and engine.driven_shapes == []
     result = pipeline.step(FRAME)  # at rest: this frame is the neutral pose, and the output goes live with it
     assert result.live is True and engine.neutral_faces == [(256, 256, 3)]
@@ -150,17 +155,17 @@ class Switchable:
 def test_a_lost_face_is_held_for_a_moment_then_fades_to_the_still_picture():
     engine, tracker = FakeEngine(), Switchable()
     pipeline = Pipeline(tracker, engine)
-    assert pipeline.step(FRAME, at=0.0).output.mean() == 200  # live from the first frame, with no fade in
+    assert level(pipeline.step(FRAME, at=0.0).output) == 200  # live from the first frame, with no fade in
     tracker.track = TrackResult(TrackStatus.NO_FACE, 1.0)
     held = pipeline.step(FRAME, at=0.1)
-    assert held.live is False and held.output.mean() == 200  # one missed frame does not show
+    assert held.live is False and level(held.output) == 200  # one missed frame does not show
     fading = pipeline.step(FRAME, at=0.3)  # past the hold: part of the way to the still picture
-    assert 50 < fading.output.mean() < 200
-    assert pipeline.step(FRAME, at=1.0).output.mean() == 50  # and then the still picture, exactly
+    assert 50 < level(fading.output) < 200
+    assert level(pipeline.step(FRAME, at=1.0).output) == 50  # and then the still picture, exactly
     tracker.track = face()
     back = pipeline.step(FRAME, at=1.1)  # the face returns: the live output fades in, it does not snap
-    assert back.live is True and 50 < back.output.mean() < 200
-    assert pipeline.step(FRAME, at=2.0).output.mean() == 200
+    assert back.live is True and 50 < level(back.output) < 200
+    assert level(pipeline.step(FRAME, at=2.0).output) == 200
 
 
 def test_a_frame_that_is_held_back_is_drawn_but_not_shown():
@@ -168,14 +173,14 @@ def test_a_frame_that_is_held_back_is_drawn_but_not_shown():
     measured, but what is shown goes to the still picture as it does for a lost face."""
     engine = FakeEngine()
     pipeline = Pipeline(Switchable(), engine)
-    assert pipeline.step(FRAME, at=0.0).output.mean() == 200
+    assert level(pipeline.step(FRAME, at=0.0).output) == 200
     held = pipeline.step(FRAME, at=0.1, show=False)
-    assert held.live is False and held.output.mean() == 200  # the last shown frame, for a moment
+    assert held.live is False and level(held.output) == 200  # the last shown frame, for a moment
     assert "render" in held.timing_ms and len(engine.driven_shapes) == 2  # it was drawn all the same
-    assert pipeline.step(FRAME, at=1.0, show=False).output.mean() == 50  # then the still picture
+    assert level(pipeline.step(FRAME, at=1.0, show=False).output) == 50  # then the still picture
     assert len(engine.driven_shapes) == 3
     back = pipeline.step(FRAME, at=1.1)
-    assert back.live is True and 50 < back.output.mean() < 200  # and it fades back in
+    assert back.live is True and 50 < level(back.output) < 200  # and it fades back in
 
 
 def test_the_crop_window_is_reported_and_holds_still_against_tracker_noise():

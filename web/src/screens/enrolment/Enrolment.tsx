@@ -1,4 +1,4 @@
-import { ArrowRight, Camera, Check, RefreshCw, Square, Trash2, Upload, UserRoundX, Video, X } from 'lucide-react'
+import { ArrowRight, Camera, Check, RefreshCw, Square, Trash2, Upload, UserRoundX, Video } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Monitor, Waiting } from '../../components/Monitor'
@@ -27,6 +27,7 @@ import { useStudio } from '../../lib/studio'
 import { Checklist } from './Checklist'
 import { Evidence } from './Evidence'
 import { PoseCapture } from './PoseCapture'
+import { isAsking } from '../../components/liveness'
 import { Guidance, Stage, type Mode } from './Stage'
 
 /**
@@ -38,7 +39,6 @@ import { Guidance, Stage, type Mode } from './Stage'
 /** The one request in flight, so its button can show that it is working and the others wait. */
 type Work = 'camera' | 'take' | 'upload' | 'confirm' | 'discard' | 'remove' | 'forget' | 'session'
 
-const COUNTDOWN_SECONDS = 3
 
 const valueOf = (record: EnrolmentRecord | null, key: string) => {
   const value = record?.checks.find((check) => check.key === key)?.value
@@ -51,7 +51,6 @@ export function Enrolment() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [camera, setCamera] = useState('camera:0')
   const [work, setWork] = useState<Work | null>(null)
-  const [count, setCount] = useState<number | null>(null)
   const [shots, setShots] = useState(0)
   const [guide, setGuide] = useState<EnrolmentGuide | null>(null)
 
@@ -113,29 +112,6 @@ export function Enrolment() {
     event.target.value = '' // so choosing the same file again still fires
     if (file) void run('upload', () => api.uploadPicture(file))
   }
-
-  // The count of three before a picture: time to look up from the button to the camera.
-  useEffect(() => {
-    if (count === null) return
-    if (count === 0) {
-      setCount(null)
-      void take()
-      return
-    }
-    const timer = window.setTimeout(() => setCount((left) => (left === null ? null : left - 1)), 1000)
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCount(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.clearTimeout(timer)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [count, take])
-
-  useEffect(() => {
-    if (mode !== 'camera') setCount(null)
-  }, [mode])
 
   // Leaving this screen, or closing the tab, must not leave the camera filming.
   const open = useRef(false)
@@ -235,7 +211,7 @@ export function Enrolment() {
       label="Camera"
       value={camera}
       onValueChange={changeCamera}
-      disabled={offline || busy || count !== null || cameras.length === 0}
+      disabled={offline || busy || cameras.length === 0}
       groups={[{ options: cameras.map((option) => ({ value: option.id, label: option.label, icon: <Video className="size-3.5 text-ink-500" /> })) }]}
     />
   )
@@ -302,26 +278,22 @@ export function Enrolment() {
     left = (
       <div className="flex flex-wrap items-center gap-2">
         {chooser}
-        <Button variant="ghost" disabled={offline || busy || count !== null} onClick={closeCamera}>
+        <Button variant="ghost" disabled={offline || busy} onClick={closeCamera}>
           Close camera
         </Button>
       </div>
     )
-    right = cameraFailed ? null : count !== null ? (
-      <Button icon={<X className="size-4" />} onClick={() => setCount(null)}>
-        Cancel
-      </Button>
-    ) : (
-      <Tooltip content={preview?.ready ? 'Counts down from three, then keeps the sharpest frame with your eyes open.' : 'Follow the hint on the picture until every check passes.'}>
+    right = cameraFailed ? null : (
+      <Tooltip
+        content={
+          preview?.ready
+            ? 'You are asked for two quick actions, to show that a person is at the camera. Then the sharpest frame with your eyes open is kept.'
+            : 'Follow the hint on the picture until every check passes.'
+        }
+      >
         <span>
-          <Button
-            variant="primary"
-            icon={<Camera className="size-4" />}
-            busy={work === 'take'}
-            disabled={offline || busy || !preview?.ready}
-            onClick={() => setCount(COUNTDOWN_SECONDS)}
-          >
-            Take picture
+          <Button variant="primary" icon={<Camera className="size-4" />} busy={work === 'take'} disabled={offline || busy || !preview?.ready} onClick={() => void take()}>
+            Verify my face
           </Button>
         </span>
       </Tooltip>
@@ -373,7 +345,7 @@ export function Enrolment() {
               preview={preview}
               candidate={candidate}
               record={record}
-              count={count}
+              count={null}
               taking={work === 'take'}
               shots={shots}
               empty={
@@ -387,7 +359,9 @@ export function Enrolment() {
                 </Button>
               }
             />
-            {mode === 'camera' && preview?.state === 'running' && <Guidance preview={preview} taking={work === 'take'} place="under" />}
+            {mode === 'camera' && preview?.state === 'running' && !(work === 'take' && isAsking(preview.liveness)) && (
+              <Guidance preview={preview} taking={work === 'take'} place="under" />
+            )}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-3 pt-3.5 pb-2">
               {left}
               <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{right}</div>
@@ -423,14 +397,32 @@ export function Enrolment() {
 /* ------------------------------------------------------------------ panels */
 
 function CameraPanel({ preview, limits }: { preview: Preview | null; limits: EnrolmentLimits | null }) {
+  const liveness = preview?.state === 'running' && preview.taking && isAsking(preview.liveness) ? preview.liveness : null
   return (
     <Card className="flex flex-col">
-      <CardHeader title="Checks" hint="Every one has to pass before the picture can be taken." />
+      {liveness ? (
+        <CardHeader title="Liveness check" hint="Two quick actions, chosen at random, each within a few seconds." />
+      ) : (
+        <CardHeader title="Checks" hint="Every one has to pass before your face can be verified." />
+      )}
       <div className="flex flex-1 flex-col px-5 pb-5">
-        <Checklist checks={preview?.state === 'running' ? preview.checks : null} limits={limits} detail={false} />
+        {liveness ? (
+          // The checks on the picture are not shown meanwhile: a turned head and a blink would read as faults.
+          <div role="status" className="rounded-panel bg-ink-50 px-4 py-3.5">
+            <p className="label-caps text-ink-500">{liveness.stage === 'act' ? `Step ${liveness.step} of ${liveness.steps}` : 'Watch the picture'}</p>
+            <p className="mt-1 text-[15px] leading-snug font-semibold text-ink-950">{liveness.prompt}</p>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-ink-600">
+              This shows that a person is at the camera and not a photograph or a recording. The picture is taken right after, when you face the
+              camera again.
+            </p>
+          </div>
+        ) : (
+          <Checklist checks={preview?.state === 'running' ? preview.checks : null} limits={limits} detail={false} />
+        )}
         <p className="mt-auto border-t border-line pt-3.5 text-[12.5px] leading-relaxed text-ink-500">
-          This picture is used only to make your face signature and is not stored. It is taken after a count of three, as the
-          sharpest frame with your eyes open. The picture people see in meetings is uploaded in the next step.
+          This picture is used only to make your face signature and is not stored. You are first asked for two quick actions, such as a blink or
+          a turn of the head; then the sharpest frame with your eyes open is kept. The picture people see in meetings is uploaded in the next
+          step.
         </p>
       </div>
     </Card>

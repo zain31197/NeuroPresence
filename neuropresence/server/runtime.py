@@ -11,6 +11,8 @@ import cv2
 from dataclasses import replace
 
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
+from ..consent import LivenessChallenge
+from ..consent.check import WATCH_SECONDS, ConsentCheck, ConsentWatch
 from ..enrolment import POSE_KEYS, Check, EnrolmentStore, make_candidate, prepare
 from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
 from ..identity import SAME_PERSON_CSIM, GuardState, IdentityGuard
@@ -19,7 +21,7 @@ from .benchmarks import latest_benchmark
 from .features import FeatureSet
 from .guide import enrolment_guide
 from .preview import EnrolmentPreview
-from .session import LiveSession, SessionError
+from .session import LiveSession, SessionError, SessionState
 
 log = logging.getLogger("neuropresence.server")
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +60,10 @@ class IdentityMonitor:
     (results/delay_study.json). What a low score leads to is decided by the guard (identity/guard.py):
     nothing for a short dip, a fresh neutral pose for a lasting one, and the still picture if that
     does not help. The still picture then stays until the person resumes.
+
+    The same thread keeps the consent watch (consent/check.py): once a second the face in the camera
+    picture is compared with the signatures registered for the user, and while it is someone else's
+    the still picture is shown.
     """
 
     def __init__(self, runtime, interval=0.5):
@@ -70,6 +76,8 @@ class IdentityMonitor:
         self.guard = IdentityGuard()
         self._guard_lock = threading.Lock()
         self._watching = None  # the session and the picture the readings of the guard belong to
+        self.watch = ConsentWatch()
+        self._next_watch = 0.0
 
     def ensure_started(self):
         if self._thread is None:
@@ -94,6 +102,9 @@ class IdentityMonitor:
                 "mean": None if guard.mean is None else round(guard.mean, 3),
                 "low": guard.low,
             }
+            # The consent watch: how alike the camera face last was to the registered one.
+            state["consent"] = {"held": self.watch.held,
+                                "match": None if self.watch.match is None else round(self.watch.match, 3)}
         return state
 
     def resume(self):
@@ -121,7 +132,43 @@ class IdentityMonitor:
             if changed or (not enabled and (self.guard.state is not GuardState.STEADY or session.identity_hold)):
                 self.guard.reset()
                 session.hold_for_identity(False)
+            if changed:
+                self.watch.reset()
+                self._next_watch = 0.0  # a new session is looked at straight away
+                session.hold_for_consent(False)
         return enabled
+
+    def _watch_camera(self, session, scorer, pair):
+        """Once a second: is the person at the camera still the one the picture belongs to?"""
+        if (pair is None or pair.kind != "live" or pair.landmarks is None or not session.uses_enrolment
+                or session.state is not SessionState.RUNNING):
+            return
+        now = time.perf_counter()
+        if now < self._next_watch:
+            return
+        self._next_watch = now + WATCH_SECONDS
+        signatures = self._rt.face_signatures()
+        if not signatures:
+            return
+        face = scorer.embed(pair.camera, pair.landmarks)
+        match = max(scorer.similarity(known, face) for known in signatures)
+        with self._guard_lock:
+            action = self.watch.sample(match)
+            if action is not None:
+                # What the output scored while someone else drove it says nothing about the picture:
+                # the identity guard starts again, and this hold takes the place of any it had put up.
+                self.guard.reset()
+                session.hold_for_identity(False)
+            if action == "hold":
+                session.hold_for_consent(True)
+            elif action == "release":
+                session.request_anchor()  # the neutral pose may be the other person's: measure movement afresh
+                session.hold_for_consent(False)
+        if action == "hold":
+            self._rt.events.add("warning", f"The face at the camera is not the verified face (match {match:.2f}). "
+                                           "Showing the still picture until the verified face is back.")
+        elif action == "release":
+            self._rt.events.add("info", f"The verified face is back (match {match:.2f}). Reenactment resumed.")
 
     def _act(self, score):
         session, events = self._rt.session, self._rt.events
@@ -157,6 +204,11 @@ class IdentityMonitor:
             session = self._rt.session
             guarding = self._follow(session)
             pair = session.latest_pair()
+            try:
+                self._watch_camera(session, scorer, pair)
+            except Exception as err:
+                self._set(available=False, csim=None, reason=f"The face at the camera could not be compared: {err}")
+                return
             if pair is None or not pair.live:
                 self._set(available=True, csim=None, reason=None)
                 continue
@@ -324,6 +376,34 @@ class Runtime:
             return None
         return scorer.embed(engine.source_frame)
 
+    def face_signatures(self):
+        """Every signature registered for the user: the verified face, and each pose registered after it.
+
+        A face is compared with all of them and the best match decides: a face turned to the side
+        looks more like the pose registered at that angle than like the capture facing the camera.
+        """
+        face = self.face
+        return [] if face is None else [face.signature] + [pose["signature"] for pose in face.poses.values()]
+
+    def consent_check(self):
+        """The check a camera session starts with (consent/check.py), and the scorer it matches faces with."""
+        signatures = self.face_signatures()
+        if not signatures:
+            raise SessionError("Verify your face with the camera first. A session starts only for the verified face.")
+        return ConsentCheck(LivenessChallenge(), signatures, self._face_scorer().similarity), self._face_scorer()
+
+    def verification_check(self):
+        """The check a face is verified with: the same prompt, and the face has to stay the same face
+        from its first frame to the picture that is taken."""
+        return ConsentCheck(LivenessChallenge(), None, self._face_scorer().similarity), self._face_scorer()
+
+    def _face_scorer(self):
+        try:
+            return self.scorer()
+        except FileNotFoundError:
+            raise SessionError("The identity model is not installed, so it cannot be checked that it is you. "
+                               "Run scripts/download_models.py.") from None
+
     def reset_neutral(self):
         self.session.call(lambda frame, track: self.engine().reset_reference())
         self.events.add("info", "Neutral pose reset.")
@@ -368,7 +448,13 @@ class Runtime:
 
     def take_picture(self):
         """Take a picture from the open camera. Raises NotGoodEnough if no frame passes the checks."""
-        return self._hold(self.preview.take())
+        candidate = self.preview.take()
+        if candidate.origin.startswith("pose:"):
+            # Every signature kept for the user is one a session can later be started with, so a pose
+            # has to be of the verified face. On the one face registered so far, poses turned 40 degrees
+            # matched the capture facing the camera at 0.67 and 0.79, against a limit of 0.35.
+            candidate.checks.append(self._same_person(candidate, self.face, "Only you can register a pose."))
+        return self._hold(candidate)
 
     def check_upload(self, image):
         """Check an uploaded meeting picture: the usual checks, and that it shows the verified face.
@@ -471,8 +557,8 @@ class Runtime:
         crop = square_face_crop(image, (x, y, w, h), scale=side / max(w, h), out_size=round(side))
         return limit_size(crop, MAX_PICTURE_DIM)
 
-    def _same_person(self, candidate, face):
-        """The check an uploaded picture gets and a camera frame does not: is this the verified face?
+    def _same_person(self, candidate, face, remedy="Upload a picture of yourself."):
+        """The check an uploaded picture and a pose get: is this the verified face?
 
         Compared against every signature registered for this face, not only the front-on one: a
         meeting picture taken at a slight angle, or a live face turned to the side, can look more
@@ -488,10 +574,8 @@ class Runtime:
             raise SessionError("The identity model is not installed, so the picture cannot be compared with your face. "
                                "Run scripts/download_models.py.") from None
         candidate.signature = scorer.embed(candidate.image, candidate.landmarks)
-        references = [face.signature] + [pose["signature"] for pose in face.poses.values()]
-        alike = max(scorer.similarity(reference, candidate.signature) for reference in references)
-        hint = "" if alike >= SAME_PERSON_CSIM else ("This is not the face you verified with the camera. "
-                                                     "Upload a picture of yourself.")
+        alike = max(scorer.similarity(reference, candidate.signature) for reference in self.face_signatures())
+        hint = "" if alike >= SAME_PERSON_CSIM else f"This is not the face you verified with the camera. {remedy}"
         return Check("identity", label, not hint, hint, round(alike, 3))
 
     def discard_candidate(self):
@@ -652,6 +736,8 @@ class Runtime:
         uses_enrolment = entry["kind"] == "camera"
         if uses_enrolment and self.enrolment is None:
             raise SessionError("Enrol a picture first.")
+        if uses_enrolment and self.face is None:
+            raise SessionError("Verify your face with the camera first. A session starts only for the verified face.")
         if self.session.active:
             raise SessionError("A session is already running.")
         self.preview.stop()  # the camera can only be open in one place

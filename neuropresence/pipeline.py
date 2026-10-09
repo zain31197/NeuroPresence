@@ -9,6 +9,7 @@ import numpy as np
 from .capture import TrackResult, TrackStatus
 from .capture.crop import square_face_crop
 from .capture.steady import SteadyCrop
+from .consent.disclosure import mark
 
 # The neutral pose is the person's own resting face at their camera: all movement is measured
 # from it. It is not the enrolled picture's pose. That picture may come from another camera, and
@@ -54,7 +55,8 @@ class Pipeline:
     """Reenacts when exactly one face is tracked; otherwise shows the enrolled frame.
 
     The static enrolled frame is the fallback so the output is never frozen
-    mid-expression or blank.
+    mid-expression or blank. Every frame that leaves the pipeline, live or still,
+    carries the disclosure mark (consent/disclosure.py). There is no way to turn it off.
     """
 
     def __init__(self, tracker, engine, crop_scale=2.0):
@@ -70,6 +72,7 @@ class Pipeline:
         self._level = None  # how much of the output is live: 1 live, 0 the still picture, between while fading
         self._last_live = None  # the newest live output and when it was made
         self._last_at = None
+        self._still_of = self._still = None  # the enrolled frame with the mark on it, and which frame it was made from
         self._neutral_deadline = None  # set while waiting to see the person at rest
         self.neutral_taken = 0  # how many times a neutral pose has been taken from the camera
 
@@ -140,7 +143,9 @@ class Pipeline:
             given = {} if motion is None else {"motion": motion}
             output = self.engine.drive(face, at=at, steady=self.steady_keypoints, limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)
-            if not show:
+            if show:
+                output = mark(output)  # once, here: holds and fades then only reuse frames that carry it
+            else:
                 output, live = None, False
         else:
             if track is None or not track.ok or not ahead:
@@ -152,7 +157,7 @@ class Pipeline:
 
     def _settle(self, live_output, at):
         """Hold and fade between the live output and the still picture, so the two never snap."""
-        still = self.engine.source_frame
+        still = self.still_picture()
         elapsed = 0.0 if self._last_at is None else max(0.0, at - self._last_at)
         self._last_at = at
         if self._level is None:  # the very first frame: nothing to fade from
@@ -174,3 +179,10 @@ class Pipeline:
         if self._level >= 1.0 or shown.shape != still.shape:
             return shown
         return cv2.addWeighted(shown, self._level, still, 1.0 - self._level, 0.0)
+
+    def still_picture(self):
+        """The enrolled frame as it is shown: with the disclosure mark, like every other output frame."""
+        source = self.engine.source_frame
+        if self._still_of is not source:
+            self._still_of, self._still = source, mark(source.copy())
+        return self._still

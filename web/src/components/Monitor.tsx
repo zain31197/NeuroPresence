@@ -19,12 +19,14 @@ interface MonitorProps {
   lit: boolean
   chip?: ReactNode
   footer?: ReactNode
+  /** Which lower corner the footer sits in. The output carries its disclosure mark in the lower left, so its footer goes right. */
+  footerAt?: 'left' | 'right'
   className?: string
   children: ReactNode
 }
 
 /** A 16:9 screen with a label in its corner: the frame around every picture in the studio. */
-export function Monitor({ label, detail, lit, chip, footer, className, children }: MonitorProps) {
+export function Monitor({ label, detail, lit, chip, footer, footerAt = 'left', className, children }: MonitorProps) {
   return (
     <div
       className={cn(
@@ -42,7 +44,12 @@ export function Monitor({ label, detail, lit, chip, footer, className, children 
       </div>
       {chip && <div className="absolute top-3 right-3">{chip}</div>}
       {footer && (
-        <div className="absolute bottom-3 left-3 rounded-chip bg-black/55 px-2 py-1 font-mono text-[11px] text-white/90 tabular-nums backdrop-blur-sm">
+        <div
+          className={cn(
+            'absolute bottom-3 rounded-chip bg-black/55 px-2 py-1 font-mono text-[11px] text-white/90 tabular-nums backdrop-blur-sm',
+            footerAt === 'right' ? 'right-3' : 'left-3',
+          )}
+        >
           {footer}
         </div>
       )}

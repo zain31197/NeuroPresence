@@ -11,6 +11,8 @@ import numpy as np
 
 from ..capture import TrackStatus
 from ..capture.crop import square_face_crop
+from ..consent import liveness
+from ..consent.disclosure import mark
 from ..pipeline import Pipeline
 from ..targets import TARGETS
 from .metrics import MetricsWindow
@@ -138,6 +140,10 @@ class LiveSession:
         # monitor sets the first (see runtime.py); the session sets the second itself.
         self.identity_hold = False
         self.delay_hold = False
+        # A third, set by the consent watch (see runtime.py): the person at the camera is not the registered one.
+        self.consent_hold = False
+        self._consent = None  # how the check before the session stands or ended, for the app to show
+        self._pair_id = 0
         self._watchdog = DelayWatchdog(TARGETS["end_to_end_ms"])
         self._anchor = threading.Event()  # a fresh neutral pose has been asked for
 
@@ -153,6 +159,10 @@ class LiveSession:
         """Show the still picture (True) until this is called again with False."""
         self.identity_hold = bool(hold)
 
+    def hold_for_consent(self, hold):
+        """Show the still picture (True) while the person at the camera is not the registered one."""
+        self.consent_hold = bool(hold)
+
     # ------------------------------------------------------------ control
 
     def start(self, source, label, uses_enrolment):
@@ -163,7 +173,8 @@ class LiveSession:
             self._metrics = MetricsWindow()
             self._pair = self._tracking = self._started_at = None
             self.run += 1
-            self.identity_hold = self.delay_hold = False
+            self.identity_hold = self.delay_hold = self.consent_hold = False
+            self._consent = None
             self._watchdog.reset()
             self._anchor.clear()
             self.uses_enrolment = uses_enrolment
@@ -179,7 +190,7 @@ class LiveSession:
             thread.join(timeout=10.0)
         with self._lock:
             self.state, self.message = SessionState.IDLE, ""
-            self._pair = self._tracking = None
+            self._pair = self._tracking = self._consent = None
 
     def call(self, action, timeout=5.0):
         """Run action(frame, track) on the session thread between two frames.
@@ -202,7 +213,7 @@ class LiveSession:
     def snapshot(self):
         with self._lock:
             state, message, label = self.state, self.message, self.input_label
-            started, tracking = self._started_at, self._tracking
+            started, tracking, consent = self._started_at, self._tracking, self._consent
         running = state is SessionState.RUNNING
         return {
             "state": state.value,
@@ -215,7 +226,10 @@ class LiveSession:
             "metrics": self._metrics.summary() if running else None,
             "tracking": tracking if running else None,
             # Why the still picture is shown although a face is in view, if it is.
-            "holds": {"identity": running and self.identity_hold, "delay": running and self.delay_hold},
+            "holds": {"identity": running and self.identity_hold, "delay": running and self.delay_hold,
+                      "consent": running and self.consent_hold},
+            # The check a camera session starts with: what is being asked for, or how it ended.
+            "consent": consent if state is not SessionState.IDLE else None,
         }
 
     # ---------------------------------------------------------- the thread
@@ -230,6 +244,7 @@ class LiveSession:
             tracker = rt.make_tracker()
             if self.uses_enrolment:
                 rt.load_enrolment()
+                self._check_consent(feed, tracker, engine)
             else:
                 self._progress("Waiting for a front-facing frame")
                 self._borrow_source(feed, tracker)
@@ -268,6 +283,40 @@ class LiveSession:
             self.state, self.message = state, message
             self._pair = self._tracking = None
 
+    def _check_consent(self, feed, tracker, engine):
+        """Before anything is animated: is a living person at the camera, and is it the person the
+        picture belongs to? Two actions are asked for and the face is matched all the way through
+        (consent/check.py). Raises SessionError, with the reason, if the check is not passed."""
+        rt = self._rt
+        check, scorer = rt.consent_check()
+        still = mark(engine.source_frame.copy())  # what the output shows in the meantime
+        self._progress("Checking that it is you")
+        last = -1
+        while not check.done:
+            if self._stop.is_set():
+                raise _Stopped
+            item = feed.read(after_index=last, timeout=0.5)
+            if item is None:
+                if feed.ended:
+                    raise SessionError("The camera stopped delivering frames.")
+                continue
+            last = item.index
+            track = tracker.process(item.image)
+            check.frame(liveness.read(track), item.captured_at)
+            if track.ok and check.wants_face(item.captured_at):
+                check.face(scorer.embed(item.image, track.landmarks), item.captured_at)
+            self._pair_id += 1
+            with self._lock:
+                self._pair = FramePair(self._pair_id, item.image, still, False, track.status.value,
+                                       track.landmarks if track.ok else None)
+                self._consent = check.snapshot(item.captured_at)
+        with self._lock:
+            self._pair = None  # the frames of the check are not frames of the session
+        if not check.passed:
+            raise SessionError(check.reason)
+        rt.events.add("info", "The liveness check was passed, and the face matched the verified face all the way "
+                              f"through ({check.lowest:.2f} at the lowest).")
+
     def _borrow_source(self, feed, tracker):
         """A sample clip animates its own first front-facing frame. Nothing is enrolled or stored."""
         deadline = time.perf_counter() + SAMPLE_SOURCE_SECONDS
@@ -289,7 +338,7 @@ class LiveSession:
 
     def _loop(self, feed, pipeline):
         rt = self._rt
-        pair_id, status = 0, None
+        pair_id, status = self._pair_id, None
         held, neutrals = rt.engine_holds, pipeline.neutral_taken
         newest, tracking_over = _Newest(), threading.Event()
 
@@ -341,8 +390,9 @@ class LiveSession:
                 if self._anchor.is_set():
                     self._anchor.clear()
                     pipeline.wait_for_neutral()
-                result = pipeline.step(item.image, reenact=rt.features.enabled("reenactment") and not self.identity_hold,
-                                       at=item.captured_at, track=tracked, prepared=prepared, show=not self.delay_hold)
+                reenact = rt.features.enabled("reenactment") and not self.identity_hold and not self.consent_hold
+                result = pipeline.step(item.image, reenact=reenact, at=item.captured_at, track=tracked,
+                                       prepared=prepared, show=not self.delay_hold)
                 self._run_commands(item.image, result.track)
                 if rt.engine_holds != held:  # the picture was replaced while running: a new picture, a new neutral pose
                     held = rt.engine_holds

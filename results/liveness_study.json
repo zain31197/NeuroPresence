@@ -1,0 +1,1715 @@
+{
+  "limits": {
+    "action_seconds": 3.0,
+    "settle_seconds": 8.0,
+    "rest_seconds": 0.5,
+    "wait_seconds": [
+      0.3,
+      1.2
+    ],
+    "lost_seconds": 0.5,
+    "rest_yaw_deg": 12.0,
+    "rest_jaw": 0.3,
+    "turn_deg": 35.0,
+    "open_jaw": 0.6,
+    "open_hold_seconds": 0.3,
+    "eyes_closed": 0.5,
+    "closed_rise": 0.25,
+    "reopen_rise": 0.12,
+    "blink_max_seconds": 1.0
+  },
+  "orders_with_a_turn": 10,
+  "clips": {
+    "d0": {
+      "contains": {
+        "seconds": 3.1,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.962,
+        "yaw_deg": [
+          -2.7,
+          -1.5
+        ],
+        "largest_turn_from_rest_deg": 1.2,
+        "eyes_closed": {
+          "times": 1,
+          "longest_s": 0.12
+        },
+        "mouth_wide_open": {
+          "times": 0,
+          "longest_s": 0.0,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 70,
+          "passed": 0,
+          "failed_late_at_step_2": 6,
+          "failed_late_at_step_1": 64,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 14,
+          "passed": 0,
+          "failed_late_at_step_2": 4,
+          "failed_late_at_step_1": 10,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d3": {
+      "contains": {
+        "seconds": 11.8,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.497,
+        "yaw_deg": [
+          -13.8,
+          17.7
+        ],
+        "largest_turn_from_rest_deg": 28.4,
+        "eyes_closed": {
+          "times": 7,
+          "longest_s": 0.87
+        },
+        "mouth_wide_open": {
+          "times": 3,
+          "longest_s": 0.3,
+          "times_held": 1
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 240,
+          "passed": 0,
+          "failed_late_at_step_1": 156,
+          "failed_late_at_step_2": 6,
+          "failed_rest_at_step_1": 78,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 48,
+          "passed": 0,
+          "failed_late_at_step_1": 29,
+          "failed_late_at_step_2": 4,
+          "failed_rest_at_step_1": 15,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d6": {
+      "contains": {
+        "seconds": 33.6,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.439,
+        "yaw_deg": [
+          -5.6,
+          7.3
+        ],
+        "largest_turn_from_rest_deg": 12.7,
+        "eyes_closed": {
+          "times": 8,
+          "longest_s": 0.17
+        },
+        "mouth_wide_open": {
+          "times": 41,
+          "longest_s": 0.63,
+          "times_held": 5
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 680,
+          "passed": 0,
+          "failed_rest_at_step_2": 12,
+          "failed_late_at_step_2": 9,
+          "failed_late_at_step_1": 179,
+          "failed_rest_at_step_1": 480,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 136,
+          "passed": 0,
+          "failed_rest_at_step_2": 8,
+          "failed_late_at_step_1": 25,
+          "failed_late_at_step_2": 5,
+          "failed_rest_at_step_1": 98,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d9": {
+      "contains": {
+        "seconds": 19.6,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.843,
+        "yaw_deg": [
+          -12.7,
+          9.6
+        ],
+        "largest_turn_from_rest_deg": 21.5,
+        "eyes_closed": {
+          "times": 15,
+          "longest_s": 0.33
+        },
+        "mouth_wide_open": {
+          "times": 0,
+          "longest_s": 0.0,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 400,
+          "passed": 0,
+          "failed_late_at_step_2": 63,
+          "failed_late_at_step_1": 267,
+          "failed_rest_at_step_2": 7,
+          "failed_rest_at_step_1": 63,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 80,
+          "passed": 0,
+          "failed_late_at_step_2": 30,
+          "failed_late_at_step_1": 32,
+          "failed_rest_at_step_2": 4,
+          "failed_rest_at_step_1": 14,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d10": {
+      "contains": {
+        "seconds": 14.9,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.672,
+        "yaw_deg": [
+          -3.6,
+          3.3
+        ],
+        "largest_turn_from_rest_deg": 5.0,
+        "eyes_closed": {
+          "times": 2,
+          "longest_s": 0.17
+        },
+        "mouth_wide_open": {
+          "times": 7,
+          "longest_s": 0.37,
+          "times_held": 1
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 300,
+          "passed": 0,
+          "failed_late_at_step_2": 29,
+          "failed_late_at_step_1": 186,
+          "failed_rest_at_step_2": 13,
+          "failed_rest_at_step_1": 66,
+          "failed_wrong_at_step_2": 6,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 60,
+          "passed": 1,
+          "failed_late_at_step_2": 16,
+          "failed_late_at_step_1": 24,
+          "failed_rest_at_step_2": 6,
+          "failed_rest_at_step_1": 13,
+          "passed_share": 0.0167
+        }
+      }
+    },
+    "d11": {
+      "contains": {
+        "seconds": 9.0,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.818,
+        "yaw_deg": [
+          -10.9,
+          10.2
+        ],
+        "largest_turn_from_rest_deg": 20.1,
+        "eyes_closed": {
+          "times": 0,
+          "longest_s": 0.0
+        },
+        "mouth_wide_open": {
+          "times": 1,
+          "longest_s": 0.08,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 190,
+          "passed": 0,
+          "failed_rest_at_step_1": 99,
+          "failed_late_at_step_1": 91,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 38,
+          "passed": 0,
+          "failed_rest_at_step_1": 19,
+          "failed_late_at_step_1": 19,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d12": {
+      "contains": {
+        "seconds": 7.3,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.383,
+        "yaw_deg": [
+          -18.2,
+          16.2
+        ],
+        "largest_turn_from_rest_deg": 30.1,
+        "eyes_closed": {
+          "times": 2,
+          "longest_s": 0.12
+        },
+        "mouth_wide_open": {
+          "times": 3,
+          "longest_s": 0.64,
+          "times_held": 2
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 160,
+          "passed": 0,
+          "failed_rest_at_step_1": 160,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 32,
+          "passed": 0,
+          "failed_rest_at_step_1": 32,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d13": {
+      "contains": {
+        "seconds": 11.7,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.886,
+        "yaw_deg": [
+          -0.9,
+          5.3
+        ],
+        "largest_turn_from_rest_deg": 6.1,
+        "eyes_closed": {
+          "times": 3,
+          "longest_s": 0.13
+        },
+        "mouth_wide_open": {
+          "times": 0,
+          "longest_s": 0.0,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 240,
+          "passed": 0,
+          "failed_late_at_step_1": 239,
+          "failed_late_at_step_2": 1,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 48,
+          "passed": 0,
+          "failed_late_at_step_1": 48,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d14": {
+      "contains": {
+        "seconds": 17.9,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.868,
+        "yaw_deg": [
+          -4.7,
+          6.2
+        ],
+        "largest_turn_from_rest_deg": 6.5,
+        "eyes_closed": {
+          "times": 36,
+          "longest_s": 0.33
+        },
+        "mouth_wide_open": {
+          "times": 0,
+          "longest_s": 0.0,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 360,
+          "passed": 0,
+          "failed_rest_at_step_1": 13,
+          "failed_late_at_step_2": 61,
+          "failed_late_at_step_1": 286,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 72,
+          "passed": 0,
+          "failed_rest_at_step_1": 3,
+          "failed_late_at_step_2": 30,
+          "failed_late_at_step_1": 39,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d18": {
+      "contains": {
+        "seconds": 7.2,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.56,
+        "yaw_deg": [
+          0.9,
+          4.3
+        ],
+        "largest_turn_from_rest_deg": 3.3,
+        "eyes_closed": {
+          "times": 1,
+          "longest_s": 0.03
+        },
+        "mouth_wide_open": {
+          "times": 2,
+          "longest_s": 1.07,
+          "times_held": 2
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 150,
+          "passed": 0,
+          "failed_wrong_at_step_1": 72,
+          "failed_late_at_step_1": 55,
+          "failed_rest_at_step_2": 13,
+          "failed_wrong_at_step_2": 10,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 30,
+          "passed": 0,
+          "failed_wrong_at_step_1": 8,
+          "failed_late_at_step_1": 12,
+          "failed_wrong_at_step_2": 3,
+          "failed_rest_at_step_2": 7,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d19": {
+      "contains": {
+        "seconds": 8.3,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 1.0,
+        "yaw_deg": [
+          -6.8,
+          -1.6
+        ],
+        "largest_turn_from_rest_deg": 5.2,
+        "eyes_closed": {
+          "times": 0,
+          "longest_s": 0.0
+        },
+        "mouth_wide_open": {
+          "times": 0,
+          "longest_s": 0.0,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 170,
+          "passed": 0,
+          "failed_late_at_step_1": 170,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 34,
+          "passed": 0,
+          "failed_late_at_step_1": 34,
+          "passed_share": 0.0
+        }
+      }
+    },
+    "d20": {
+      "contains": {
+        "seconds": 7.0,
+        "share_with_one_face": 1.0,
+        "share_at_rest": 0.914,
+        "yaw_deg": [
+          -7.9,
+          -5.4
+        ],
+        "largest_turn_from_rest_deg": 2.5,
+        "eyes_closed": {
+          "times": 0,
+          "longest_s": 0.0
+        },
+        "mouth_wide_open": {
+          "times": 0,
+          "longest_s": 0.0,
+          "times_held": 0
+        }
+      },
+      "replayed": {
+        "as_built": {
+          "attempts": 150,
+          "passed": 0,
+          "failed_late_at_step_1": 150,
+          "passed_share": 0.0
+        },
+        "without_a_turn": {
+          "attempts": 30,
+          "passed": 0,
+          "failed_late_at_step_1": 30,
+          "passed_share": 0.0
+        }
+      }
+    }
+  },
+  "photographs": {
+    "d0": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.8,
+        "20": 7.7,
+        "30": 11.8,
+        "40": 15.0,
+        "50": 19.3,
+        "60": 24.8,
+        "65": 18.6,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.11,
+        "covered": 0.09
+      },
+      "mouth": {
+        "plain": 0.03,
+        "dark_shape": 0.42
+      },
+      "swung": {
+        "largest_turn_read_deg": 24.8,
+        "share_face_found": 1.0,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 24.8,
+        "0.8": 18.8,
+        "1.4": 11.2,
+        "3.0": 4.6
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d3": {
+      "turn_read_when_tilted_deg": {
+        "10": 5.0,
+        "20": 9.5,
+        "30": 15.2,
+        "40": 20.1,
+        "50": 24.8,
+        "60": 30.0,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.02,
+        "covered": 0.1
+      },
+      "mouth": {
+        "plain": 0.02,
+        "dark_shape": 0.13
+      },
+      "swung": {
+        "largest_turn_read_deg": 31.7,
+        "share_face_found": 0.96,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 31.7,
+        "0.8": 26.9,
+        "1.4": 18.3,
+        "3.0": 8.7
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d6": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.9,
+        "20": 7.7,
+        "30": 10.7,
+        "40": 15.6,
+        "50": 20.9,
+        "60": 12.2,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.02,
+        "covered": 0.06
+      },
+      "mouth": {
+        "plain": 0.01,
+        "dark_shape": 0.42
+      },
+      "swung": {
+        "largest_turn_read_deg": 25.1,
+        "share_face_found": 0.92,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 25.1,
+        "0.8": 21.4,
+        "1.4": 13.9,
+        "3.0": 8.9
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d9": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.8,
+        "20": 6.8,
+        "30": 10.5,
+        "40": 13.2,
+        "50": 17.0,
+        "60": 23.1,
+        "65": 28.3,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.03,
+        "covered": 0.03
+      },
+      "mouth": {
+        "plain": 0.0,
+        "dark_shape": 0.14
+      },
+      "swung": {
+        "largest_turn_read_deg": 23.5,
+        "share_face_found": 1.0,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 28.3,
+        "0.8": 27.8,
+        "1.4": 14.7,
+        "3.0": 8.4
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d10": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.9,
+        "20": 7.8,
+        "30": 12.5,
+        "40": 15.7,
+        "50": 19.8,
+        "60": 16.9,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.02,
+        "covered": 0.16
+      },
+      "mouth": {
+        "plain": 0.0,
+        "dark_shape": 0.38
+      },
+      "swung": {
+        "largest_turn_read_deg": 26.9,
+        "share_face_found": 0.84,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 26.9,
+        "0.8": 18.8,
+        "1.4": 12.4,
+        "3.0": 12.7
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d11": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.9,
+        "20": 7.7,
+        "30": 11.8,
+        "40": 16.2,
+        "50": 20.5,
+        "60": 30.6,
+        "65": 18.1,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.0,
+        "covered": 0.04
+      },
+      "mouth": {
+        "plain": 0.0,
+        "dark_shape": 0.2
+      },
+      "swung": {
+        "largest_turn_read_deg": 30.3,
+        "share_face_found": 1.0,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 30.6,
+        "0.8": 23.5,
+        "1.4": 18.1,
+        "3.0": 11.0
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d12": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.0,
+        "20": 5.7,
+        "30": 8.7,
+        "40": 12.9,
+        "50": 16.8,
+        "60": 21.9,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.09,
+        "covered": 0.07
+      },
+      "mouth": {
+        "plain": 0.01,
+        "dark_shape": 0.33
+      },
+      "swung": {
+        "largest_turn_read_deg": 22.6,
+        "share_face_found": 0.92,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 22.6,
+        "0.8": 14.7,
+        "1.4": 8.1,
+        "3.0": 3.9
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d13": {
+      "turn_read_when_tilted_deg": {
+        "10": 4.3,
+        "20": 8.2,
+        "30": 12.4,
+        "40": 17.5,
+        "50": 20.6,
+        "60": 22.3,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.22,
+        "covered": 0.07
+      },
+      "mouth": {
+        "plain": 0.01,
+        "dark_shape": 0.31
+      },
+      "swung": {
+        "largest_turn_read_deg": 23.5,
+        "share_face_found": 1.0,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 23.5,
+        "0.8": 22.0,
+        "1.4": 16.7,
+        "3.0": 8.7
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d14": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.9,
+        "20": 8.6,
+        "30": 12.8,
+        "40": 18.2,
+        "50": 23.2,
+        "60": 26.5,
+        "65": 32.5,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.01,
+        "covered": 0.24
+      },
+      "mouth": {
+        "plain": 0.0,
+        "dark_shape": 0.05
+      },
+      "swung": {
+        "largest_turn_read_deg": 31.8,
+        "share_face_found": 0.96,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 32.5,
+        "0.8": 23.7,
+        "1.4": 15.8,
+        "3.0": 10.3
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d18": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.8,
+        "20": 7.4,
+        "30": 10.8,
+        "40": 14.6,
+        "50": 20.7,
+        "60": 18.3,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.16,
+        "covered": 0.06
+      },
+      "mouth": {
+        "plain": 0.01,
+        "dark_shape": 0.09
+      },
+      "swung": {
+        "largest_turn_read_deg": 23.8,
+        "share_face_found": 0.96,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 23.8,
+        "0.8": 19.6,
+        "1.4": 13.0,
+        "3.0": 8.1
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d19": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.9,
+        "20": 7.6,
+        "30": 11.6,
+        "40": 16.0,
+        "50": 20.7,
+        "60": 21.5,
+        "65": null,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.06,
+        "covered": 0.03
+      },
+      "mouth": {
+        "plain": 0.0,
+        "dark_shape": 0.31
+      },
+      "swung": {
+        "largest_turn_read_deg": 23.3,
+        "share_face_found": 0.92,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 23.3,
+        "0.8": 20.3,
+        "1.4": 13.8,
+        "3.0": 8.8
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    },
+    "d20": {
+      "turn_read_when_tilted_deg": {
+        "10": 3.7,
+        "20": 6.9,
+        "30": 10.4,
+        "40": 14.6,
+        "50": 18.0,
+        "60": 14.3,
+        "65": 23.2,
+        "70": null
+      },
+      "eyes": {
+        "plain": 0.35,
+        "covered": 0.15
+      },
+      "mouth": {
+        "plain": 0.13,
+        "dark_shape": 0.16
+      },
+      "swung": {
+        "largest_turn_read_deg": 22.7,
+        "share_face_found": 0.88,
+        "attempts": 1000,
+        "passed": 0,
+        "failed_rest_at_step_1": 1000,
+        "passed_share": 0.0
+      },
+      "largest_turn_read_by_distance_deg": {
+        "0.6": 22.7,
+        "0.8": 23.2,
+        "1.4": 12.1,
+        "3.0": 10.9
+      },
+      "held_still": {
+        "attempts": 108,
+        "passed": 0,
+        "failed_late_at_step_1": 108,
+        "passed_share": 0.0
+      }
+    }
+  },
+  "clips_summary": {
+    "largest_turn_from_rest_deg": 30.1,
+    "longest_eyes_closed_s": 0.87,
+    "longest_mouth_wide_open_s": 1.07
+  },
+  "replayed": {
+    "as_built": {
+      "attempts": 3110,
+      "passed": 0,
+      "failed_late_at_step_2": 175,
+      "failed_late_at_step_1": 1843,
+      "failed_rest_at_step_1": 959,
+      "failed_rest_at_step_2": 45,
+      "failed_wrong_at_step_2": 16,
+      "failed_wrong_at_step_1": 72,
+      "passed_share": 0.0
+    },
+    "without_a_turn": {
+      "attempts": 622,
+      "passed": 1,
+      "failed_late_at_step_2": 89,
+      "failed_late_at_step_1": 302,
+      "failed_rest_at_step_1": 194,
+      "failed_rest_at_step_2": 25,
+      "failed_wrong_at_step_1": 8,
+      "failed_wrong_at_step_2": 3,
+      "passed_share": 0.0016
+    }
+  },
+  "made_on_purpose": {
+    "rest_1_s": {
+      "attempts": 140,
+      "passed": 3,
+      "failed_wrong_at_step_1": 19,
+      "failed_rest_at_step_1": 113,
+      "failed_rest_at_step_2": 4,
+      "failed_wrong_at_step_2": 1,
+      "passed_share": 0.0214
+    },
+    "rest_2_s": {
+      "attempts": 220,
+      "passed": 28,
+      "failed_wrong_at_step_1": 134,
+      "failed_late_at_step_2": 4,
+      "failed_wrong_at_step_2": 29,
+      "failed_late_at_step_1": 25,
+      "passed_share": 0.1273
+    },
+    "rest_3_s": {
+      "attempts": 300,
+      "passed": 33,
+      "failed_wrong_at_step_1": 158,
+      "failed_late_at_step_2": 16,
+      "failed_late_at_step_1": 65,
+      "failed_wrong_at_step_2": 28,
+      "passed_share": 0.11
+    }
+  },
+  "photographs_summary": {
+    "photographs": 12,
+    "largest_turn_read_when_tilted_deg": 32.5,
+    "largest_turn_read_when_swung_deg": 31.8,
+    "largest_turn_read_by_distance_deg": {
+      "0.6": 32.5,
+      "0.8": 27.8,
+      "1.4": 18.3,
+      "3.0": 12.7
+    },
+    "swung": {
+      "attempts": 12000,
+      "passed": 0,
+      "failed_rest_at_step_1": 12000,
+      "passed_share": 0.0
+    },
+    "held_still": {
+      "attempts": 1296,
+      "passed": 0,
+      "failed_late_at_step_1": 1296,
+      "passed_share": 0.0
+    },
+    "highest_eye_score_with_eyes_covered": 0.24,
+    "highest_mouth_score_with_dark_shape": 0.42
+  },
+  "recognition": {
+    "limit": 0.35,
+    "same_person": {
+      "d0": {
+        "faces": 26,
+        "mean": 0.897,
+        "lowest": 0.838,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d3": {
+        "faces": 118,
+        "mean": 0.804,
+        "lowest": 0.624,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d6": {
+        "faces": 336,
+        "mean": 0.675,
+        "lowest": 0.489,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d9": {
+        "faces": 196,
+        "mean": 0.854,
+        "lowest": 0.701,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d10": {
+        "faces": 150,
+        "mean": 0.799,
+        "lowest": 0.657,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d11": {
+        "faces": 75,
+        "mean": 0.739,
+        "lowest": 0.543,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d12": {
+        "faces": 61,
+        "mean": 0.702,
+        "lowest": 0.569,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d13": {
+        "faces": 118,
+        "mean": 0.876,
+        "lowest": 0.779,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d14": {
+        "faces": 179,
+        "mean": 0.83,
+        "lowest": 0.69,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d18": {
+        "faces": 72,
+        "mean": 0.841,
+        "lowest": 0.742,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d19": {
+        "faces": 84,
+        "mean": 0.902,
+        "lowest": 0.793,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      },
+      "d20": {
+        "faces": 59,
+        "mean": 0.888,
+        "lowest": 0.792,
+        "share_below_limit": 0.0,
+        "longest_run_below_limit": 0
+      }
+    },
+    "same_person_lowest": 0.489,
+    "same_person_faces": 1474,
+    "another_person_pairs": 132,
+    "another_person_highest": 0.23,
+    "another_person_pairs_ever_at_or_above_limit": [],
+    "another_person": {
+      "d0 as d3": {
+        "highest": 0.139,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d6": {
+        "highest": 0.03,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d9": {
+        "highest": 0.075,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d10": {
+        "highest": 0.006,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d11": {
+        "highest": 0.057,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d12": {
+        "highest": 0.113,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d13": {
+        "highest": 0.115,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d14": {
+        "highest": -0.095,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d18": {
+        "highest": -0.03,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d19": {
+        "highest": 0.027,
+        "share_at_or_above_limit": 0.0
+      },
+      "d0 as d20": {
+        "highest": 0.092,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d0": {
+        "highest": 0.137,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d6": {
+        "highest": 0.101,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d9": {
+        "highest": 0.135,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d10": {
+        "highest": -0.01,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d11": {
+        "highest": 0.098,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d12": {
+        "highest": 0.072,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d13": {
+        "highest": 0.047,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d14": {
+        "highest": 0.073,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d18": {
+        "highest": 0.106,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d19": {
+        "highest": 0.125,
+        "share_at_or_above_limit": 0.0
+      },
+      "d3 as d20": {
+        "highest": 0.014,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d0": {
+        "highest": 0.096,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d3": {
+        "highest": 0.103,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d9": {
+        "highest": 0.095,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d10": {
+        "highest": 0.15,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d11": {
+        "highest": 0.056,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d12": {
+        "highest": 0.11,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d13": {
+        "highest": 0.093,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d14": {
+        "highest": 0.043,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d18": {
+        "highest": 0.063,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d19": {
+        "highest": -0.006,
+        "share_at_or_above_limit": 0.0
+      },
+      "d6 as d20": {
+        "highest": 0.145,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d0": {
+        "highest": 0.107,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d3": {
+        "highest": 0.128,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d6": {
+        "highest": 0.117,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d10": {
+        "highest": 0.23,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d11": {
+        "highest": 0.027,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d12": {
+        "highest": 0.017,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d13": {
+        "highest": 0.209,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d14": {
+        "highest": 0.082,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d18": {
+        "highest": 0.066,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d19": {
+        "highest": 0.126,
+        "share_at_or_above_limit": 0.0
+      },
+      "d9 as d20": {
+        "highest": 0.038,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d0": {
+        "highest": -0.004,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d3": {
+        "highest": 0.009,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d6": {
+        "highest": 0.063,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d9": {
+        "highest": 0.173,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d11": {
+        "highest": 0.044,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d12": {
+        "highest": 0.017,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d13": {
+        "highest": 0.152,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d14": {
+        "highest": 0.071,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d18": {
+        "highest": 0.012,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d19": {
+        "highest": 0.145,
+        "share_at_or_above_limit": 0.0
+      },
+      "d10 as d20": {
+        "highest": 0.096,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d0": {
+        "highest": 0.057,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d3": {
+        "highest": 0.063,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d6": {
+        "highest": 0.079,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d9": {
+        "highest": 0.039,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d10": {
+        "highest": 0.078,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d12": {
+        "highest": 0.052,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d13": {
+        "highest": 0.035,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d14": {
+        "highest": 0.054,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d18": {
+        "highest": 0.15,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d19": {
+        "highest": 0.078,
+        "share_at_or_above_limit": 0.0
+      },
+      "d11 as d20": {
+        "highest": 0.162,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d0": {
+        "highest": 0.122,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d3": {
+        "highest": 0.088,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d6": {
+        "highest": 0.064,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d9": {
+        "highest": -0.011,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d10": {
+        "highest": 0.071,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d11": {
+        "highest": 0.107,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d13": {
+        "highest": 0.142,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d14": {
+        "highest": 0.029,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d18": {
+        "highest": -0.02,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d19": {
+        "highest": 0.082,
+        "share_at_or_above_limit": 0.0
+      },
+      "d12 as d20": {
+        "highest": 0.111,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d0": {
+        "highest": 0.096,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d3": {
+        "highest": 0.024,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d6": {
+        "highest": 0.093,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d9": {
+        "highest": 0.17,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d10": {
+        "highest": 0.127,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d11": {
+        "highest": 0.023,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d12": {
+        "highest": 0.075,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d14": {
+        "highest": 0.136,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d18": {
+        "highest": -0.029,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d19": {
+        "highest": 0.067,
+        "share_at_or_above_limit": 0.0
+      },
+      "d13 as d20": {
+        "highest": 0.064,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d0": {
+        "highest": -0.002,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d3": {
+        "highest": 0.021,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d6": {
+        "highest": 0.055,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d9": {
+        "highest": 0.056,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d10": {
+        "highest": 0.088,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d11": {
+        "highest": -0.035,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d12": {
+        "highest": 0.067,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d13": {
+        "highest": 0.148,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d18": {
+        "highest": -0.012,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d19": {
+        "highest": 0.031,
+        "share_at_or_above_limit": 0.0
+      },
+      "d14 as d20": {
+        "highest": 0.108,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d0": {
+        "highest": 0.025,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d3": {
+        "highest": 0.042,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d6": {
+        "highest": -0.011,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d9": {
+        "highest": 0.029,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d10": {
+        "highest": 0.022,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d11": {
+        "highest": 0.15,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d12": {
+        "highest": -0.02,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d13": {
+        "highest": -0.029,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d14": {
+        "highest": 0.013,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d19": {
+        "highest": 0.088,
+        "share_at_or_above_limit": 0.0
+      },
+      "d18 as d20": {
+        "highest": 0.069,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d0": {
+        "highest": 0.02,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d3": {
+        "highest": 0.155,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d6": {
+        "highest": 0.032,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d9": {
+        "highest": 0.075,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d10": {
+        "highest": 0.122,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d11": {
+        "highest": 0.078,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d12": {
+        "highest": 0.014,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d13": {
+        "highest": 0.043,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d14": {
+        "highest": 0.012,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d18": {
+        "highest": 0.057,
+        "share_at_or_above_limit": 0.0
+      },
+      "d19 as d20": {
+        "highest": 0.012,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d0": {
+        "highest": 0.065,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d3": {
+        "highest": -0.022,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d6": {
+        "highest": 0.12,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d9": {
+        "highest": 0.029,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d10": {
+        "highest": 0.043,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d11": {
+        "highest": 0.076,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d12": {
+        "highest": -0.046,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d13": {
+        "highest": 0.088,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d14": {
+        "highest": 0.036,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d18": {
+        "highest": 0.115,
+        "share_at_or_above_limit": 0.0
+      },
+      "d20 as d19": {
+        "highest": 0.032,
+        "share_at_or_above_limit": 0.0
+      }
+    }
+  },
+  "stand_in": {
+    "d6": {
+      "turns_read_deg": [
+        -45.2,
+        47.1
+      ],
+      "answers": 10,
+      "passed": 10,
+      "lowest_match": 0.51,
+      "turning_the_other_way": {
+        "answers": 10,
+        "passed": 0
+      },
+      "against_another_persons_signature": {
+        "answers": 10,
+        "passed": 0
+      },
+      "seconds_to_pass": {
+        "mean": 4.5,
+        "longest": 5.3
+      }
+    },
+    "d10": {
+      "turns_read_deg": [
+        -50.0,
+        48.0
+      ],
+      "answers": 10,
+      "passed": 10,
+      "lowest_match": 0.519,
+      "turning_the_other_way": {
+        "answers": 10,
+        "passed": 0
+      },
+      "against_another_persons_signature": {
+        "answers": 10,
+        "passed": 0
+      },
+      "seconds_to_pass": {
+        "mean": 4.8,
+        "longest": 5.4
+      }
+    }
+  }
+}
