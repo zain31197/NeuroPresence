@@ -12,6 +12,7 @@ so it behaves like a camera pointed at a repeatable scene.
 
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
@@ -19,6 +20,7 @@ import numpy as np
 from .camera import FrameSource
 
 DEFAULT_CLIP_FPS = 25.0
+RATE_FRAMES = 60  # the source's frame rate is read from when its last frames arrived: two seconds of a webcam
 
 
 @dataclass
@@ -35,6 +37,7 @@ class LiveFeed:
         self.is_camera = self._frames.is_camera
         self._period = None if self.is_camera else 1.0 / (self._frames.fps or DEFAULT_CLIP_FPS)
         self._newest = None
+        self._arrivals = deque(maxlen=RATE_FRAMES)
         self._arrived = threading.Condition()
         self._stop = threading.Event()
         self.ended = False
@@ -64,6 +67,7 @@ class LiveFeed:
                         due = time.perf_counter()  # decoding fell behind; do not try to catch up
                 with self._arrived:
                     self._newest = FeedFrame(frame, index, time.perf_counter())
+                    self._arrivals.append(self._newest.captured_at)
                     self._arrived.notify_all()
                 index += 1
         finally:
@@ -87,6 +91,19 @@ class LiveFeed:
                 if self.ended or remaining <= 0:
                     return None
                 self._arrived.wait(remaining)
+
+    @property
+    def rate(self):
+        """How many frames a second the source is delivering, or None before a few have arrived.
+
+        The output cannot be faster than the camera, and a webcam in poor light often drops to
+        15 frames a second or fewer by itself, so this is worth showing beside the output's rate.
+        """
+        with self._arrived:
+            arrivals = list(self._arrivals)
+        if len(arrivals) < 5 or arrivals[-1] <= arrivals[0]:
+            return None
+        return (len(arrivals) - 1) / (arrivals[-1] - arrivals[0])
 
     def close(self):
         self._stop.set()

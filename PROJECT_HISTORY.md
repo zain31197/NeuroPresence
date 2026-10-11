@@ -2,27 +2,27 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (10 October 2026)
+## Where the project stands (11 October 2026)
 
 | Stage | State |
 |---|---|
 | Enrolment (once, before any session) | Working, in three steps: the face is verified live with the camera, after the liveness prompt, and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down), for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face |
 | 1. Capture | Working: camera or recorded clip, 478 face landmarks per frame, newest-frame pacing, a face crop that holds still while the head does |
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
-| 3. Reenactment | Working, 18 frames per second live against a target of 24; the render target is met |
+| 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
 | 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". Not yet tried by a person at a real camera |
 | 6. Virtual camera (meeting apps) | Not built |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
-Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sample clips; the first benchmark, of 6 October, is in brackets where the figure changed):
+Measured against the targets (benchmark and live session of 11 October 2026, RTX 5050, eight sample clips; the first benchmark, of 6 October, is in brackets where the figure changed):
 
 | Measurement | Measured | Target |
 |---|---|---|
-| Frame rate | 18.7 fps in a live session, 16.4 in the benchmark (7.5) | at least 24 fps |
+| Frame rate | 22.0 fps in a live session (20.3 to 20.8 with the Live Studio open), 17.6 in the benchmark (7.5) | at least 24 fps |
 | Render time per frame | 37 ms (94) | at most 42 ms |
-| Whole pipeline per frame | 61 ms in the benchmark; 89 ms from camera to output in a live session (134) | at most 150 ms end to end |
+| Whole pipeline per frame | 57 ms in the benchmark; 98 ms from camera to output in a live session, steadily, with even motion (134) | at most 150 ms end to end |
 | Peak GPU memory | 1.28 GB, read from the driver so that it includes TensorRT (1.17) | at most 8 GB |
 | Identity match (CSIM), self-reenactment | 0.90 | at least 0.80 |
 | Lag behind the driving face | 0.07 frames | none |
@@ -30,7 +30,7 @@ Measured against the targets (benchmark of 8 October 2026, RTX 5050, eight sampl
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 306 for the engine and server, 46 for the web app, all passing.
+Tests: 319 for the engine and server, 46 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -55,6 +55,7 @@ Proposed and approved on 7 October 2026:
 3. Reenactment (done on 8 October 2026: render and delay targets met, frame rate at 19 of 24; a sharper face crop is measured and available, off by default)
 4. Identity (built on 9 October 2026, with the delay watchdog)
 5. Consent and disclosure (built on 10 October 2026)
+   Speed and even motion, asked for by Zain before step 6 (done on 11 October 2026: 22 frames a second live)
 6. Virtual camera and meeting apps (next)
 
 ## Before this repository
@@ -370,6 +371,44 @@ Three things were built and then taken out again: a rule that the face may not j
 
 **What it does not stop.** No person has answered the prompt at a real camera: the stand-in is not a person and its turns are drawn. A recording made for the purpose passes about one attempt in nine, and attempts are not limited. A face that is itself animated live and fed in as the camera answers the prompt as a person does; the stand-in is exactly that, and it is the honest answer to the committee's question about a video: a recording is stopped, a live puppet is not. And with `--camera-file` a video file can no longer verify a face or start a camera session, which is the point; sessions without a webcam run on the sample clips.
 
+### 11 October 2026: speed and even motion, before the virtual camera
+
+Zain asked for this before the virtual camera is started: the frame rate above 20, steady, and the whole thing smooth to look at. Nothing was changed before it had been measured.
+
+**Where a live session stood** (a 1280 x 720 picture at 30 frames a second as the camera, the 960 x 1280 picture enrolled on this PC as the meeting picture, every frame logged): 19.4 frames a second, 18.1 with the Live Studio open in a browser. The frames came out evenly, 51 ms apart to within 2.5 ms. What was not even was what they showed: the camera frames behind consecutive output frames were one and two frames apart by turns, 33 and 67 ms, because 30 does not divide by 19. The delay from camera to output went up and down with it, 62 to 95 ms.
+
+**Speed.** One drawn frame taken apart on the GPU, each piece timed with the GPU's work finished: 49.0 ms, of which the two networks that draw the picture 35.3, the network that reads the movement 3.8, and two things that should not have cost anything.
+
+| Piece | Before | After | What was wrong |
+|---|---|---|---|
+| Arithmetic on the 21 keypoints (the turn, the limits, the stitching network, the steady filter) | 3.9 ms | 1.3 ms | Done as dozens of tiny GPU operations, each costing more to hand over than to do; LivePortrait's rotation matrix alone was 1.2 ms. It now runs on the CPU, and only the finished keypoints go to the GPU |
+| Putting the finished face back into the picture | 4.9 ms | 1.2 ms | The face came back from the GPU in the networks' own order and was copied in through a strided view, 3.4 ms on a 960 x 1280 picture. It is now put in picture order on the GPU and comes back as one block |
+
+One drawn frame went from 49.0 to 43.4 ms. The picture is the same: against the output saved before the change, over 180 frames and two pictures, it differs by 0.002 of 255 on average, in 0.2% of its values. The full benchmark agrees to three decimals on every measure of quality (`results/benchmark_smooth_windows_rtx5050.json`): identity 0.898, pose error 0.62 degrees, expression error 0.026, mouth correlation 0.957, tremble 1.00, flicker 0.75; 17.6 frames a second where it was 16.2.
+
+**Tried and not kept.**
+
+| Tried | Result |
+|---|---|
+| Reading the movement for the next frame on the GPU while this one is drawn, on a CUDA stream of its own | Drawing went from 38.7 to 41.8 ms and a reading took 16.5 ms in place of 3.8: 1.5 ms a frame better than doing them in turn, and the frame has to be taken that much earlier. The card is full; two jobs only take turns |
+| A shorter interval at which Python hands the interpreter from one thread to another (0.5 ms) | No gain |
+| The server process at a higher priority | 0.1 frames a second |
+| Python's memory collector off, and identity scoring off, to see whether either causes the rare long gap between frames | Neither does: in 90 seconds as it is, no gap was longer than 61 ms |
+
+**Even motion** (`neuropresence/server/pacing.py`, `Pipeline.step`, the engine's `between`). The movement is no longer taken from the newest camera frame as it is. It is read between the last two camera frames, for a moment a fixed time back, and that time is worked out as the session runs: a little more than how old the newest frame has lately been at its worst, moved slowly so that it never jumps. Readings are not joined across a lost face, a fresh neutral pose or a quarter of a second. It has a switch, "Even motion", and is on.
+
+`scripts/study_pacing.py` runs the pipeline over six sample clips with a live session's timing, worked out and not waited for, once each way (`results/pacing_study.json`). The moments shown by one output frame and the next were 33 to 67 ms apart before and 45.5 ms every time with it. The head in the output changes its speed from frame to frame by 2.71% of the eye span where it was 3.77%, 28% less, on every one of the six clips. It follows the driver as closely: the turn of the head is 2.65 degrees off the driver's at the moment shown, against 2.59, and the mouth opening correlates at 0.899 against 0.898.
+
+**The cost is delay.** In a live session the movement is 98 ms old when it is shown, and that no longer varies (1.4 ms). Before it was 80 ms on average and varied by 10. The limit is 150, and the delay watchdog still has 50 ms in hand.
+
+**A live session now**, measured for a minute: 22.0 frames a second, 45.2 ms apart to within 0.9 ms, none more than 51 ms after the one before; 20.3 to 20.8 with the Live Studio open in a browser. Over four minutes without a break it moved between 20.1 and 21.6: the card runs at its limit of 130 W at 75 to 79 degrees, and its clock moves.
+
+**Also.** The Live Studio shows what the camera itself delivers beside the camera's name, and the event list says so once when the camera, not the drawing, holds the rate down: the output cannot be faster than the camera, and a webcam in poor light drops to 15 frames a second by itself. The output is sent to the page no larger than the monitor it is shown in; an upright 960 x 1280 picture was being sent whole and shown at a quarter of that.
+
+**Checked.** 319 engine and server tests (13 new) and 46 web tests, all passing. Looked at in a browser with a stand-in as the camera: the new switch, the camera's rate, no errors in the console.
+
+**What is not reached.** 24 frames a second. 36 of the 45 ms of a frame are the two networks that draw the picture, and the card is at its power limit while they run. Getting there needs those networks cheaper (8-bit arithmetic layer by layer, or a smaller generator), which is a piece of work of its own and has to be judged on the picture. And none of this has been watched on a real camera: the figures are from a sample clip standing in for one.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -402,6 +441,9 @@ Three things were built and then taken out again: a rule that the face may not j
 | A fresh neutral pose is tried before the still picture | It costs the viewer a moment and cures a neutral pose gone wrong; the still picture stays until the person acts |
 | A fresh neutral pose that helped is watched, and taken once more if the match steps down | Seen live: taken while the mouth was covered, it made the cover part of the neutral pose |
 | The delay is judged as a mean over two seconds, and late frames are still drawn while hidden | Single frames pass 150 ms long before the session does; drawing hidden keeps the delay measured, so the picture can return by itself |
+| The arithmetic on the keypoints runs on the CPU | 21 keypoints are too little work for the GPU: handing each small step over cost 3.9 ms a frame against 1.3 |
+| The movement is shown as it was a fixed moment ago, read between two camera frames | The camera and the output run at different rates; shown from the newest frame, a steady turn moves in short and long steps. Even steps cost 18 ms of delay |
+| The frame rate is not held at a round figure | A session draws as fast as the card allows, which moves between 20 and 22; holding it at 20 would only throw the rest away, and the movement is even either way |
 | One of the two actions asked for is always a turn of the head | A flat picture cannot show it; blinking and an open mouth happen by themselves in any recording of a person talking |
 | A turn counts from 35 degrees | A tilted photograph read as 32.5 degrees at most; heads in the sample clips move 30 by themselves; the one real face registered reached 40 |
 | The face is matched all the way through the prompt, not once before it | Otherwise a photograph could be held up for the match and someone else do the moving |
@@ -451,7 +493,9 @@ Three things were built and then taken out again: a rule that the face may not j
 - The enrolment limits were set on sample pictures and clips. One real camera has been tried so far (Zain's phone camera: face 396 px, light 193, sharpness 31), and the checks have been run on it but no picture has been recorded as enrolled from it yet. Other cameras, the teammates' in particular, still have to be tried; the screen shows the readings so the limits can be adjusted from what real cameras give.
 - The enrolment study is small: six clips and three pictures. A turned head was found in one clip and closed eyes in two.
 - Even from a good picture the output keeps about 0.4 of the fine detail, and the generator's output is sharper from a larger picture although its network reads the face at a fixed 256 px input. Both point at how the face crop is resampled on the way in. To be looked at under Reenactment.
-- The studio measures a little slower than the benchmark while the page is open.
+- With the Live Studio open in a browser the session draws 1.5 frames a second fewer (20.3 to 20.8 against 22.0): the browser uses the same graphics card. Measured with a headless browser; a visible one may take more or less.
+- The speed and the even motion were measured with a sample clip standing in for the camera, and judged by figures. Nobody has yet looked at a real camera session with even motion on and off.
+- 24 frames a second needs the two drawing networks cheaper; nothing around them is left to take.
 - TensorRT and its engines have only been built and run on the Windows machine. On Kubuntu the same code should convert on first start, but that has not been tried.
 - Three of the eight benchmark clips still tremble more than their real video (1.36, 1.15, 1.20). The filters were tuned on four clips and at 25 to 30 frames a second; the live loop runs at about 7, where they have not been measured.
 - The natural head range's generic default was set by looking at one picture turned in steps, not by a measurement over many faces; it is now replaced per person by their own registered poses (8 October 2026), but that calibration itself has not been watched on a real camera yet, and no one person's registered range has been checked against how far they can actually, comfortably turn.

@@ -28,6 +28,9 @@ NEUTRAL_WAIT_SECONDS = 3.0  # after this long the current frame is taken, at res
 HOLD_SECONDS = 0.25
 FADE_SECONDS = 0.3
 
+# Two readings of the movement further apart than this are not joined: the face was lost between them.
+MAX_BETWEEN_SECONDS = 0.25
+
 
 def at_rest(track):
     """Is this a face to measure movement from: front-facing, upright, mouth closed, eyes open?"""
@@ -49,6 +52,7 @@ class FrameResult:
     driving_face: np.ndarray | None = None  # the 256x256 face crop that drove this frame
     crop_window: tuple | None = None  # where that crop was cut from the camera frame, as (x, y, side)
     track: TrackResult | None = None  # what the tracker found in this frame
+    motion_at: float | None = None  # the moment the movement shown is of, if it is not the frame's own
 
 
 class Pipeline:
@@ -73,12 +77,14 @@ class Pipeline:
         self._last_live = None  # the newest live output and when it was made
         self._last_at = None
         self._still_of = self._still = None  # the enrolled frame with the mark on it, and which frame it was made from
+        self._before = None  # the reading of the movement in the frame before, as (when it was taken, reading)
         self._neutral_deadline = None  # set while waiting to see the person at rest
         self.neutral_taken = 0  # how many times a neutral pose has been taken from the camera
 
     def wait_for_neutral(self, seconds=None):
         """Show the still picture until the person is seen at rest, then measure all movement from that frame."""
         self.engine.reset_reference()
+        self._before = None
         self._neutral_deadline = time.perf_counter() + (NEUTRAL_WAIT_SECONDS if seconds is None else seconds)
 
     @property
@@ -105,7 +111,25 @@ class Pipeline:
         # 2026: 1.6 frames a second more, but 35 ms more delay from camera to output.
         return face, window, None
 
-    def step(self, frame_bgr, reenact=True, at=None, track=None, prepared=None, show=True):
+    def _movement(self, face, at, motion_at):
+        """The movement to draw, and the moment it is of.
+
+        Without `motion_at` that is simply what this frame shows. With it, the movement is read
+        between this frame and the one before, for that moment: the camera and the output run at
+        different rates, so the newest frame is sometimes just in and sometimes a frame old, and a
+        steady turn drawn from it moves in short and long steps (see server/pacing.py).
+        """
+        if motion_at is None:
+            self._before = None
+            return None, None
+        reading = self.engine.read(face)
+        before, self._before = self._before, (at, reading)
+        if before is None or not 0.0 < at - before[0] <= MAX_BETWEEN_SECONDS:
+            return reading, at
+        share = min(1.0, max(0.0, (motion_at - before[0]) / (at - before[0])))
+        return self.engine.between(before[1], reading, share), before[0] + share * (at - before[0])
+
+    def step(self, frame_bgr, reenact=True, at=None, track=None, prepared=None, show=True, motion_at=None):
         """Process one frame. With reenact=False the face is still tracked but
         the output stays on the enrolled frame. `at` is when the frame was taken,
         in seconds on any clock; it is what the steadying and the fades are timed by.
@@ -114,7 +138,10 @@ class Pipeline:
 
         With show=False the frame is drawn all the same, so that its timings stay real,
         but it is held back and the output goes to the enrolled frame as it does for a
-        lost face. The live session does this while its output is arriving too late."""
+        lost face. The live session does this while its output is arriving too late.
+
+        `motion_at`, on the same clock as `at` and not later, asks for the movement as it
+        was at that moment, read between this frame and the one before (see _movement)."""
         start = time.perf_counter()
         at = start if at is None else at
         if track is None:
@@ -139,10 +166,17 @@ class Pipeline:
                     self.neutral_taken += 1
                 else:
                     live = False  # not at rest yet: keep showing the still picture
+        shown_at = None
         if live:
+            reading = time.perf_counter()
+            if motion is None:
+                motion, shown_at = self._movement(face, at, motion_at)
+            reading = (time.perf_counter() - reading) * 1000
             given = {} if motion is None else {"motion": motion}
-            output = self.engine.drive(face, at=at, steady=self.steady_keypoints, limit=self.natural_range, **given)
+            output = self.engine.drive(face, at=at if shown_at is None else shown_at, steady=self.steady_keypoints,
+                                       limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)
+            timing["motion"] = timing.get("motion", 0.0) + reading  # reading the movement is part of that stage, wherever it is done
             if show:
                 output = mark(output)  # once, here: holds and fades then only reuse frames that carry it
             else:
@@ -150,10 +184,11 @@ class Pipeline:
         else:
             if track is None or not track.ok or not ahead:
                 self._crop.reset()
+            self._before = None  # nothing was drawn from this frame: the next reading stands alone
             output = None
         output = self._settle(output, at)
         timing["total"] = (time.perf_counter() - start) * 1000
-        return FrameResult(output, track.status, live, timing, face, crop_window=window, track=track)
+        return FrameResult(output, track.status, live, timing, face, crop_window=window, track=track, motion_at=shown_at)
 
     def _settle(self, live_output, at):
         """Hold and fade between the live output and the still picture, so the two never snap."""

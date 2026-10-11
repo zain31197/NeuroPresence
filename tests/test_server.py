@@ -91,6 +91,8 @@ class FakeEngine:
         self.last_timing_ms = {"motion": 2.0, "render": 3.0, "compose": 1.0}
         self.resets = 0
         self.drives = 0
+        self.reads = 0
+        self.drawn_at = []  # the moment each frame's movement was of
         self.neutral_faces = []
         self.pose_calibration = None  # the kwargs calibrate_pose_range was last called with
 
@@ -106,8 +108,16 @@ class FakeEngine:
     def clear_source(self):
         self.source_frame = self.source_crop = None
 
+    def read(self, face):
+        self.reads += 1
+        return self.reads
+
+    def between(self, before, after, share):
+        return after
+
     def drive(self, face, at=None, steady=False, limit=False, motion=None):
         self.drives += 1
+        self.drawn_at.append(at)
         return np.full_like(self.source_frame, 200)
 
     def reset_reference(self):
@@ -304,7 +314,8 @@ def test_status_when_nothing_has_happened(parts):
                                               "hint": "", "tip": "", "ready": False, "outline": None,
                                               "taking": False, "liveness": None}}
     assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
-                                                                "steady_keypoints": True, "natural_range": True,
+                                                                "steady_keypoints": True, "even_motion": True,
+                                                                "natural_range": True,
                                                                 "identity_guard": True, "delay_watchdog": True,
                                                                 "tracking_overlay": False}
     assert found["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
@@ -1135,7 +1146,7 @@ def test_frame_packing_round_trip_and_overlay():
     pair = FramePair(7, camera, output, True, "ok", landmarks)
     header, plain, _ = unpack_frame(pack_frame(pair, overlay=False))
     assert header == {"id": 7, "kind": "live", "live": True, "status": "ok", "camera_bytes": len(plain),
-                      "output_bytes": header["output_bytes"]}
+                      "output_bytes": header["output_bytes"], "output_size": [1280, 720]}
     plain = cv2.imdecode(np.frombuffer(plain, np.uint8), cv2.IMREAD_COLOR)
     assert plain.shape == (360, 640, 3)  # the camera preview is shrunk; the output is not
     assert plain.max() < 10
@@ -1144,6 +1155,15 @@ def test_frame_packing_round_trip_and_overlay():
     assert marked[180, 320].max() > 100  # the landmark, at half scale
     assert cv2.imdecode(np.frombuffer(big, np.uint8), cv2.IMREAD_COLOR).shape == (720, 1280, 3)
     assert camera.max() == 0  # the frame itself is never drawn on
+
+
+def test_an_upright_output_is_sent_no_larger_than_its_monitor():
+    upright = np.full((1280, 960, 3), 90, dtype=np.uint8)  # the size of a picture taken with a phone held upright
+    header, _, sent = unpack_frame(pack_frame(FramePair(1, np.zeros((720, 1280, 3), np.uint8), upright, True, "ok", None)))
+    assert cv2.imdecode(np.frombuffer(sent, np.uint8), cv2.IMREAD_COLOR).shape == (720, 540, 3)
+    assert header["output_size"] == [960, 1280]  # what the page says the output's size is
+    preview = unpack_frame(pack_frame(FramePair(2, upright, None, False, "ok", None, kind="preview")))[0]
+    assert preview["output_size"] is None
 
 
 def test_a_preview_frame_has_no_output_and_a_larger_camera_picture():
@@ -1376,3 +1396,40 @@ def test_a_consent_hold_takes_the_place_of_an_identity_hold(parts, monkeypatch):
     assert wait_for(lambda: runtime.session.latest_pair().live)  # back by itself: nothing is left to resume
     assert status(parts)["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
     assert client.post("/api/session/resume").status_code == 409
+
+
+# ---------------------------------------------------------------- even motion
+
+
+def test_the_movement_is_shown_as_it_was_a_fixed_moment_ago(parts):
+    start(parts)
+    engine, client = parts["engines"][0], parts["client"]
+    assert wait_for(lambda: engine.reads > 30)
+    assert engine.reads == pytest.approx(engine.drives, abs=2)  # one reading for every frame drawn
+    older = status(parts)["session"]["metrics"]["end_to_end_ms"]  # how old the movement is when the picture is ready
+    assert client.patch("/api/features/even_motion", json={"enabled": False}).json()["enabled"] is False
+    reads, drawn = engine.reads, engine.drives
+    assert wait_for(lambda: engine.drives > drawn + 30)
+    assert engine.reads <= reads + 1  # switched off: the engine reads the movement itself again, from the newest frame
+    assert wait_for(lambda: status(parts)["session"]["metrics"]["end_to_end_ms"] < older - 2.0)  # which is newer
+    client.patch("/api/features/even_motion", json={"enabled": True})
+    assert wait_for(lambda: engine.reads > reads + 30)
+
+
+def test_a_camera_slower_than_the_drawing_is_pointed_out_once(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.session.SLOW_CAMERA_AFTER_SECONDS", 0.2)
+    monkeypatch.setattr(FakeFeed, "rate", 12.4, raising=False)  # a webcam in poor light
+    start(parts)
+    told = "The camera is delivering 12 frames a second, and the output cannot be faster than the camera"
+    assert wait_for(lambda: any(message.startswith(told) for message in events(parts)))
+    assert status(parts)["session"]["camera_fps"] == 12.4
+    time.sleep(0.3)
+    assert sum(message.startswith(told) for message in events(parts)) == 1
+    parts["client"].post("/api/session/stop")
+    assert status(parts)["session"]["camera_fps"] is None
+    monkeypatch.setattr(FakeFeed, "rate", 30.0, raising=False)
+    monkeypatch.setattr(FakeEngine, "drive", lambda self, face, at=None, steady=False, limit=False, motion=None: (
+        time.sleep(0.04), np.full_like(self.source_frame, 200))[1])  # 40 ms a frame: 25 could be drawn, the camera gives 30
+    start(parts)
+    time.sleep(0.6)
+    assert sum(message.startswith("The camera is delivering") for message in events(parts)) == 1  # nothing new to say

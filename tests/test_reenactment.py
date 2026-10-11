@@ -85,6 +85,29 @@ def test_face_at_frame_edge_leaves_no_black_band(engine):
 
 
 @needs_liveportrait
+def test_the_movement_can_be_read_between_two_frames(engine):
+    engine.set_source(cv2.imread(str(SAMPLE_SOURCE)))
+    rest = engine.source_crop
+    turned = cv2.warpAffine(rest, cv2.getRotationMatrix2D((256, 256), 12, 1.0), (512, 512), borderMode=cv2.BORDER_REPLICATE)
+    engine.set_reference(rest)
+    first, second = engine.read(rest), engine.read(turned)
+    assert not first[1].is_cuda and all(not value.is_cuda for value in first[0].values())  # the arithmetic is the CPU's
+    roll = lambda reading: float(reading[0]["roll"])  # noqa: E731
+    assert abs(roll(second) - roll(first)) > 5  # the two faces differ by a tilt of the head
+    half = engine.between(first, second, 0.5)
+    assert roll(half) == pytest.approx((roll(first) + roll(second)) / 2, abs=1e-3)
+    assert torch.allclose(half[0]["exp"], (first[0]["exp"] + second[0]["exp"]) / 2, atol=1e-5)
+    assert engine.between(first, second, 0.0) is first and engine.between(first, second, 1.0) is second
+    start = engine.drive(rest, motion=first).astype(np.float32)
+    middle = engine.drive(rest, motion=half).astype(np.float32)
+    end = engine.drive(rest, motion=second).astype(np.float32)
+    # The frame drawn from it lies between the two: nearer to each than they are to each other.
+    assert np.abs(middle - start).mean() < np.abs(end - start).mean()
+    assert np.abs(middle - end).mean() < np.abs(end - start).mean()
+    assert np.abs(engine.drive(rest).astype(np.float32) - start).mean() < 0.5  # handing a reading in changes nothing
+
+
+@needs_liveportrait
 def test_set_reference_fixes_the_neutral_pose(engine):
     """With the source's own face as the neutral pose, driving with it gives back the source."""
     engine.set_source(cv2.imread(str(SAMPLE_SOURCE)))

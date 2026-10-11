@@ -38,6 +38,14 @@ DEFAULTS = (
         True,
     ),
     Feature(
+        "even_motion",
+        "Even motion",
+        "Show the movement as it was at evenly spaced moments, read between two camera frames. The camera and the "
+        "output run at different rates, and without this a steady turn is drawn in short and long steps. It shows "
+        "the movement about 20 ms later.",
+        True,
+    ),
+    Feature(
         "natural_range",
         "Natural head range",
         "Keep the head within the range that looks right on a body that stays still. Small movements are followed "

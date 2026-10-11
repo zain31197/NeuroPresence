@@ -2,7 +2,7 @@
 
 Layout of a frame message (binary):
     4 bytes   length N of the header, unsigned, little-endian
-    N bytes   header as UTF-8 JSON: id, kind, live, status, camera_bytes, output_bytes
+    N bytes   header as UTF-8 JSON: id, kind, live, status, camera_bytes, output_bytes, output_size
     then      the camera picture as JPEG (camera_bytes long)
     then      the output as JPEG (output_bytes long; zero in the enrolment preview)
 
@@ -16,18 +16,20 @@ import struct
 import cv2
 
 CAMERA_WIDTH = {"live": 640, "preview": 960}  # the preview is the main picture on its screen
-OUTPUT_WIDTH = 1280
+# The output is sent no larger than the 16:9 monitor it is shown in. An upright picture of 960 x 1280
+# was sent whole and shown a quarter of that size, which the browser had to decode and scale 20 times a second.
+OUTPUT_BOX = (1280, 720)
 JPEG_QUALITY = 82
 OVERLAY_COLOR = (120, 235, 90)  # BGR
 
 
-def _fit_width(image, width):
-    """Shrink the image to at most this width. Returns the image and the scale used."""
+def _fit(image, width, height=None):
+    """Shrink the image to at most this width, and this height if one is given. Returns the image and the scale used."""
     h, w = image.shape[:2]
-    if w <= width:
+    scale = min(1.0, width / w, 1.0 if height is None else height / h)
+    if scale >= 1.0:
         return image, 1.0
-    scale = width / w
-    return cv2.resize(image, (width, int(round(h * scale))), interpolation=cv2.INTER_AREA), scale
+    return cv2.resize(image, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA), scale
 
 
 def _jpeg(image):
@@ -38,7 +40,7 @@ def _jpeg(image):
 
 
 def pack_frame(pair, overlay=False):
-    camera, scale = _fit_width(pair.camera, CAMERA_WIDTH[pair.kind])
+    camera, scale = _fit(pair.camera, CAMERA_WIDTH[pair.kind])
     if overlay and pair.landmarks is not None:
         camera = camera.copy()
         for x, y in pair.landmarks * scale:
@@ -47,7 +49,7 @@ def pack_frame(pair, overlay=False):
             x, y, side = (value * scale for value in pair.crop_window)
             cv2.rectangle(camera, (int(round(x)), int(round(y))), (int(round(x + side)), int(round(y + side))), OVERLAY_COLOR, 1, cv2.LINE_AA)
     camera_jpeg = _jpeg(camera)
-    output_jpeg = b"" if pair.output is None else _jpeg(_fit_width(pair.output, OUTPUT_WIDTH)[0])
+    output_jpeg = b"" if pair.output is None else _jpeg(_fit(pair.output, *OUTPUT_BOX)[0])
     header = json.dumps({
         "id": pair.id,
         "kind": pair.kind,
@@ -55,6 +57,8 @@ def pack_frame(pair, overlay=False):
         "status": pair.status,
         "camera_bytes": len(camera_jpeg),
         "output_bytes": len(output_jpeg),
+        # The size of the output itself, which is not always the size it is sent at.
+        "output_size": None if pair.output is None else [int(pair.output.shape[1]), int(pair.output.shape[0])],
     }).encode("utf-8")
     return struct.pack("<I", len(header)) + header + camera_jpeg + output_jpeg
 

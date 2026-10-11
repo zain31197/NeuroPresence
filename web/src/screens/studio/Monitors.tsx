@@ -52,7 +52,8 @@ export function Monitors() {
         const [cameraBitmap, outputBitmap] = await Promise.all([createImageBitmap(cameraJpeg), createImageBitmap(outputJpeg)])
         paint(camera.current, cameraBitmap)
         paint(output.current, outputBitmap)
-        const next: FrameInfo = { live: header.live, status: header.status, width: outputBitmap.width, height: outputBitmap.height }
+        const [width, height] = header.output_size ?? [outputBitmap.width, outputBitmap.height]
+        const next: FrameInfo = { live: header.live, status: header.status, width, height }
         cameraBitmap.close()
         outputBitmap.close()
         setFrame((shown) =>
@@ -90,7 +91,13 @@ export function Monitors() {
       <div className="grid gap-2 md:grid-cols-2">
         <Monitor
           label="Camera"
-          detail={running ? session?.input : checking && showing ? 'Mirrored' : undefined}
+          detail={
+            running
+              ? [session?.input, session?.camera_fps ? `${Math.round(session.camera_fps)} fps` : null].filter(Boolean).join(' · ')
+              : checking && showing
+                ? 'Mirrored'
+                : undefined
+          }
           lit={showing}
           chip={showing && <TrackingChip status={frame.status} />}
           footer={

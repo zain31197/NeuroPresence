@@ -31,6 +31,8 @@ export interface Session {
   uptime_s: number | null
   frames: number
   metrics: Metrics | null
+  /** Frames a second the camera itself is delivering. The output cannot be faster than this. */
+  camera_fps?: number | null
   tracking: Tracking | null
   /** Why the still picture is shown although a face is in view, if it is. */
   holds?: { identity: boolean; delay: boolean; consent?: boolean }
@@ -240,6 +242,8 @@ export interface FrameHeader {
   status: TrackStatus
   camera_bytes: number
   output_bytes: number
+  /** Width and height of the output itself. It is sent no larger than its monitor, so the picture received may be smaller. */
+  output_size?: [number, number] | null
 }
 
 export interface PipelineStage {

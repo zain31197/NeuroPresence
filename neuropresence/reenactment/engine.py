@@ -5,6 +5,7 @@ splits their use into "prepare the source once" and "drive one frame", which is
 what a live loop needs, and times each part.
 """
 
+import copy
 import logging
 import math
 import sys
@@ -147,6 +148,7 @@ class ReenactmentEngine:
         self._reference = None
         self._paste = None
         self._gpu = None
+        self._stitcher = None  # LivePortrait's stitching network, on the CPU (see _info)
         self.source_frame = None  # the full source image, shown as the static fallback frame
         self.source_crop = None  # 512x512 BGR face crop that the networks animate
         self._last_out = None  # the generator's latest output, still on the GPU
@@ -265,13 +267,15 @@ class ReenactmentEngine:
         small = cv2.resize(crop_rgb, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_AREA).astype(np.float32)
         small += SOURCE_SHARPEN * (small - cv2.GaussianBlur(small, (0, 0), 1.0))  # see SOURCE_SHARPEN
         source = w.prepare_source(np.clip(small, 0, 255).astype(np.uint8))
-        info = w.get_kp_info(source)
+        info = self._info(source)
+        keypoints = w.transform_keypoint(info)
         self._source = {
             "info": info,
             "canonical_kp": info["kp"],
             "rotation": self._rotation(info["pitch"], info["yaw"], info["roll"]),
             "feature": w.extract_feature_3d(source),
-            "kp": w.transform_keypoint(info),
+            "kp": keypoints,  # for the arithmetic, on the CPU ...
+            "kp_device": keypoints.to(self._device),  # ... and where the networks are
         }
         self.source_frame = image_bgr
         self.source_crop = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2BGR)
@@ -337,9 +341,14 @@ class ReenactmentEngine:
         bgr = out[:, [2, 1, 0]].clamp(0.0, 1.0).float()
         warped = torch.nn.functional.grid_sample(bgr, g["grid"], mode="bilinear", padding_mode="zeros", align_corners=False)
         region = (g["mask"] * warped + g["background"]).clamp_(0.0, 255.0).to(torch.uint8)
+        # Put into picture order on the GPU, so that what comes back is one solid block. Brought back
+        # in the networks' order and copied in from there, this step took 3.4 ms on a 960 x 1280 picture.
+        blended = region[0].permute(1, 2, 0).contiguous().cpu().numpy()
+        if blended.shape == self.source_frame.shape:
+            return blended  # the region is the whole picture
         x0, y0, x1, y1 = self._paste["roi"]
         frame = self.source_frame.copy()
-        frame[y0:y1, x0:x1] = region[0].permute(1, 2, 0).cpu().numpy()
+        frame[y0:y1, x0:x1] = blended
         return frame
 
     def _paste_back(self, crop_bgr):
@@ -393,11 +402,36 @@ class ReenactmentEngine:
             moved[key] = rest[key] + (driving[key] - rest[key]) * share
         self._reference = {"info": moved, "rotation": self._rotation(moved["pitch"], moved["yaw"], moved["roll"])}
 
+    def _info(self, face):
+        """What the network that reads the movement finds in a face, brought to the CPU.
+
+        Everything that is done with these few numbers afterwards (the turn, the limits, the
+        stitching) is arithmetic on 21 keypoints. On the GPU every small step of it costs more in
+        handing over than in work: 3.9 ms a frame, against 1.3 ms here, measured on 11 October 2026
+        with the same picture drawn. Only the finished keypoints go back to the GPU.
+        """
+        return {key: value.cpu() for key, value in self._wrapper.get_kp_info(face).items() if isinstance(value, torch.Tensor)}
+
     def _read_motion(self, driving_face_bgr):
-        w = self._wrapper
-        face = cv2.resize(driving_face_bgr, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_AREA)
-        info = w.get_kp_info(w.prepare_source(cv2.cvtColor(face, cv2.COLOR_BGR2RGB)))
+        face = driving_face_bgr
+        if face.shape[:2] != (INPUT_SIZE, INPUT_SIZE):
+            face = cv2.resize(face, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_AREA)
+        info = self._info(self._wrapper.prepare_source(cv2.cvtColor(face, cv2.COLOR_BGR2RGB)))
         return info, self._rotation(info["pitch"], info["yaw"], info["roll"])
+
+    def _stitch(self, kp_source, kp_driving):
+        """LivePortrait's stitching step (live_portrait_wrapper.py: stitching), with its small network on the CPU."""
+        networks = self._wrapper.stitching_retargeting_module
+        if networks is None:
+            return kp_driving
+        if self._stitcher is None:
+            self._stitcher = copy.deepcopy(networks["stitching"]).cpu().float().eval()
+        count = kp_source.shape[1]
+        with torch.no_grad():
+            delta = self._stitcher(torch.cat([kp_source.reshape(1, -1), kp_driving.reshape(1, -1)], dim=1))
+        stitched = kp_driving + delta[..., :3 * count].reshape(1, count, 3)
+        stitched[..., :2] += delta[..., 3 * count:3 * count + 2].reshape(1, 1, 2)
+        return stitched
 
     def read(self, driving_face_bgr):
         """Read the movement from a driving face crop, to be handed to drive() as `motion`.
@@ -406,6 +440,19 @@ class ReenactmentEngine:
         tracking thread while the GPU is still drawing the frame before.
         """
         return self._read_motion(driving_face_bgr)
+
+    def between(self, before, after, share):
+        """The movement part of the way from one reading to a later one: 0 is the first, 1 the second.
+
+        Readings are what read() returns. The live session uses this to show the movement as it
+        was at a moment between two camera frames (see pipeline.py: motion_at).
+        """
+        if share >= 1.0:
+            return after
+        if share <= 0.0:
+            return before
+        info = {key: torch.lerp(value, after[0][key], share) for key, value in before[0].items()}
+        return info, self._rotation(info["pitch"], info["yaw"], info["roll"])
 
     def drive(self, driving_face_bgr, at=None, steady=False, limit=False, motion=None):
         """Animate the source with one cropped driving face.
@@ -426,6 +473,8 @@ class ReenactmentEngine:
 
         start = self._now()
         driving, rotation = motion if motion is not None else self._read_motion(driving_face_bgr)
+        if rotation.is_cuda:  # a reading handed in from elsewhere: the arithmetic is done on the CPU
+            driving, rotation = {key: value.cpu() for key, value in driving.items()}, rotation.cpu()
         if self._reference is None:
             self._reference = {"info": driving, "rotation": rotation}
         if limit:
@@ -452,13 +501,14 @@ class ReenactmentEngine:
             "yaw_deg": float(driving["yaw"][0, 0] - ref["info"]["yaw"][0, 0]),
         }
         kp_driving = scale_new * (s["canonical_kp"] @ rotation_new + expression_new) + shift_new
-        kp_driving = w.stitching(s["kp"], kp_driving)
+        kp_driving = self._stitch(s["kp"], kp_driving)
         if steady:
-            held = self._steady(kp_driving.detach().float().cpu().numpy(), time.perf_counter() if at is None else at)
-            kp_driving = torch.as_tensor(held, dtype=kp_driving.dtype, device=kp_driving.device)
+            held = self._steady(kp_driving.numpy(), time.perf_counter() if at is None else at)
+            kp_driving = torch.as_tensor(held, dtype=kp_driving.dtype)
+        kp_driving = kp_driving.to(self._device)
         motion_done = self._now()
 
-        out = w.warp_decode(s["feature"], s["kp"], kp_driving)["out"]
+        out = w.warp_decode(s["feature"], s["kp_device"], kp_driving)["out"]
         render_done = self._now()
 
         self._last_out = out

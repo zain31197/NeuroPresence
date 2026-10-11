@@ -84,7 +84,7 @@ The head also keeps to the range of movement that looks right on a body that sta
 | Camera to output, live session | about 160 ms | 89 ms | ≤ 150 ms |
 | Identity, pose error, expression error, mouth correlation, jitter, flicker | | unchanged | |
 
-The render and latency targets are met. The frame-rate target is not reached yet.
+The render and latency targets are met. The frame-rate target is not reached yet; on 11 October the live session went from 18.7 to 22 frames a second (see Speed and even motion).
 
 These clips are studio recordings, not webcam footage of the team, so the numbers will be repeated on the team's own recordings. The proposal-stage measurement of the same unoptimized model was 7.7 fps and 130 ms per frame.
 
@@ -104,7 +104,7 @@ Supervisor: Muhammad Aamir Gulzar
 |---|---|
 | Enrolment | Working: the face is verified live with the camera and only its signature is kept; five poses are registered (facing the camera, turned to each side, tilted up and down) for a richer signature and a measured range of motion; the meeting picture is uploaded, checked, and accepted only if it shows the same face (`neuropresence/enrolment`) |
 | 1–2 Capture, tracking, driving signal | Working, with the crop and keypoints steadied (`neuropresence/capture`, `neuropresence/capture/steady.py`) |
-| 3 Reenactment | Working live in a preview window (`neuropresence/reenactment`, `neuropresence/pipeline.py`) |
+| 3 Reenactment | Working at about 22 frames a second live, with the movement shown in even steps (`neuropresence/reenactment`, `neuropresence/pipeline.py`, `neuropresence/server/pacing.py`) |
 | 4 Identity preservation | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until you resume (`neuropresence/identity/guard.py`). A delay watchdog shows the still picture while the output arrives too late (`neuropresence/server/watchdog.py`) |
 | 5 Consent and disclosure | Working: before a face is verified and before every camera session, two actions chosen at random are asked for and the face is matched all the way through (`neuropresence/consent/liveness.py`, `check.py`); during a session the camera face is compared once a second; every output frame carries the label "AI reenacted" (`neuropresence/consent/disclosure.py`) |
 | 6 Virtual camera | Not started |
@@ -226,6 +226,7 @@ python scripts/study_same_person.py            # how alike two faces must be to 
 python scripts/study_identity_guard.py         # the identity score in normal use and under faults (about 20 minutes)
 python scripts/study_delay.py                  # delay and frame rate of a live session, alone and beside GPU load
 python scripts/study_liveness.py --stand-in    # what can pass the liveness prompt and the face match (about 15 minutes)
+python scripts/study_pacing.py                 # how evenly the movement is shown, with and without even motion (about 6 minutes)
 python -m pytest                               # engine and server tests
 cd web && npm test                             # front-end tests
 ```
@@ -256,6 +257,35 @@ Three points about reading them:
 The identity score aligns faces with five MediaPipe landmarks instead of InsightFace's own detector. `scripts/validate_alignment.py` compares the two on 36 sample faces: the similarity scores differ by 0.015 on average (0.077 at most) and correlate at 0.993 (`results/alignment_validation.json`).
 
 The demo overlays face landmarks, head pose (yaw, pitch, roll), jaw opening, frame rate, and tracker latency. With no face or more than one face in frame it shows a banner and reports the frame as not usable for reenactment.
+
+## Speed and even motion
+
+**Speed (11 October 2026).** A live session ran at 19.4 frames a second, and at 18.1 with the Live Studio open in a browser. Taking one drawn frame apart showed almost 9 ms of it that was not the networks' work: the arithmetic on the 21 keypoints was done as dozens of tiny GPU operations, each costing more to hand over than to do, and the finished face was copied back into the picture through a slow path. The arithmetic now runs on the CPU and the copy is one solid block, which took 6 of those 9 ms away.
+
+| Measurement | Before | Now | Target |
+|---|---|---|---|
+| One drawn frame, engine alone, 960 x 1280 picture | 49.0 ms | 43.4 ms | |
+| Frame rate, live session | 19.4 fps | 22.0 fps | ≥ 24 fps |
+| Frame rate, live session with the Live Studio open | 18.1 fps | 20.3 to 20.8 fps | ≥ 24 fps |
+| Frame rate, benchmark | 16.2 fps | 17.6 fps | |
+| Identity, pose error, expression error, mouth correlation, jitter, flicker | | unchanged to three decimals | |
+
+The picture drawn is the same: against the output saved before the change, it differs by 0.002 of 255 on average (`results/benchmark_smooth_windows_rtx5050.json` for the quality figures). The live figures are from a session with a 1280 x 720 picture at 30 frames a second standing in for the camera. Over four minutes without a break the rate moved between 20.1 and 21.6 as the graphics card, which runs at its 130 W limit here, changed its clock. The 24 frames a second target is still not met: 36 of the 45 ms of a frame are the two networks that draw the picture, and they have to become cheaper for it.
+
+**Even motion.** The camera delivers 30 frames a second and the output is drawn at about 22. Each output frame was made from the newest camera frame there was, and that frame is sometimes just in and sometimes 33 ms old. The output frames came out evenly, 45 ms apart, but the camera frames they showed were 33 and 67 ms apart by turns, so a head turning steadily was drawn in short and long steps. Now the movement is read between the last two camera frames, for a moment that lies a fixed time back (`neuropresence/server/pacing.py`, `Pipeline.step`). It has a switch in the Live Studio, "Even motion", and is on.
+
+`python scripts/study_pacing.py` runs the pipeline over six sample clips with a live session's timing, once each way (`results/pacing_study.json`):
+
+| Measurement | Newest frame | Even motion |
+|---|---|---|
+| Moments shown by one output frame and the next, apart | 33 to 67 ms (30 fps clips), 40 to 80 ms (25 fps clips) | 45.5 ms, every time |
+| How much the head in the output changes speed from frame to frame, in % of the eye span | 3.77 | 2.71 |
+| Head turn against the driver's at the moment shown | 2.59° off | 2.65° off |
+| Mouth opening against the driver's (correlation) | 0.898 | 0.899 |
+
+The head moves 28% more evenly and follows the driver as closely as before. The cost is delay: in a live session the movement is 98 ms old when it is shown, steadily (it varied by 1.4 ms), where it was 62 to 95 ms old by turns before, 80 on average. The limit is 150.
+
+The Live Studio now shows what the camera itself delivers, beside its name, because the output cannot be faster than the camera: a webcam in poor light often drops to 15 frames a second by itself, and the event list says so when that is what holds the rate down.
 
 ## Identity fallback and delay watchdog
 

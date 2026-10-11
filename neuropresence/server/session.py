@@ -16,9 +16,13 @@ from ..consent.disclosure import mark
 from ..pipeline import Pipeline
 from ..targets import TARGETS
 from .metrics import MetricsWindow
+from .pacing import MotionClock
 from .watchdog import DelayWatchdog
 
 SAMPLE_SOURCE_SECONDS = 10.0
+# After this long, a camera that delivers clearly fewer frames than could be drawn is pointed out, once.
+SLOW_CAMERA_AFTER_SECONDS = 5.0
+SLOW_CAMERA_SHARE = 0.9
 MAX_FRONTAL_ANGLE_DEG = 20.0
 # The watchdog starts reading this long after the first frame, when the session has found its pace.
 WATCHDOG_AFTER_SECONDS = 2.0
@@ -145,6 +149,10 @@ class LiveSession:
         self._consent = None  # how the check before the session stands or ended, for the app to show
         self._pair_id = 0
         self._watchdog = DelayWatchdog(TARGETS["end_to_end_ms"])
+        self._clock = MotionClock()  # which moment each frame's movement is of (see pacing.py)
+        self._feed = None  # the camera or clip of the running session
+        self._drawn_seconds = 0.0  # how long a frame that is really drawn takes, as a running average
+        self._slow_camera_told = False
         self._anchor = threading.Event()  # a fresh neutral pose has been asked for
 
     @property
@@ -176,6 +184,8 @@ class LiveSession:
             self.identity_hold = self.delay_hold = self.consent_hold = False
             self._consent = None
             self._watchdog.reset()
+            self._clock.reset()
+            self._drawn_seconds, self._slow_camera_told = 0.0, False
             self._anchor.clear()
             self.uses_enrolment = uses_enrolment
             opening = "Opening the camera" if isinstance(source, int) else "Opening the clip"
@@ -213,8 +223,9 @@ class LiveSession:
     def snapshot(self):
         with self._lock:
             state, message, label = self.state, self.message, self.input_label
-            started, tracking, consent = self._started_at, self._tracking, self._consent
+            started, tracking, consent, feed = self._started_at, self._tracking, self._consent, self._feed
         running = state is SessionState.RUNNING
+        camera_fps = getattr(feed, "rate", None) if running else None
         return {
             "state": state.value,
             "message": message,
@@ -224,6 +235,8 @@ class LiveSession:
             "uptime_s": round(time.perf_counter() - started, 1) if running and started else None,
             "frames": self._metrics.total_frames if running else 0,
             "metrics": self._metrics.summary() if running else None,
+            # What the camera itself delivers. The output cannot be faster than this.
+            "camera_fps": None if camera_fps is None else round(camera_fps, 1),
             "tracking": tracking if running else None,
             # Why the still picture is shown although a face is in view, if it is.
             "holds": {"identity": running and self.identity_hold, "delay": running and self.delay_hold,
@@ -239,6 +252,8 @@ class LiveSession:
         feed = tracker = None
         try:
             feed = rt.make_feed(source)
+            with self._lock:
+                self._feed = feed
             self._progress("Loading the models and tuning them for this GPU. A minute or two, the first time")
             engine = rt.engine()
             tracker = rt.make_tracker()
@@ -266,6 +281,8 @@ class LiveSession:
             rt.events.add("error", message)
             self._finish(SessionState.ERROR, message)
         finally:
+            with self._lock:
+                self._feed = None
             if feed is not None:
                 feed.close()
             if tracker is not None:
@@ -391,8 +408,10 @@ class LiveSession:
                     self._anchor.clear()
                     pipeline.wait_for_neutral()
                 reenact = rt.features.enabled("reenactment") and not self.identity_hold and not self.consent_hold
+                # The movement is shown as it was a fixed moment ago, so that it is shown evenly (see pacing.py).
+                motion_at = self._clock.moment(drawing, item.captured_at) if rt.features.enabled("even_motion") else None
                 result = pipeline.step(item.image, reenact=reenact, at=item.captured_at, track=tracked,
-                                       prepared=prepared, show=not self.delay_hold)
+                                       prepared=prepared, show=not self.delay_hold, motion_at=motion_at)
                 self._run_commands(item.image, result.track)
                 if rt.engine_holds != held:  # the picture was replaced while running: a new picture, a new neutral pose
                     held = rt.engine_holds
@@ -402,9 +421,15 @@ class LiveSession:
                 rt.events.add("info", "Neutral pose taken from the camera. Movement is measured from how you sit now.")
             finished = time.perf_counter()
             self._draw_seconds = 0.8 * self._draw_seconds + 0.2 * (finished - drawing)  # how long the GPU's turn takes
-            delay_ms = (finished - item.captured_at) * 1000
+            # How old the movement in the picture is, which is not always how old the camera frame is.
+            shown = item.captured_at if result.motion_at is None else result.motion_at
+            delay_ms = (finished - shown) * 1000
             self._metrics.add(finished, result.timing_ms, delay_ms, result.live, dropped)
             self._watch_delay(delay_ms, finished, drawn="render" in result.timing_ms)
+            if "render" in result.timing_ms:
+                turn = finished - drawing
+                self._drawn_seconds = turn if self._drawn_seconds == 0.0 else 0.9 * self._drawn_seconds + 0.1 * turn
+                self._watch_camera(finished)
 
             if result.status is not status:
                 if status is not None or result.status is not TrackStatus.OK:
@@ -442,6 +467,18 @@ class LiveSession:
                                      f"{limit:.0f} ms. Showing the still picture until it recovers.")
         else:
             rt.events.add("info", f"The delay is back to {mean:.0f} ms. Reenactment resumed.")
+
+    def _watch_camera(self, now):
+        """Say so, once, when it is the camera that holds the frame rate down and not the drawing."""
+        if self._slow_camera_told or now - self._started_at < SLOW_CAMERA_AFTER_SECONDS:
+            return
+        rate = getattr(self._feed, "rate", None)
+        if rate is None or not getattr(self._feed, "is_camera", False) or rate >= SLOW_CAMERA_SHARE / self._drawn_seconds:
+            return
+        self._slow_camera_told = True
+        self._rt.events.add("warning", f"The camera is delivering {rate:.0f} frames a second, and the output cannot be "
+                                       f"faster than the camera; {1.0 / self._drawn_seconds:.0f} could be drawn. "
+                                       "More light usually brings a webcam back to 30.")
 
     def _run_commands(self, frame, track):
         while True:
