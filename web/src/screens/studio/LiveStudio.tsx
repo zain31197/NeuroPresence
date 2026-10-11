@@ -119,8 +119,8 @@ export function LiveStudio() {
             {session && <SessionPill session={session} />}
           </div>
           <p className="mt-1 text-[13.5px] text-ink-500">
-            Drive your enrolled picture from the camera and watch every stage respond. A camera session starts with two quick actions, to check
-            that it is you.
+            Drive your enrolled picture from the camera and watch every stage respond. A camera session starts with two quick actions, asked for
+            on the camera picture, to check that it is you.
           </p>
         </div>
 

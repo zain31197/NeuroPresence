@@ -130,7 +130,9 @@ def attempt(readings, fps, start, actions, waits, there_and_back=True):
     challenge = LivenessChallenge(actions, waits)
     count = len(readings)
     period = max(1, 2 * count - 2) if there_and_back else count
-    longest = int((challenge.settle_seconds + liveness.ACTION_SECONDS) * (len(actions) + 1) * fps)
+    # Every action can be asked for again after a miss, so the challenge can last this long at most.
+    asks = len(actions) + challenge.misses_allowed + 1
+    longest = int((challenge.settle_seconds + liveness.ACTION_SECONDS) * asks * fps)
     for step in range(longest):
         index = (start + step) % period
         challenge.sample(readings[index if index < count else period - index], step / fps)
@@ -378,7 +380,7 @@ def answering(stand_in, scorer, signatures, actions, waits, does=None):
     check = ConsentCheck(LivenessChallenge(actions, waits), signatures, scorer.similarity)
     at, asked, asked_at, largest = 0.0, None, 0.0, 0.0
     with FaceTracker() as tracker:
-        while not check.done and at < 60.0:
+        while not check.done and at < 90.0:
             action = check.snapshot(at)["action"]
             if action != asked:
                 asked, asked_at = action, at
@@ -458,7 +460,7 @@ def main():
 
     report = {
         "limits": {name.lower(): getattr(liveness, name) for name in (
-            "ACTION_SECONDS", "SETTLE_SECONDS", "REST_SECONDS", "WAIT_SECONDS", "LOST_SECONDS", "REST_YAW_DEG", "REST_JAW",
+            "ACTION_SECONDS", "MISSES_ALLOWED", "SETTLE_SECONDS", "REST_SECONDS", "WAIT_SECONDS", "LOST_SECONDS", "REST_YAW_DEG", "REST_JAW",
             "TURN_DEG", "OPEN_JAW", "OPEN_HOLD_SECONDS", "EYES_CLOSED", "CLOSED_RISE", "REOPEN_RISE",
             "BLINK_MAX_SECONDS")},
         "orders_with_a_turn": len(WITH_A_TURN),
@@ -466,7 +468,8 @@ def main():
     }
 
     print("\n1. What the clips contain")
-    print("clip    s   at rest | yaw min   max | largest turn from rest in 3 s | eyes closed: times, longest | mouth wide open: times, held 0.3 s, longest")
+    print(f"clip    s   at rest | yaw min   max | largest turn from rest in {liveness.ACTION_SECONDS:g} s | eyes closed: times, longest | "
+          "mouth wide open: times, held 0.3 s, longest")
     for name, clip in clips.items():
         d = describe(clip)
         report["clips"][name] = {"contains": d}

@@ -17,7 +17,7 @@ from .session import FramePair, SessionError, SessionState
 READY_SECONDS = 0.4  # the checks must hold this long before a picture can be taken
 BURST_SECONDS = 0.5  # from the first good frame, the best frame of this long is kept
 TAKE_TIMEOUT_SECONDS = 4.0  # give up if no frame passes in this time
-CHECK_TIMEOUT_SECONDS = 45.0  # the liveness prompt before a face is verified ends by itself well within this
+CHECK_TIMEOUT_SECONDS = 75.0  # the liveness prompt before a face is verified ends by itself within this, misses included
 UNWATCHED_SECONDS = 15.0  # nobody has fetched a frame for this long: close the camera
 
 

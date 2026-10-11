@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConsentPrompt } from '../../lib/api'
-import { isAsking, stepLine, timeLeftShare, turnSide } from '../liveness'
+import { isAsking, missNote, mouthShare, stepLine, timeLeftShare, turnSide } from '../liveness'
 
 const prompt = (patch: Partial<ConsentPrompt>): ConsentPrompt => ({
   stage: 'act',
@@ -8,8 +8,8 @@ const prompt = (patch: Partial<ConsentPrompt>): ConsentPrompt => ({
   steps: 2,
   action: 'turn_left',
   prompt: 'Turn your head to your left',
-  seconds: 3,
-  seconds_left: 3,
+  seconds: 5,
+  seconds_left: 5,
   progress: 0,
   reason: '',
   ...patch,
@@ -32,13 +32,13 @@ describe('isAsking', () => {
 
 describe('timeLeftShare', () => {
   it('runs from one to nothing over the time an action is given', () => {
-    expect(timeLeftShare(prompt({ seconds_left: 3 }))).toBe(1)
-    expect(timeLeftShare(prompt({ seconds_left: 1.5 }))).toBe(0.5)
+    expect(timeLeftShare(prompt({ seconds_left: 5 }))).toBe(1)
+    expect(timeLeftShare(prompt({ seconds_left: 2.5 }))).toBe(0.5)
     expect(timeLeftShare(prompt({ seconds_left: 0 }))).toBe(0)
   })
 
   it('stays within its range whatever the engine sends', () => {
-    expect(timeLeftShare(prompt({ seconds_left: 4 }))).toBe(1)
+    expect(timeLeftShare(prompt({ seconds_left: 6 }))).toBe(1)
     expect(timeLeftShare(prompt({ seconds_left: -1 }))).toBe(0)
   })
 
@@ -58,6 +58,34 @@ describe('turnSide', () => {
     expect(turnSide('blink')).toBeNull()
     expect(turnSide('open_mouth')).toBeNull()
     expect(turnSide(null)).toBeNull()
+  })
+})
+
+describe('mouthShare', () => {
+  it('says how far the mouth has opened while an open mouth is asked for', () => {
+    expect(mouthShare(prompt({ action: 'open_mouth', progress: 0.6 }))).toBe(0.6)
+    expect(mouthShare(prompt({ action: 'open_mouth', progress: 1.4 }))).toBe(1)
+  })
+
+  it('says nothing for a turn, a blink, or while nothing is asked for', () => {
+    expect(mouthShare(prompt({ action: 'turn_left', progress: 0.6 }))).toBeNull()
+    expect(mouthShare(prompt({ action: 'blink', progress: null }))).toBeNull()
+    expect(mouthShare(prompt({ stage: 'settle', action: null, progress: null }))).toBeNull()
+  })
+})
+
+describe('missNote', () => {
+  it('says what was missing while the action is asked for once more', () => {
+    expect(missNote(prompt({ stage: 'settle', action: null, note: 'Not seen in time. Once more.' }))).toBe('Not seen in time. Once more.')
+    expect(missNote(prompt({ action: 'open_mouth', note: 'Not seen in time: open your mouth wider.' }))).toBe(
+      'Not seen in time: open your mouth wider.',
+    )
+  })
+
+  it('says nothing when nothing was missed, for an engine that sends no note, and once the check has ended', () => {
+    expect(missNote(prompt({ note: '' }))).toBe('')
+    expect(missNote(prompt({}))).toBe('')
+    expect(missNote(prompt({ stage: 'refused', action: null, note: 'Not seen in time. Once more.' }))).toBe('')
   })
 })
 

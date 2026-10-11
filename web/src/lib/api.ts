@@ -58,8 +58,10 @@ export interface ConsentPrompt {
   /** How long each action is given, and how much of that is left for the one asked for. */
   seconds: number
   seconds_left: number | null
-  /** For a turn of the head: how much of it has been seen, 0 to 1. */
+  /** For a turn of the head or an open mouth: how much of it has been seen, 0 to 1. */
   progress: number | null
+  /** After an action was not seen in time, while it is asked for once more: what was missing. */
+  note?: string
   /** Why it was refused, in words. Empty otherwise. */
   reason: string
   failure?: string | null

@@ -1254,6 +1254,21 @@ def test_a_face_that_does_nothing_cannot_start_a_session(parts, monkeypatch):
     start(parts)
 
 
+def test_an_action_missed_once_is_asked_for_again_and_the_session_still_starts(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_left", "blink", seconds=0.4)
+    client = parts["client"]
+    assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 200
+    # The person is still reading: the first time the turn is asked for, nothing is done.
+    assert wait_for(lambda: (status(parts)["session"]["consent"] or {}).get("note") == "Not seen in time. Once more.")
+    assert status(parts)["session"]["state"] == "starting"
+    asked = answer(parts, lambda: status(parts)["session"]["consent"], lambda: status(parts)["session"]["state"] != "starting")
+    assert asked[-2:] == ["turn_left", "blink"]
+    assert wait_for(lambda: status(parts)["session"]["state"] == "running")
+    consent = status(parts)["session"]["consent"]
+    assert consent["stage"] == "passed" and consent["note"] == ""
+
+
 def test_another_person_cannot_start_a_session(parts, monkeypatch):
     enrol(parts)
     ask_for(monkeypatch, "turn_left", "blink")

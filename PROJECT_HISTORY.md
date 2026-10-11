@@ -2,7 +2,7 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (11 October 2026)
+## Where the project stands (12 October 2026)
 
 | Stage | State |
 |---|---|
@@ -11,7 +11,7 @@ A running record of what was built, what was decided and why, what was measured,
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
 | 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
-| 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". Not yet tried by a person at a real camera |
+| 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
 | 6. Virtual camera (meeting apps) | Not built |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 319 for the engine and server, 46 for the web app, all passing.
+Tests: 323 for the engine and server, 50 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -409,6 +409,36 @@ One drawn frame went from 49.0 to 43.4 ms. The picture is the same: against the 
 
 **What is not reached.** 24 frames a second. 36 of the 45 ms of a frame are the two networks that draw the picture, and the card is at its power limit while they run. Getting there needs those networks cheaper (8-bit arithmetic layer by layer, or a smaller generator), which is a piece of work of its own and has to be judged on the picture. And none of this has been watched on a real camera: the figures are from a sample clip standing in for one.
 
+### 12 October 2026: the first person at the liveness prompt
+
+**What happened.** Zain started a camera session at his own camera, the first time a person and not the stand-in sat in front of the prompt. The first action asked for was "Open your mouth wide". It was not seen within three seconds, the check ended as refused ("Your mouth did not open wide within 3 seconds"), and the Live Studio said "Stopped on a problem". He had expected his picture to move as soon as the session started. The face match stood at 0.74 at that moment, so the face was recognised; only the action was missing.
+
+**What was wrong with the design.** Three seconds had been set on a stand-in that answers at once. A person has to notice the prompt, read it and then do it, and a first-time user is looking at the output picture, where nothing said what was going on. And one missed action ended everything.
+
+**What was changed** (`neuropresence/consent/liveness.py`).
+
+- An action has five seconds (`ACTION_SECONDS`, was 3).
+- An action not seen in time is asked for once more, twice at most in one check (`MISSES_ALLOWED = 2`): the face comes to rest, the same action is asked for again, and a line says what was missing. Where the action can be measured the line is specific: "open your mouth wider", "turn your head further", "keep your mouth open a moment longer". The third miss ends the check, and the reason then says how far the action got ("It got about 60 percent of the way").
+- Doing something other than what was asked still ends the check at once, with no second go. That is how a recording fails, and it is unchanged.
+- The app is told how far an open mouth has got, as it already was for a turn, and shows it as a ring around the sign in the prompt. During the check the output picture says "Your picture starts moving once you have done the two actions asked for on the camera picture."
+- The limits themselves are unchanged: 35 degrees for a turn, 0.60 for an open mouth held 0.3 s. Nothing measured says they are wrong for a real face yet; the message of a failed check now carries the number that will say.
+
+**Measured again** (`python scripts/study_liveness.py --stand-in`, `results/liveness_study.json`), against the run of 10 October:
+
+| | Three seconds, asked once | Five seconds, asked again after a miss |
+|---|---|---|
+| A photograph, held still or swung | 0 of 13,296 | 0 of 13,296 |
+| The twelve sample clips as recordings, a turn asked for | 0 of 3,110 | 0 of 3,110 |
+| The same, if no turn were asked for | 1 of 622 | 4 of 622 |
+| A recording made on purpose, 2 s and 3 s of rest between its actions | 12.7% and 11.0% | 14.5% and 15.3% |
+| A stand-in that does what is asked | 20 of 20, 4.5 to 4.8 s | 20 of 20, 4.5 to 4.8 s |
+
+So more time costs a photograph nothing and a recording of ordinary talking nothing, and it helps a recording made on purpose a little: about one attempt in seven where it was one in nine. That recording fails by showing the wrong action first, which more time does not change much.
+
+**Checked.** 323 engine and server tests (4 new: a miss asked for again, what the note says, no second go after a wrong action, and a session that starts after a miss) and 50 web tests (4 new). In a browser with the stand-in as the camera: a user who does each action only the second time it is asked passes and the session goes live; a face that does nothing is asked three times and refused after 18 s; a user who answers at once passes as before.
+
+**Not known yet.** Whether Zain's mouth was opened at all in those three seconds, and how far the tracker reads a real open mouth: the old message did not say. The next failed check will.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -473,11 +503,12 @@ One drawn frame went from 49.0 to 43.4 ms. The picture is the same: against the 
 | A photograph held close to the camera and tilted read as a turn of the head of up to 32.5 degrees, above the first limit of 25 | The tracker fits a face model to whatever it is shown, and the nearer a flat picture is, the more its tilt looks like a turn; the first trial had one camera distance only | Measured at four distances, to a tilt at which the face is no longer found; a turn counts from 35 degrees, and one is asked for in every check (10 October 2026) |
 | In the Live Studio the disclosure mark could not be seen | The monitor's own label for the picture size sat in the same corner, on top of it. Seen in the first screenshot of a live session | The size label of the output moved to the lower right |
 | After someone else had sat at the camera, the session could have stayed on the still picture until "Resume" was pressed | The identity guard had reacted to the output of those seconds and kept its own hold after the consent hold ended. Noticed in the browser run, where the guard had taken a fresh neutral pose in that time | A consent hold starts the identity guard afresh and takes the place of its hold |
+| The first person to try the liveness prompt at a real camera was refused on the first action, and did not know why the picture stood still | Three seconds an action had been set on a stand-in that answers at once; a person has to read the prompt first. One miss ended the check, and nothing on the output picture said that a check was running | Five seconds an action; a missed action is asked for again, twice at most, with a line on what was missing; the output picture says what it is waiting for. Measured again: photographs and sample recordings still never pass |
 
 ## Open items
 
-- No person has answered the liveness prompt at a real camera. Whether 35 degrees is comfortable, whether three seconds is enough, and how often a real user is refused all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
-- A recording made on purpose passes the prompt about one attempt in nine, and attempts are not limited. A live reenactment fed in as the camera passes like a person.
+- No person has passed the liveness prompt at a real camera. The one trial so far ended on a missed action, which is why an action now has five seconds and a second go. Whether 35 degrees and an open mouth of 0.60 suit real faces, and how often a real user is refused, all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
+- A recording made on purpose passes the prompt about one attempt in seven, and attempts are not limited. A live reenactment fed in as the camera passes like a person.
 - How much a face narrows as it turns separates a tilted photograph from a head in the sample material. It needs real heads turned to 35 degrees and beyond before it can be made a rule.
 - Someone else sitting down during a session drives the picture for two to three seconds before the still picture goes up.
 - The mark is small when a meeting application shows the picture small: 22 pixels at least, an eighteenth of the frame. Whether it can still be read there waits for the virtual camera.

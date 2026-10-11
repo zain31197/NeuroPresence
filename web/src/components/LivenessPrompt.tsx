@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { ConsentPrompt, LivenessAction } from '../lib/api'
 import { cn } from '../lib/cn'
 import { Spinner } from './ui/Button'
-import { stepLine, timeLeftShare, turnSide } from './liveness'
+import { missNote, mouthShare, stepLine, timeLeftShare, turnSide } from './liveness'
 
 const ICON: Record<LivenessAction, ReactNode> = {
   blink: <Eye className="size-5" />,
@@ -14,13 +14,17 @@ const ICON: Record<LivenessAction, ReactNode> = {
 
 /**
  * The liveness prompt, drawn over a mirrored camera picture: what to do now, in words large enough
- * to read while looking at the camera, how long is left, and for a turn of the head, which way and
- * how far it has got. Put it inside the box that holds the picture.
+ * to read while looking at the camera, how long is left, and how far it has got: for a turn of the
+ * head a marker on the side to turn to, for an open mouth a ring around the sign. An action that
+ * was not seen in time is asked for once more, with a line on what was missing. Put it inside the
+ * box that holds the picture.
  */
 export function LivenessPrompt({ prompt }: { prompt: ConsentPrompt }) {
   const share = timeLeftShare(prompt)
   const side = turnSide(prompt.action)
   const step = stepLine(prompt)
+  const mouth = mouthShare(prompt)
+  const note = missNote(prompt)
   const icon =
     prompt.stage === 'confirming' ? <Spinner className="size-5" /> : prompt.action ? ICON[prompt.action] : <ScanFace className="size-5" />
   return (
@@ -33,12 +37,22 @@ export function LivenessPrompt({ prompt }: { prompt: ConsentPrompt }) {
           className="w-full max-w-[520px] overflow-hidden rounded-panel bg-black/75 text-white shadow-raised backdrop-blur-sm"
         >
           <div className="flex items-center gap-3 px-3.5 py-3">
-            <span className={cn('grid size-10 shrink-0 place-items-center rounded-full', prompt.action ? 'bg-white text-ink-950' : 'bg-white/15 text-white')}>
-              {icon}
+            {/* For an open mouth the ring around the sign fills as the mouth opens. */}
+            <span
+              className="grid size-11 shrink-0 place-items-center rounded-full transition-[background] duration-150"
+              style={{
+                background:
+                  mouth === null ? 'transparent' : `conic-gradient(var(--color-tracking) ${mouth * 360}deg, rgb(255 255 255 / 0.28) 0deg)`,
+              }}
+            >
+              <span className={cn('grid size-9 place-items-center rounded-full', prompt.action ? 'bg-white text-ink-950' : 'bg-white/15 text-white')}>
+                {icon}
+              </span>
             </span>
             <div className="min-w-0 flex-1">
               <p className="label-caps text-white/65">Checking that it is you{step && ` · ${step}`}</p>
               <p className="mt-0.5 text-[15px] leading-snug font-semibold sm:text-[18px]">{prompt.prompt}</p>
+              {note && <p className="mt-0.5 text-[12.5px] leading-snug text-warning">{note}</p>}
             </div>
             {share !== null && prompt.seconds_left !== null && (
               <span className="shrink-0 font-mono text-[13px] text-white/80 tabular-nums">{prompt.seconds_left.toFixed(1)} s</span>

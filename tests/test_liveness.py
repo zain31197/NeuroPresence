@@ -29,8 +29,9 @@ OPEN_MOUTH = (0.6, face(jaw=0.8))
 DOES = {"turn_left": TURN_LEFT, "turn_right": TURN_RIGHT, "blink": BLINK, "open_mouth": OPEN_MOUTH}
 
 
-def challenge(*actions, wait=0.0):
-    return LivenessChallenge(actions, waits=[wait] * len(actions))
+def challenge(*actions, wait=0.0, misses=None):
+    """`misses`: how many times an action may be missed and asked for again. None: as the server has it."""
+    return LivenessChallenge(actions, waits=[wait] * len(actions), misses_allowed=misses)
 
 
 def play(check, *script, start=0.0):
@@ -60,17 +61,23 @@ def test_every_order_that_can_be_asked_for_can_be_answered(order):
 
 def test_a_photograph_never_passes():
     check = challenge("turn_left", "blink")
-    play(check, (20.0, REST))  # a face that does nothing at all
+    play(check, (20.0, REST))  # a face that does nothing at all, through every time it is asked
     assert check.stage is Stage.FAILED and check.failure == "late" and check.step == 0
-    assert check.reason == "Your head did not turn to your left within 3 seconds."
+    assert check.misses == liveness.MISSES_ALLOWED == 2
+    assert check.reason == "Your head did not turn to your left within 5 seconds."
 
 
 def test_a_tilted_photograph_does_not_read_as_a_turn():
     # The largest turn read from a photograph, tilted and held as near as the camera can see it: 32.5 degrees.
-    check = challenge("turn_left", "blink")
-    play(check, SIT, (5.0, face(yaw=REST.yaw + 32.5)))
+    check = challenge("turn_left", "blink", misses=0)
+    play(check, SIT, (6.0, face(yaw=REST.yaw + 32.5)))
     assert check.stage is Stage.FAILED and check.failure == "late"
+    assert check.reason == "Your head did not turn to your left within 5 seconds. It got about 90 percent of the way."
     assert liveness.TURN_DEG > 32.5
+
+    check = challenge("turn_left", "blink")  # and asked again it does no better: held there, it is not even at rest
+    play(check, SIT, (16.0, face(yaw=REST.yaw + 32.5)))
+    assert check.stage is Stage.FAILED and check.failure == "rest" and check.step == 0
 
 
 def test_the_actions_in_the_wrong_order_are_refused():
@@ -92,19 +99,62 @@ def test_a_blink_is_never_the_wrong_answer():
     assert check.stage is Stage.PASSED
 
 
-def test_each_action_has_to_come_within_three_seconds():
-    check = challenge("blink", "turn_left")
-    end = play(check, SIT, (2.0, REST), BLINK, SIT)  # the blink comes in time, 2.5 s after it was asked for
+def test_each_action_has_to_come_within_five_seconds():
+    check = challenge("blink", "turn_left", misses=0)
+    end = play(check, SIT, (4.0, REST), BLINK, SIT)  # the blink comes in time, 4.5 s after it was asked for
     assert check.stage is Stage.ACT and check.action == "turn_left"
-    play(check, (3.2, REST), TURN_LEFT, start=end)  # the turn does not
+    play(check, (5.2, REST), TURN_LEFT, start=end)  # the turn does not
     assert check.stage is Stage.FAILED and check.failure == "late" and check.step == 1
+
+
+def test_an_action_not_seen_in_time_is_asked_for_once_more():
+    check = challenge("open_mouth", "turn_left")
+    end = play(check, SIT, (4.7, REST))  # the person was still reading when the five seconds ran out
+    assert check.stage is Stage.SETTLE and check.misses == 1 and check.step == 0
+    told = check.snapshot(end)
+    assert told["note"] == "Not seen in time. Once more." and told["prompt"] == "Face the camera, with your mouth closed"
+    end = play(check, SIT, start=end)
+    told = check.snapshot(end)
+    assert told["stage"] == "act" and told["action"] == "open_mouth" and told["step"] == 1  # the same action, and its note with it
+    assert told["note"] == "Not seen in time. Once more." and 4.3 < told["seconds_left"] <= 5.0
+    end = play(check, OPEN_MOUTH, start=end)
+    assert check.step == 1 and check.snapshot(end)["note"] == ""
+    play(check, SIT, TURN_LEFT, SIT, start=end)
+    assert check.stage is Stage.PASSED and check.misses == 1
+
+
+def test_a_miss_says_what_was_missing():
+    half_open = face(jaw=REST.jaw + 0.6 * (liveness.OPEN_JAW - REST.jaw))
+    check = challenge("open_mouth", "turn_left")
+    end = play(check, SIT, (2.0, half_open))
+    assert check.snapshot(end)["progress"] == 0.6  # shown while it is being done, as for a turn
+    end = play(check, (3.2, half_open), start=end)
+    assert check.snapshot(end)["note"] == "Not seen in time: open your mouth wider."
+
+    check = challenge("open_mouth", "turn_left", misses=0)
+    play(check, SIT, (5.2, half_open))
+    assert check.reason == "Your mouth did not open wide within 5 seconds. It got about 60 percent of the way."
+
+    check = challenge("open_mouth", "turn_left")
+    end = play(check, SIT, (0.2, face(jaw=0.8)), (5.0, REST))  # wide open, and shut again at once
+    assert check.snapshot(end)["note"] == "Not seen in time: keep your mouth open a moment longer."
+
+    check = challenge("turn_right", "blink")
+    end = play(check, SIT, (5.2, face(yaw=REST.yaw - 20.0)))
+    assert check.snapshot(end)["note"] == "Not seen in time: turn your head further."
+
+
+def test_doing_something_else_is_not_asked_for_again():
+    check = challenge("turn_left", "open_mouth")
+    play(check, SIT, (5.2, REST), SIT, OPEN_MOUTH)  # one miss, and then the other action
+    assert check.stage is Stage.FAILED and check.failure == "wrong" and check.misses == 1
 
 
 def test_something_done_before_it_is_asked_for_does_not_count():
     check = challenge("turn_left", "blink", wait=1.0)
     end = play(check, (0.3, REST), TURN_LEFT)  # a turn, before anything was asked
     assert check.stage is Stage.SETTLE and check.step == 0
-    play(check, (5.0, REST), start=end)
+    play(check, (20.0, REST), start=end)
     assert check.stage is Stage.FAILED and check.step == 0  # the turn asked for after that never came
 
 
@@ -183,15 +233,17 @@ def test_what_the_app_is_told():
     end = play(check, SIT)
     told = check.snapshot(end)
     assert told["stage"] == "act" and told["action"] == "turn_left" and (told["step"], told["steps"]) == (1, 2)
-    assert told["seconds"] == 3.0 and 2.3 < told["seconds_left"] <= 3.0 and told["progress"] == 0.0
+    assert told["seconds"] == 5.0 and 4.3 < told["seconds_left"] <= 5.0 and told["progress"] == 0.0
+    assert told["note"] == ""
     end = play(check, (0.2, face(yaw=REST.yaw + 17.5)), start=end)
     assert check.snapshot(end)["progress"] == 0.5  # half of the turn has been seen
     end = play(check, TURN_LEFT, SIT, start=end)
     told = check.snapshot(end)
     assert told["action"] == "blink" and told["step"] == 2 and told["progress"] is None
-    end = play(check, (4.0, REST), start=end)
+    end = play(check, (20.0, REST), start=end)
     told = check.snapshot(end)
-    assert told["stage"] == "failed" and told["reason"] == "No blink was seen within 3 seconds." and told["action"] is None
+    assert told["stage"] == "failed" and told["reason"] == "No blink was seen within 5 seconds." and told["action"] is None
+    assert told["note"] == ""
 
 
 def test_what_is_asked_for_is_chosen_at_random_and_always_holds_a_turn():

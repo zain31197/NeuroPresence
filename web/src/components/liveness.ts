@@ -23,6 +23,17 @@ export function turnSide(action: LivenessAction | null): 'left' | 'right' | null
   return null
 }
 
+/** How far the mouth has opened towards what counts as wide open, 0 to 1. Null for any other action. */
+export function mouthShare(prompt: ConsentPrompt): number | null {
+  if (prompt.stage !== 'act' || prompt.action !== 'open_mouth' || prompt.progress === null) return null
+  return Math.min(1, Math.max(0, prompt.progress))
+}
+
+/** What was missing when an action was not seen in time, while it is asked for once more. Empty otherwise. */
+export function missNote(prompt: ConsentPrompt): string {
+  return prompt.stage === 'settle' || prompt.stage === 'act' ? (prompt.note ?? '') : ''
+}
+
 /** "Step 1 of 2": which of the actions is being asked for, or comes next. Nothing once they are all done. */
 export function stepLine(prompt: ConsentPrompt): string {
   if (prompt.steps === 0 || prompt.stage === 'confirming') return ''

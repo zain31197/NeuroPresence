@@ -2,11 +2,19 @@
 
 A photograph of the enrolled person matches their face signature as well as they do, and so
 does a recording. So before a face is verified, and before every camera session, the person is
-asked to do two things chosen at random, one after the other, each within three seconds: blink,
+asked to do two things chosen at random, one after the other, each within five seconds: blink,
 turn the head to the left, turn it to the right, or open the mouth. What was asked for cannot be
 known in advance, which is what a recording cannot answer; a photograph cannot do any of it.
 
-Measured on 10 October 2026 (scripts/study_liveness.py, results/liveness_study.json):
+A person has to read what is asked before doing it. On 12 October 2026 the first person to try
+the prompt at a real camera was asked to open the mouth, was not seen doing it within the three
+seconds an action then had, and the session ended there. So an action has five seconds, and one
+that is not seen in time is asked for once more, twice at most, with a word on what was missing.
+Doing something else than what was asked still ends the challenge at once, which is how a
+recording fails; waiting helps neither a photograph nor a recording.
+
+Measured on 10 October 2026, and again on 12 October with five seconds an action and a second go
+(scripts/study_liveness.py, results/liveness_study.json):
 
   A photograph tilted or swung in front of the camera, by up to 65 degrees   reads as a head turn of 32.5 degrees at most
     the same, unless the camera sees wider than most webcams and the
@@ -22,9 +30,10 @@ they are the second action and never the only ones.
 
 What gets through, with these limits. A photograph: none of 13,296 attempts, held still or swung.
 The twelve sample clips played back as recordings, from every half second and for every order of
-actions: none of 3,110 attempts (one of 622 if no turn were asked for). A recording made on
-purpose, with every action in it one after another: about one attempt in nine, which is what
-asking at random leaves to a recording that holds the right answer somewhere. A stand-in that does
+actions: none of 3,110 attempts (four of 622 if no turn were asked for). A recording made on
+purpose, with every action in it one after another: about one attempt in seven (one in nine
+when an action had three seconds), which is what asking at random leaves to a recording that
+holds the right answer somewhere. A stand-in that does
 what is asked passes every time, in under five seconds on average.
 
 The challenge keeps no clock of its own: it is given each reading with its time, so it can be run
@@ -58,8 +67,17 @@ MISSED = {
 }
 FACE_THE_CAMERA = "Face the camera, with your mouth closed"
 FACE_IT_AGAIN = "Good. Face the camera again"
+# What to do differently, when an action that can be measured got part of the way and no further.
+FURTHER = {
+    "turn_left": "turn your head further",
+    "turn_right": "turn your head further",
+    "open_mouth": "open your mouth wider",
+}
+MEASURED = tuple(FURTHER)  # the actions whose progress can be shown: how far the turn or the mouth has got
 
-ACTION_SECONDS = 3.0  # each action has to be seen within this long of being asked for
+ACTION_SECONDS = 5.0  # each action has to be seen within this long of being asked for: time to read it, then to do it
+MISSES_ALLOWED = 2  # an action not seen in time is asked for once more; one miss more than this ends the challenge
+PART_WAY = 0.2  # an action that got at least this share of the way was being tried: say what was missing
 SETTLE_SECONDS = 8.0  # to be seen at rest: before the first action, and again after each
 REST_SECONDS = 0.5  # at rest for this long before the next action is asked for ...
 WAIT_SECONDS = (0.3, 1.2)  # ... and a wait of a random length on top, so the moment cannot be known either
@@ -133,14 +151,18 @@ def pick_waits(count, rng=None):
 class LivenessChallenge:
     """Asks for the given actions one at a time and says, from one reading at a time, how it stands."""
 
-    def __init__(self, actions=None, waits=None, action_seconds=None, settle_seconds=None, rest_seconds=None):
+    def __init__(self, actions=None, waits=None, action_seconds=None, settle_seconds=None, rest_seconds=None,
+                 misses_allowed=None):
         self.actions = pick_actions() if actions is None else tuple(actions)
         self.waits = pick_waits(len(self.actions)) if waits is None else tuple(waits)
         self.action_seconds = ACTION_SECONDS if action_seconds is None else action_seconds
         self.settle_seconds = SETTLE_SECONDS if settle_seconds is None else settle_seconds
         self.rest_seconds = REST_SECONDS if rest_seconds is None else rest_seconds
+        self.misses_allowed = MISSES_ALLOWED if misses_allowed is None else misses_allowed
         self.stage = Stage.SETTLE
         self.step = 0  # how many of the actions have been seen
+        self.misses = 0  # how many times an action was not seen in time and was asked for again
+        self.note = ""  # after a miss, while the action is asked for again: what was missing, for the person
         self.reason = ""  # why it failed, in words for the person ...
         self.failure = None  # ... and in one word: "no_face", "faces", "rest", "wrong" or "late"
         self._phase_at = None  # when the current wait for rest began
@@ -148,7 +170,8 @@ class LivenessChallenge:
         self._rest = deque()  # the readings of the unbroken rest so far, as (at, reading)
         self._base = None  # the reading at rest that the action asked for is measured from
         self._gap_since = self._open_since = self._closed_since = None
-        self._turned = 0.0  # how far the head has turned the way asked, as a share of a full turn, for the app
+        self._shown = 0.0  # how far the turn or the mouth asked for has got, as a share of what counts, for the app
+        self._reached = 0.0  # the most it got to since it was asked for
 
     @property
     def done(self):
@@ -198,8 +221,10 @@ class LivenessChallenge:
             "prompt": hint,
             "seconds": self.action_seconds,
             "seconds_left": round(max(0.0, self._deadline - at), 1) if acting else None,
-            # For a turn: how much of it has been seen, 0 to 1, so the app can show how far there is to go.
-            "progress": round(self._turned, 2) if acting and self.actions[self.step] in TURNS else None,
+            # For a turn or an open mouth: how much of it has been seen, 0 to 1, so the app can show how far there is to go.
+            "progress": round(self._shown, 2) if acting and self.actions[self.step] in MEASURED else None,
+            # After a miss, while the action is asked for again: what was missing.
+            "note": "" if self.done else self.note,
             "reason": self.reason,
         }
 
@@ -226,7 +251,7 @@ class LivenessChallenge:
                                  eyes=median(r.eyes for r in recent))
             self.stage, self._deadline = Stage.ACT, at + self.action_seconds
             self._open_since = self._closed_since = None
-            self._turned = 0.0
+            self._shown = self._reached = 0.0
         elif at - self._phase_at > self.settle_seconds:
             self._fail("rest", "You were not seen facing the camera with your mouth closed and your eyes open. "
                        "Sit facing the camera and try again.")
@@ -236,12 +261,37 @@ class LivenessChallenge:
         seen = self._seen(reading, at) if reading.ok else None
         if seen == asked:
             self.step += 1
+            self.note = ""
             self.stage, self._phase_at = Stage.SETTLE, at
             self._rest.clear()
         elif seen is not None and seen != "blink":  # people blink all the time: a blink is never the wrong answer
             self._fail("wrong", f"{MISSED[asked]}: something else was done.")
         elif at > self._deadline:
-            self._fail("late", f"{MISSED[asked]} within {self.action_seconds:g} seconds.")
+            if self.misses < self.misses_allowed:
+                # Not seen in time: the face comes to rest again, and the same action is asked for once more.
+                self.misses += 1
+                self.note = self._once_more(asked)
+                self.stage, self._phase_at = Stage.SETTLE, at
+                self._rest.clear()
+            else:
+                self._fail("late", self._missed(asked))
+
+    def _once_more(self, asked):
+        """What the person is told when an action was not seen in time and is asked for again."""
+        if asked == "open_mouth" and self._reached >= 1.0:
+            return "Not seen in time: keep your mouth open a moment longer."
+        if asked in MEASURED and self._reached >= PART_WAY:
+            return f"Not seen in time: {FURTHER[asked]}."
+        return "Not seen in time. Once more."
+
+    def _missed(self, asked):
+        """Why the challenge ended on an action that was not seen in time, and how far that action got."""
+        reason = f"{MISSED[asked]} within {self.action_seconds:g} seconds."
+        if asked == "open_mouth" and self._reached >= 1.0:
+            reason += " It has to stay open for a moment."
+        elif asked in MEASURED and self._reached >= PART_WAY:
+            reason += f" It got about {int(round(self._reached * 10)) * 10} percent of the way."
+        return reason
 
     def _seen(self, reading, at):
         """The action this reading completes, or None."""
@@ -249,7 +299,10 @@ class LivenessChallenge:
         turn = reading.yaw - base.yaw
         asked = self.actions[self.step]
         if asked in TURNS:
-            self._turned = min(1.0, max(0.0, turn if asked == "turn_left" else -turn) / TURN_DEG)
+            self._shown = min(1.0, max(0.0, turn if asked == "turn_left" else -turn) / TURN_DEG)
+        elif asked == "open_mouth":  # from how far it was open at rest to where it counts as wide open
+            self._shown = min(1.0, max(0.0, reading.jaw - base.jaw) / max(OPEN_JAW - base.jaw, 1e-6))
+        self._reached = max(self._reached, self._shown)
         if turn >= TURN_DEG:
             return "turn_left"
         if turn <= -TURN_DEG:

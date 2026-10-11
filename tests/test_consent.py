@@ -86,9 +86,9 @@ def test_the_best_of_the_registered_signatures_decides():
 
 def test_the_prompt_alone_is_not_enough_and_neither_is_the_match():
     check = consent()
-    play(check, [(12.0, REST)])  # the right face, doing nothing: a photograph of the user
+    play(check, [(20.0, REST)])  # the right face, doing nothing: a photograph of the user
     assert check.passed is False and check.failure == "late"
-    assert check.reason == "Your head did not turn to your left within 3 seconds."
+    assert check.reason == "Your head did not turn to your left within 5 seconds."
 
     check = consent()
     at = 0.0
