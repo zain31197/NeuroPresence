@@ -209,3 +209,50 @@ def test_a_held_posture_becomes_the_rest_position_and_a_small_movement_does_not(
 
     # Sitting up again is, at first, a movement like any other, and then the new rest position in its turn.
     assert away(pose()) > 30
+
+
+def test_at_rest_the_neutral_pose_follows_the_person_and_a_passing_look_does_not_move_it():
+    import torch
+
+    from neuropresence.reenactment.engine import REST_HOLD_SECONDS, ReenactmentEngine
+
+    def face(brows=0.0, yaw=0.0):
+        return {"pitch": torch.tensor([[0.0]]), "yaw": torch.tensor([[yaw]]), "roll": torch.tensor([[0.0]]),
+                "t": torch.zeros(1, 3), "scale": torch.ones(1, 1), "exp": torch.full((1, 21, 3), brows)}
+
+    engine = ReenactmentEngine.__new__(ReenactmentEngine)  # only the logic: no model is loaded
+    engine._rotation = lambda pitch, yaw, roll: (float(pitch), float(yaw), float(roll))
+    # The neutral pose was taken on a poor frame: eyes half shut, head a little to one side.
+    engine._reference = {"info": face(brows=-0.02, yaw=6.0), "rotation": (0.0, 6.0, 0.0)}
+    engine._rest_since = engine._rest_at = None
+    relaxed = face()
+
+    def off():
+        return float((relaxed["exp"] - engine._reference["info"]["exp"]).abs().max())
+
+    # Talking for ten seconds: not at rest, so nothing follows and the picture keeps what it was given.
+    engine.resting = False
+    for step in range(100):
+        engine._follow_rest(relaxed, at=step * 0.1)
+    assert off() == pytest.approx(0.02)
+
+    # At rest: nothing for the first second, then the neutral pose eases toward how the person looks now.
+    engine.resting = True
+    for step in range(int(REST_HOLD_SECONDS * 10)):
+        engine._follow_rest(relaxed, at=10.0 + step * 0.1)
+    assert off() == pytest.approx(0.02)
+    for step in range(10, 50):
+        engine._follow_rest(relaxed, at=10.0 + step * 0.1)
+    assert 0.02 * 0.3 < off() < 0.02 * 0.45  # four seconds on, about two thirds of it is gone
+    for step in range(50, 300):
+        engine._follow_rest(relaxed, at=10.0 + step * 0.1)
+    assert off() < 0.0005 and abs(float(engine._reference["info"]["yaw"])) < 0.05  # the look and the head are back
+    assert abs(engine._reference["rotation"][1]) < 0.05
+
+    # A blink or a word breaks the rest, and the wait starts again.
+    engine.resting = False
+    engine._follow_rest(face(brows=0.03), at=40.1)
+    engine.resting = True
+    for step in range(5):
+        engine._follow_rest(face(brows=0.03), at=40.2 + step * 0.1)
+    assert off() < 0.0005

@@ -34,7 +34,7 @@ MAX_BETWEEN_SECONDS = 0.25
 
 def at_rest(track):
     """Is this a face to measure movement from: front-facing, upright, mouth closed, eyes open?"""
-    if not track.ok:
+    if not track.ok or track.pose_deg is None:
         return False
     yaw, _, roll = track.pose_deg
     scores = track.blendshapes or {}
@@ -173,6 +173,7 @@ class Pipeline:
                 motion, shown_at = self._movement(face, at, motion_at)
             reading = (time.perf_counter() - reading) * 1000
             given = {} if motion is None else {"motion": motion}
+            self.engine.resting = at_rest(track)  # at rest, the neutral pose follows the person (engine.py)
             output = self.engine.drive(face, at=at if shown_at is None else shown_at, steady=self.steady_keypoints,
                                        limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)

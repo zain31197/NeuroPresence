@@ -45,6 +45,16 @@ SCALE_RANGE = (0.03, 0.07)  # the same for the size of the head: it does not gro
 POSTURE_SECONDS = 3.0  # how quickly a held posture becomes the rest position
 POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this share of the free range
 
+# The neutral pose is one frame, and one frame can be a poor one: the eyes half shut, the brows down,
+# the head a little to one side. Everything after it is measured from that frame, so the picture then
+# keeps the opposite look, wide eyes or a tilted head, for as long as the session runs. Seen on a real
+# camera on 13 October 2026, twenty minutes into a session: the person sat relaxed and the picture
+# stared. So whenever the person is seen at rest (facing the camera, mouth closed, eyes open) for a
+# moment, the neutral pose eases toward how they sit and look now, expression included, and the
+# picture eases back to itself. Talking, blinking and turning away are not rest and change nothing.
+REST_HOLD_SECONDS = 1.0  # at rest for this long before the neutral pose starts to follow
+REST_SECONDS = 4.0  # and then it follows this slowly: a look held for a second or two still shows
+
 # The model draws about as sharply as the face crop it is given, and that crop is softened on its way
 # down to the model's 256 pixels. Strengthening its edges a little first gives the detail back. Measured
 # on five pictures (8 October 2026), as the output's fine detail against the picture's own:
@@ -146,6 +156,8 @@ class ReenactmentEngine:
         self._cropper = Cropper(crop_cfg=self._crop_cfg, flag_force_cpu=True)
         self._source = None
         self._reference = None
+        self.resting = False  # set by the pipeline for each frame: is the person at rest in it?
+        self._rest_since = self._rest_at = None
         self._paste = None
         self._gpu = None
         self._stitcher = None  # LivePortrait's stitching network, on the CPU (see _info)
@@ -369,6 +381,7 @@ class ReenactmentEngine:
         self._reference = None
         self._steady.reset()
         self._posture_at, self._settling = None, False
+        self._rest_since = self._rest_at = None
 
     def set_reference(self, driving_face_bgr):
         """Declare this cropped driving face to be the neutral pose.
@@ -381,6 +394,26 @@ class ReenactmentEngine:
         self._reference = {"info": info, "rotation": rotation}
         self._steady.reset()
         self._posture_at, self._settling = None, False
+        self._rest_since = self._rest_at = None
+
+    def _follow_rest(self, driving, at):
+        """While the person is at rest, let the neutral pose ease toward how they sit and look now."""
+        now = time.perf_counter() if at is None else at
+        last, self._rest_at = getattr(self, "_rest_at", None), now
+        if not self.resting:
+            self._rest_since = None
+            return
+        if getattr(self, "_rest_since", None) is None:
+            self._rest_since = now
+        if last is None or now - self._rest_since < REST_HOLD_SECONDS:
+            return
+        share = 1.0 - math.exp(-min(max(now - last, 0.0), 0.5) / REST_SECONDS)
+        rest = self._reference["info"]
+        moved = dict(rest)
+        for key in ("pitch", "yaw", "roll", "t", "scale", "exp"):
+            if key in rest and key in driving:
+                moved[key] = rest[key] + (driving[key] - rest[key]) * share
+        self._reference = {"info": moved, "rotation": self._rotation(moved["pitch"], moved["yaw"], moved["roll"])}
 
     def _follow_posture(self, driving, at):
         """Let a posture held beyond the free range become the rest position, a little each frame."""
@@ -479,6 +512,7 @@ class ReenactmentEngine:
             self._reference = {"info": driving, "rotation": rotation}
         if limit:
             self._follow_posture(driving, at)
+        self._follow_rest(driving, at)
         ref = self._reference
 
         size = driving["scale"] / ref["info"]["scale"]

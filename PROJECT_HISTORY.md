@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 323 for the engine and server, 50 for the web app, all passing.
+Tests: 324 for the engine and server, 50 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -438,6 +438,16 @@ So more time costs a photograph nothing and a recording of ordinary talking noth
 **Checked.** 323 engine and server tests (4 new: a miss asked for again, what the note says, no second go after a wrong action, and a session that starts after a miss) and 50 web tests (4 new). In a browser with the stand-in as the camera: a user who does each action only the second time it is asked passes and the session goes live; a face that does nothing is asked three times and refused after 18 s; a user who answers at once passes as before.
 
 **Not known yet.** Whether Zain's mouth was opened at all in those three seconds, and how far the tracker reads a real open mouth: the old message did not say. The next failed check will.
+
+### 13 October 2026: a look that stuck
+
+**What happened.** With the prompt changed, Zain's session at his own camera went live and ran for twenty minutes (20.0 frames a second, 103 ms, identity 0.83). Then he reported that the pose gets stuck and does not come back: he sat relaxed, looking slightly down, and his picture stared with wide eyes and raised brows.
+
+**Cause.** All movement is measured from one frame, the neutral pose. If that frame is a poor one (eyes half shut, brows down, head a little to one side, all of which pass for "at rest"), the picture shows the opposite for the rest of the session. The posture rule only moved the head, and only once it was outside the free range; the expression of the neutral frame was never touched.
+
+**Fix** (`neuropresence/reenactment/engine.py`, `_follow_rest`). Whenever the person has been at rest for a second (facing the camera, mouth closed, eyes open), the neutral pose eases toward how they sit and look now, expression included, with a time constant of four seconds. Talking, blinking and turning away are not rest and change nothing. So a poor neutral frame cures itself within a few seconds of sitting still, and the picture returns to itself.
+
+**Measured.** The full benchmark is unchanged (`results/benchmark_rest_windows_rtx5050.json`): identity 0.899 (0.898), pose error 0.63 degrees (0.62), expression error 0.026 (0.026), mouth agreement 0.957 (0.957), flicker 0.75 (0.75), tremble 1.01 (1.00). 324 engine and server tests pass (1 new). Not yet seen on Zain's camera.
 
 ## Decisions and their reasons
 
