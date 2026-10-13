@@ -209,7 +209,9 @@ class IdentityMonitor:
             except Exception as err:
                 self._set(available=False, csim=None, reason=f"The face at the camera could not be compared: {err}")
                 return
-            if pair is None or not pair.live:
+            # A frame that someone else drove says nothing about the picture: it is not scored, and
+            # the guard, which the consent hold has just started afresh, is not given it.
+            if pair is None or not pair.live or session.consent_hold:
                 self._set(available=True, csim=None, reason=None)
                 continue
             try:
@@ -354,6 +356,7 @@ class Runtime:
             if self.engine_holds != ("enrolment", enrolment.id):
                 engine.set_source(enrolment.picture)
                 self.engine_holds = ("enrolment", enrolment.id)
+            engine.anchor_lips = True  # a meeting picture is enrolled with its mouth closed (enrolment/checks.py)
             # The neutral pose is not set here. It is the person's own resting face at the camera,
             # which the session takes from the first calm frame (see pipeline.py).
 
@@ -362,6 +365,7 @@ class Runtime:
         with self.engine_lock:
             engine = self.engine()
             engine.set_source(frame)
+            engine.anchor_lips = False  # a frame of a clip: its mouth is as it happened to be
             engine.set_reference(neutral_face)
             self._samples_used += 1
             self.engine_holds = ("sample", self._samples_used)

@@ -260,3 +260,48 @@ def test_at_rest_the_neutral_pose_follows_the_person_and_a_passing_look_does_not
     for step in range(5):
         engine._follow_rest(face(brows=0.03), at=170.2 + step * 0.1)
     assert off() < 0.0005
+
+
+def test_closed_lips_bring_the_mouth_of_the_neutral_pose_to_how_it_reads_now():
+    import torch
+
+    from neuropresence.reenactment.engine import LIP_KEYPOINTS, ReenactmentEngine
+
+    def face(mouth=0.0, brows=0.0):
+        expression = torch.full((1, 21, 3), brows)
+        expression[:, LIP_KEYPOINTS] = mouth
+        return {"exp": expression}
+
+    engine = ReenactmentEngine.__new__(ReenactmentEngine)  # only the logic: no model is loaded
+    # The neutral pose was taken with the lips a little apart, and the brows down.
+    engine._reference = {"info": face(mouth=0.05, brows=-0.02), "rotation": "kept"}
+    engine._lips_at = None
+    closed = face(mouth=0.0, brows=0.01)
+    others = [k for k in range(21) if k not in LIP_KEYPOINTS]
+
+    def mouth_off():
+        return float(engine._reference["info"]["exp"][:, LIP_KEYPOINTS].abs().max())
+
+    # A picture whose mouth may be open (a frame of a clip): closed lips at the camera say nothing about it.
+    engine.anchor_lips, engine.lips_closed = False, True
+    for step in range(30):
+        engine._follow_lips(closed, at=step / 30)
+    assert mouth_off() == pytest.approx(0.05)
+
+    # An enrolled picture, mouth closed. Talking, lips apart: nothing moves.
+    engine.anchor_lips, engine.lips_closed = True, False
+    for step in range(30):
+        engine._follow_lips(face(mouth=0.08), at=1.0 + step / 30)
+    assert mouth_off() == pytest.approx(0.05)
+
+    # The lips close for a third of a second, as between two words: most of the error is gone ...
+    engine.lips_closed = True
+    for step in range(11):
+        engine._follow_lips(closed, at=2.0 + step / 30)
+    assert mouth_off() < 0.05 * 0.45
+    # ... and after a second all of it. Only the mouth was moved: the brows and the head are as they were.
+    for step in range(11, 40):
+        engine._follow_lips(closed, at=2.0 + step / 30)
+    assert mouth_off() < 0.003
+    assert float(engine._reference["info"]["exp"][:, others].mean()) == pytest.approx(-0.02)
+    assert engine._reference["rotation"] == "kept"

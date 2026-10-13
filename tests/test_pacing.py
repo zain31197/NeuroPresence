@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from neuropresence.capture import TrackResult, TrackStatus
-from neuropresence.pipeline import MAX_BETWEEN_SECONDS, Pipeline
+from neuropresence.pipeline import LEAD_SECONDS, MAX_BETWEEN_SECONDS, Pipeline
 from neuropresence.server import pacing
 from neuropresence.server.pacing import MotionClock
 
@@ -24,16 +24,17 @@ def test_the_moment_settles_a_little_behind_the_oldest_the_newest_frame_gets():
     clock = MotionClock()
     ages = [0.014 + 0.033 * ((7 * step) % 10) / 10 for step in range(200)]  # from just in to a camera frame old
     run(clock, ages)
-    assert 0.044 <= clock.lag <= 0.052  # near the oldest, 47 ms, and not far past it
+    assert 0.044 - LEAD_SECONDS <= clock.lag <= 0.052 - LEAD_SECONDS  # near the oldest, 47 ms, less what is read ahead
     behind = [now - moment for now, _, moment in run(clock, ages)]
     assert max(behind) - min(behind) < 0.004  # the same time back for every frame: that is what makes it even
     assert np.mean(behind) == pytest.approx(clock.lag, abs=0.002)
 
 
-def test_the_moment_is_never_later_than_the_newest_frame():
+def test_the_moment_is_never_far_past_the_newest_frame():
     clock = MotionClock()
     moments = run(clock, [0.060] * 3)  # a frame older than the clock has learnt to expect
-    assert all(moment == captured for _, captured, moment in moments)  # nothing newer exists to read toward
+    # Only a little can be read past the newest frame, by carrying its movement on.
+    assert all(moment == pytest.approx(captured + LEAD_SECONDS) for _, captured, moment in moments)
     assert pacing.START_SECONDS < clock.lag < 0.060  # and the clock is on its way there
 
 
@@ -42,13 +43,13 @@ def test_one_late_frame_does_not_move_the_clock_and_a_lasting_change_does():
     after = lambda moments: moments[-1][0] + 0.045  # noqa: E731  (when the next frame is drawn)
     end = after(run(clock, [0.030] * 120))
     settled = clock.lag
-    assert settled == pytest.approx(0.033, abs=0.001)
+    assert settled == pytest.approx(0.033 - LEAD_SECONDS, abs=0.001)
     end = after(run(clock, [0.110] + [0.030] * 30, start=end))  # one hiccup
     assert clock.lag == pytest.approx(settled, abs=0.001)
     end = after(run(clock, [0.060] * 120, start=end))  # the camera now delivers half as often
-    assert clock.lag == pytest.approx(0.063, abs=0.002)
+    assert clock.lag == pytest.approx(0.063 - LEAD_SECONDS, abs=0.002)
     run(clock, [0.020] * 200, start=end)  # and then faster than ever: the old ages are forgotten
-    assert clock.lag == pytest.approx(0.023, abs=0.002)
+    assert clock.lag == pytest.approx(max(pacing.LEAST_SECONDS, 0.023 - LEAD_SECONDS), abs=0.002)
 
 
 def test_the_lag_keeps_within_its_bounds_and_starts_again():
@@ -120,8 +121,9 @@ def test_a_moment_outside_the_two_frames_is_brought_to_the_nearer_one():
     engine = Engine()
     pipeline = Pipeline(Tracker(), engine)
     pipeline.step(FRAME, at=1.000, motion_at=1.000)
-    late = pipeline.step(FRAME, at=1.033, motion_at=1.050)  # later than the newest frame: nothing to read toward
-    assert late.motion_at == pytest.approx(1.033) and engine.drawn[-1][1] == pytest.approx(2.0)
+    late = pipeline.step(FRAME, at=1.033, motion_at=1.090)  # far later than the newest frame: read a little ahead, no more
+    assert late.motion_at == pytest.approx(1.033 + LEAD_SECONDS)
+    assert engine.drawn[-1][1] == pytest.approx(2.0 + LEAD_SECONDS / 0.033)  # carried on the way it was going
     early = pipeline.step(FRAME, at=1.066, motion_at=1.000)  # earlier than the frame before
     assert early.motion_at == pytest.approx(1.033) and engine.drawn[-1][1] == pytest.approx(2.0)
 

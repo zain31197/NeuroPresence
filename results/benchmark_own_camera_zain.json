@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-13T06:49:09",
+  "date": "2026-10-14T00:53:07",
   "machine": {
     "os": "Windows-11-10.0.26200-SP0",
     "gpu": "NVIDIA GeForce RTX 5050",
@@ -7,10 +7,10 @@
     "torch": "2.11.0+cu128"
   },
   "code": {
-    "neuropresence": "794b367+uncommitted",
+    "neuropresence": "1e0898a+uncommitted",
     "liveportrait": "9b294b3"
   },
-  "manifest": "manifest.json",
+  "manifest": "own_camera.json",
   "max_frames_per_pair": 1680,
   "targets": {
     "fps": 24.0,
@@ -21,20 +21,20 @@
   },
   "summary": {
     "pairs": 2,
-    "fps": 16.585,
-    "render_ms": 35.745,
-    "pipeline_ms": 60.31,
+    "fps": 16.6,
+    "render_ms": 36.52,
+    "pipeline_ms": 60.245,
     "peak_vram_gb": 1.28,
-    "csim_self_reenactment": 0.944,
+    "csim_self_reenactment": 0.942,
     "csim_real_video": 0.883,
-    "pose_error_deg": 4.98,
+    "pose_error_deg": 5.045,
     "pose_motion_deg": 7.09,
-    "expression_error": 0.031,
+    "expression_error": 0.03,
     "expression_motion": 0.045,
-    "mouth_opening_correlation": 0.838,
-    "lag_frames": -0.245,
-    "warping_error_ratio": 0.291,
-    "jitter_ratio": 0.858
+    "mouth_opening_correlation": 0.9,
+    "lag_frames": -0.215,
+    "warping_error_ratio": 0.296,
+    "jitter_ratio": 0.856
   },
   "notes": [
     "pipeline_ms covers tracker, crop, motion, render and compose; it excludes camera capture and display.",
@@ -53,37 +53,37 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 12.48,
-          "p95": 14.5,
-          "p99": 15.56
+          "mean": 12.11,
+          "p95": 13.78,
+          "p99": 14.96
         },
         "motion": {
-          "mean": 7.24,
-          "p95": 9.48,
-          "p99": 11.48
+          "mean": 7.13,
+          "p95": 9.44,
+          "p99": 11.42
         },
         "render": {
-          "mean": 35.87,
-          "p95": 37.51,
-          "p99": 38.82
+          "mean": 36.56,
+          "p95": 37.2,
+          "p99": 37.96
         },
         "compose": {
-          "mean": 1.46,
-          "p95": 1.99,
-          "p99": 2.96
+          "mean": 1.48,
+          "p95": 2.05,
+          "p99": 2.37
         },
         "total": {
-          "mean": 59.7,
-          "p95": 64.03,
-          "p99": 67.63
+          "mean": 59.95,
+          "p95": 63.63,
+          "p99": 65.93
         }
       },
-      "fps": 16.75,
+      "fps": 16.68,
       "peak_vram_gb": 1.28,
       "csim": {
-        "mean": 0.944,
-        "min": 0.851,
-        "p05": 0.887,
+        "mean": 0.942,
+        "min": 0.855,
+        "p05": 0.884,
         "share_at_or_above_threshold": 1.0,
         "threshold": 0.8,
         "frames": 1680
@@ -98,22 +98,22 @@
         "frames": 1680
       },
       "motion": {
-        "pose_error_deg": 4.78,
+        "pose_error_deg": 4.77,
         "pose_motion_deg": 7.09,
-        "expression_error": 0.0251,
+        "expression_error": 0.0227,
         "expression_motion": 0.045,
-        "mouth_opening_correlation": 0.885,
-        "lag_frames": -0.1
+        "mouth_opening_correlation": 0.888,
+        "lag_frames": -0.13
       },
       "warping_error_x1000": {
-        "output": 0.0653,
+        "output": 0.0668,
         "driving": 0.2138,
-        "ratio": 0.305
+        "ratio": 0.312
       },
       "jitter_percent_of_eye_span": {
-        "output": 0.7624,
+        "output": 0.7568,
         "driving": 0.8353,
-        "ratio": 0.913
+        "ratio": 0.906
       }
     },
     {
@@ -123,59 +123,59 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 12.87,
-          "p95": 15.03,
-          "p99": 16.63
+          "mean": 11.88,
+          "p95": 13.53,
+          "p99": 14.81
         },
         "motion": {
-          "mean": 7.39,
-          "p95": 9.5,
-          "p99": 10.96
+          "mean": 7.28,
+          "p95": 9.64,
+          "p99": 10.72
         },
         "render": {
-          "mean": 35.62,
-          "p95": 36.25,
-          "p99": 36.6
+          "mean": 36.48,
+          "p95": 36.97,
+          "p99": 37.41
         },
         "compose": {
-          "mean": 1.91,
-          "p95": 2.54,
-          "p99": 3.59
+          "mean": 1.77,
+          "p95": 2.4,
+          "p99": 2.79
         },
         "total": {
-          "mean": 60.92,
-          "p95": 64.81,
-          "p99": 67.53
+          "mean": 60.54,
+          "p95": 63.86,
+          "p99": 66.4
         }
       },
-      "fps": 16.42,
+      "fps": 16.52,
       "peak_vram_gb": 1.28,
       "csim": {
-        "mean": 0.934,
-        "min": 0.831,
-        "p05": 0.877,
+        "mean": 0.944,
+        "min": 0.828,
+        "p05": 0.878,
         "share_at_or_above_threshold": 1.0,
         "threshold": 0.8,
         "frames": 1680
       },
       "output_frames_without_one_face": 0,
       "motion": {
-        "pose_error_deg": 5.18,
+        "pose_error_deg": 5.32,
         "pose_motion_deg": 7.09,
-        "expression_error": 0.0372,
+        "expression_error": 0.0367,
         "expression_motion": 0.045,
-        "mouth_opening_correlation": 0.79,
-        "lag_frames": -0.39
+        "mouth_opening_correlation": 0.912,
+        "lag_frames": -0.3
       },
       "warping_error_x1000": {
-        "output": 0.0594,
+        "output": 0.0601,
         "driving": 0.2138,
-        "ratio": 0.278
+        "ratio": 0.281
       },
       "jitter_percent_of_eye_span": {
-        "output": 0.671,
+        "output": 0.6722,
         "driving": 0.8353,
-        "ratio": 0.803
+        "ratio": 0.805
       }
     }
   ]

@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 324 for the engine and server, 50 for the web app, all passing.
+Tests: 326 for the engine and server, 50 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -475,6 +475,52 @@ The eight sample clips are unchanged (`results/benchmark_rest_windows_rtx5050.js
 **Also fixed.** A check that ended as refused still reported the action it had been about to ask for; found by a test that had started failing on timing.
 
 **Checked.** 324 engine and server tests, 50 web tests. One recording by one person: the other two members have not recorded yet.
+
+### 14 October 2026: the mouth (iteration 2 begins)
+
+The mid evaluation part closed on 13 October at commit `1e0898a`, tagged `fyp1_mid`. Work from here belongs to iteration 2.
+
+**What Zain saw.** In a live session the lips did not follow his speech well: the picture talked with its mouth nearly shut.
+
+**Measured** on the talking part of his recording (410 frames), with his enrolled picture: the lips of the output were 0.027 of the eye span apart on average against 0.048 at the camera, and moved 0.85 times as far. With a frame of the recording as the picture the two agreed (0.046, 1.10), so the loss came from where the movement is measured from, not from the networks. The keypoint filter made no difference (0.85 with and without).
+
+**Cause.** Movement is measured from the neutral pose, which is meant to have the mouth closed. "Closed" was judged by the tracker's jaw score, and that score does not see lips that are a little apart: it read 0.02 in frames where the lips were 0.04 to 0.09 of the eye span apart. The neutral pose was taken from such a frame, and every later opening was drawn that much smaller.
+
+**Fix.**
+- At rest now also means the lips together, measured from the lip landmarks (`pipeline.py`, gap at most 0.02 of the eye span).
+- A closed mouth is the one expression that means the same in the picture and at the camera, because a meeting picture is enrolled with its mouth closed. So whenever the lips are seen closed (0.012 or less), the mouth of the neutral pose is brought to that reading within a third of a second (`engine.py`, `_follow_lips`). It happens between words, so a session that started badly corrects itself in the first sentence. It is on for enrolled pictures only; a frame of a clip has its mouth as it happened to be.
+- A gain on the mouth keypoints was tried first (1.3 and 1.6). It restored the size of the movement and not the opening, and is left in the code at 1.0.
+
+| Talking, enrolled picture | Before | Mouth gain 1.6 | Closed lips anchored |
+|---|---|---|---|
+| Lips apart on average (0.048 at the camera) | 0.027 | 0.037 | 0.052 |
+| Size of the movement against the camera | 0.85 | 1.14 | 1.07 |
+| Agreement | 0.915 | 0.925 | 0.945 |
+
+Over the whole recording (`benchmarks/own_camera.json`, `results/benchmark_own_camera_zain.json`) the mouth agreement with the enrolled picture went from 0.79 to 0.91 and identity from 0.934 to 0.944. The eight sample clips are unchanged (`results/benchmark_lips_windows_rtx5050.json`): identity 0.898, mouth agreement 0.957, flicker 0.75, tremble 1.01.
+
+**Also fixed.** The identity monitor could still score a frame that someone else had driven, in the same pass in which the consent watch put the still picture up, and hand it to the guard that had just been started afresh. Such a frame is no longer scored. Found through a test that had begun to fail on timing.
+
+**Not solved.** The inside of the mouth is drawn by the model from a picture with its mouth closed, so teeth and tongue are invented and soft. 326 engine and server tests (2 new), 50 web tests.
+
+### 14 October 2026: ten milliseconds off the delay
+
+**What Zain saw.** A session at 14 frames a second and 174 ms, held back by the delay watchdog, and then one at 19.7 frames a second and 120 ms. The current code measured 20.3 frames a second and 105 ms on the same machine with a stand-in camera at 30 frames a second, and no slower with one at 25, so the first was not the code: his camera was delivering 24 to 25 frames a second in a dim room where it had delivered 30. The delay follows the camera, because with even motion the movement is shown as it was a little longer ago than the newest frame can be old.
+
+**Two ways to show it sooner, tried on the six clips of `scripts/study_pacing.py`.**
+
+| | Delay | Steps between moments | Head changing speed | Mouth agreement |
+|---|---|---|---|---|
+| Newest frame, no even motion | 77 ms, varying by 10 | uneven | 3.77 | 0.898 |
+| As built | 96 ms, steady | even | 2.70 | 0.899 |
+| A shorter lag (half of the frames' ages) | 84 ms, varying by 4 | uneven | 3.18 | 0.901 |
+| Read 10 ms past the newest frame | 86 ms, steady | even | 2.95 | 0.900 |
+| Read 20 ms past it | 77 ms, steady | even | 3.29 | 0.894 |
+| Read 30 ms past it | 67 ms, steady | even | 3.56 | 0.875 |
+
+A shorter lag brings the uneven steps back. Reading past the newest frame, by carrying the movement on the way it was going, keeps the steps even and takes its own length off the delay; it overshoots where the movement turns, which is the rise in the third column.
+
+**Decided by Zain: 10 ms** (`pipeline.py`: `LEAD_SECONDS`; `server/pacing.py`). A stand-in session then measured 91 ms at 21.3 frames a second with a camera at 30 frames a second (105 ms before), and 100 ms with a camera at 24. `results/pacing_study.json` is the study with it built in. 326 tests pass.
 
 ## Decisions and their reasons
 

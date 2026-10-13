@@ -19,6 +19,11 @@ from .consent.disclosure import mark
 NEUTRAL_MAX_YAW_DEG = 12.0  # at rest means facing the camera ...
 NEUTRAL_MAX_ROLL_DEG = 10.0  # ... with the head upright ...
 NEUTRAL_MAX_JAW_OPEN = 0.15  # ... the mouth closed ...
+# The tracker's jaw score does not see lips that are a little apart: at a real camera it read 0.02 with
+# the lips 0.09 of the eye span apart. So the gap between the lips is measured as well.
+NEUTRAL_MAX_LIP_GAP = 0.02  # ... the lips together: their gap over the distance between the eyes ...
+LIPS_CLOSED_GAP = 0.012  # under this the lips are closed (0.002 to 0.005 at rest, and in an enrolled picture)
+UPPER_LIP, LOWER_LIP, EYE_OUTER = 13, 14, (33, 263)  # landmarks of the tracker
 NEUTRAL_MAX_EYE_CLOSED = 0.5  # ... and the eyes open. Pitch is left out: it depends on how high the camera sits.
 NEUTRAL_WAIT_SECONDS = 3.0  # after this long the current frame is taken, at rest or not
 
@@ -28,13 +33,31 @@ NEUTRAL_WAIT_SECONDS = 3.0  # after this long the current frame is taken, at res
 HOLD_SECONDS = 0.25
 FADE_SECONDS = 0.3
 
+# The movement may be read a little past the newest camera frame, by carrying on the way it was
+# going: each millisecond of that is a millisecond less delay. It overshoots where the movement
+# turns. Measured on 14 October 2026 on six sample clips (see server/pacing.py): 10 ms ahead, the
+# delay 96 to 86 ms, steps as even, the head changing speed 2.95 against 2.70 (3.77 without even
+# motion); 30 ms ahead, 67 ms, and the mouth then agrees less (0.875 against 0.899).
+LEAD_SECONDS = 0.010
 # Two readings of the movement further apart than this are not joined: the face was lost between them.
 MAX_BETWEEN_SECONDS = 0.25
+
+
+def lip_gap(track):
+    """How far apart the lips are, over the distance between the eyes. None when it cannot be read."""
+    points = getattr(track, "landmarks", None)
+    if not track.ok or points is None or len(points) <= max(EYE_OUTER):
+        return None
+    eyes = float(np.linalg.norm(points[EYE_OUTER[0]] - points[EYE_OUTER[1]]))
+    return float(np.linalg.norm(points[UPPER_LIP] - points[LOWER_LIP])) / eyes if eyes > 0 else None
 
 
 def at_rest(track):
     """Is this a face to measure movement from: front-facing, upright, mouth closed, eyes open?"""
     if not track.ok or track.pose_deg is None:
+        return False
+    gap = lip_gap(track)
+    if gap is not None and gap > NEUTRAL_MAX_LIP_GAP:
         return False
     yaw, _, roll = track.pose_deg
     scores = track.blendshapes or {}
@@ -126,7 +149,8 @@ class Pipeline:
         before, self._before = self._before, (at, reading)
         if before is None or not 0.0 < at - before[0] <= MAX_BETWEEN_SECONDS:
             return reading, at
-        share = min(1.0, max(0.0, (motion_at - before[0]) / (at - before[0])))
+        step = at - before[0]
+        share = min(1.0 + LEAD_SECONDS / step, max(0.0, (motion_at - before[0]) / step))
         return self.engine.between(before[1], reading, share), before[0] + share * (at - before[0])
 
     def step(self, frame_bgr, reenact=True, at=None, track=None, prepared=None, show=True, motion_at=None):
@@ -140,8 +164,9 @@ class Pipeline:
         but it is held back and the output goes to the enrolled frame as it does for a
         lost face. The live session does this while its output is arriving too late.
 
-        `motion_at`, on the same clock as `at` and not later, asks for the movement as it
-        was at that moment, read between this frame and the one before (see _movement)."""
+        `motion_at`, on the same clock as `at`, asks for the movement as it was at that
+        moment, read between this frame and the one before, and at most LEAD_SECONDS past
+        this frame (see _movement)."""
         start = time.perf_counter()
         at = start if at is None else at
         if track is None:
@@ -174,6 +199,8 @@ class Pipeline:
             reading = (time.perf_counter() - reading) * 1000
             given = {} if motion is None else {"motion": motion}
             self.engine.resting = at_rest(track)  # at rest, the neutral pose follows the person (engine.py)
+            gap = lip_gap(track)
+            self.engine.lips_closed = gap is not None and gap <= LIPS_CLOSED_GAP
             output = self.engine.drive(face, at=at if shown_at is None else shown_at, steady=self.steady_keypoints,
                                        limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)

@@ -207,3 +207,20 @@ def test_the_crop_window_is_reported_and_holds_still_against_tracker_noise():
     wobble = {key: float(np.std(np.array(value)[10:, 0])) for key, value in windows.items()}
     assert wobble[True] < 0.35 * wobble[False]  # the steady window moves far less than the tracked box does
     assert engine.driven_shapes and set(engine.driven_shapes) == {(256, 256, 3)}
+
+
+def test_lips_a_little_apart_are_not_a_face_at_rest():
+    from neuropresence.pipeline import LIPS_CLOSED_GAP, NEUTRAL_MAX_LIP_GAP, at_rest, lip_gap
+
+    def face(gap):
+        points = np.zeros((478, 2), dtype=np.float32)
+        points[33], points[263] = (100, 100), (200, 100)  # the eyes, 100 pixels apart
+        points[13], points[14] = (150, 180), (150, 180 + gap * 100)  # the lips
+        # The tracker's own jaw score does not see lips that are a little apart: 0.02 here, as measured.
+        return TrackResult(TrackStatus.OK, 1.0, landmarks=points, bbox=(80, 60, 220, 240), pose_deg=(0.0, 0.0, 0.0),
+                           blendshapes={"jawOpen": 0.02, "eyeBlinkLeft": 0.1, "eyeBlinkRight": 0.1})
+
+    assert lip_gap(face(0.09)) == pytest.approx(0.09)
+    assert at_rest(face(0.004)) and not at_rest(face(0.09)) and not at_rest(face(NEUTRAL_MAX_LIP_GAP + 0.005))
+    assert LIPS_CLOSED_GAP < NEUTRAL_MAX_LIP_GAP
+    assert lip_gap(TrackResult(TrackStatus.NO_FACE, 1.0)) is None

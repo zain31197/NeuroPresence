@@ -97,6 +97,9 @@ def run_pair(pair, engine, scorer, measure, max_frames, video_dir):
     """Drive one pair through the pipeline and collect the raw measurements."""
     is_self = pair["source"] == "first_frame"
     engine.set_source(load_source(pair))
+    # An enrolled meeting picture has its mouth closed, and the app then holds the mouth to closed lips
+    # (engine.py). A frame of a clip has its mouth as it happened to be.
+    engine.anchor_lips = bool(pair.get("mouth_closed"))
     source_embedding = scorer.embed(engine.source_frame)
     if source_embedding is None:
         raise ValueError(f"{pair['name']}: no single face found in the source image")

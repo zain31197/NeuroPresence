@@ -1,0 +1,8 @@
+{
+  "description": "A member's own camera: a recording made with scripts/record_camera.py (kept in data/recordings/, which is not in the repository). Once with a frame of the recording as the picture, once with the enrolled meeting picture, as in a real session.",
+  "max_frames": 1680,
+  "pairs": [
+    {"name": "zain_self", "source": "first_frame", "driving": "data/recordings/zain.avi"},
+    {"name": "zain_enrolled_picture", "source": "data/enrolment/picture.png", "driving": "data/recordings/zain.avi", "mouth_closed": true}
+  ]
+}

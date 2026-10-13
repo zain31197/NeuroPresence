@@ -58,6 +58,17 @@ POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this sha
 # neutral frame and also ate what the face was doing: a held smile is a closed mouth facing the
 # camera too. Expression error 0.040 with it against 0.021 without, mouth agreement 0.88 against
 # 0.91. So the expression follows much more slowly than where the head is.
+# The mouth. Movement is measured from the neutral pose, so a neutral pose taken with the lips a
+# little apart makes every later opening that much smaller. On a recording at a real camera
+# (13 October 2026) the lips were 0.04 to 0.09 of the eye span apart in the frame the neutral pose
+# was taken from, and the picture then talked with its mouth nearly shut: 0.027 open on average
+# against 0.048 at the camera. A closed mouth is the one expression that means the same in the
+# picture and at the camera, since a meeting picture is enrolled with its mouth closed. So each
+# time the lips are seen closed, the mouth of the neutral pose is brought to that reading.
+LIP_KEYPOINTS = [6, 12, 14, 17, 19, 20]  # of the model's 21 keypoints, the ones that carry the mouth
+LIP_ANCHOR_SECONDS = 0.35  # how quickly: within one closing of the lips between words
+LIP_GAIN = 1.0  # the movement of the mouth, as it is read; kept for trials
+
 REST_HOLD_SECONDS = 1.5  # at rest for this long before the neutral pose starts to follow
 REST_SECONDS = 12.0  # where the head is follows this slowly: a look to one side for a few seconds still shows
 REST_EXPRESSION_SECONDS = 30.0  # what the face is doing follows more slowly still: a poor neutral frame is gone in a minute
@@ -164,6 +175,10 @@ class ReenactmentEngine:
         self._source = None
         self._reference = None
         self.resting = False  # set by the pipeline for each frame: is the person at rest in it?
+        self.lip_gain = LIP_GAIN
+        self.anchor_lips = False  # the picture's mouth is closed: closed lips at the camera are the same expression
+        self.lips_closed = False  # set by the pipeline for each frame: are the lips closed in it?
+        self._lips_at = None
         self._rest_since = self._rest_at = None
         self._paste = None
         self._gpu = None
@@ -403,6 +418,18 @@ class ReenactmentEngine:
         self._posture_at, self._settling = None, False
         self._rest_since = self._rest_at = None
 
+    def _follow_lips(self, driving, at):
+        """While the lips are closed at the camera, bring the mouth of the neutral pose to how it reads now."""
+        now = time.perf_counter() if at is None else at
+        last, self._lips_at = getattr(self, "_lips_at", None), now
+        if not (self.anchor_lips and self.lips_closed) or last is None:
+            return
+        share = 1.0 - math.exp(-min(max(now - last, 0.0), 0.5) / LIP_ANCHOR_SECONDS)
+        rest = self._reference["info"]
+        mouth = rest["exp"].clone()
+        mouth[:, LIP_KEYPOINTS] += (driving["exp"][:, LIP_KEYPOINTS] - mouth[:, LIP_KEYPOINTS]) * share
+        self._reference = {"info": {**rest, "exp": mouth}, "rotation": self._reference["rotation"]}
+
     def _follow_rest(self, driving, at):
         """While the person is at rest, let the neutral pose ease toward how they sit and look now."""
         now = time.perf_counter() if at is None else at
@@ -521,6 +548,7 @@ class ReenactmentEngine:
         if limit:
             self._follow_posture(driving, at)
         self._follow_rest(driving, at)
+        self._follow_lips(driving, at)
         ref = self._reference
 
         size = driving["scale"] / ref["info"]["scale"]
@@ -530,7 +558,11 @@ class ReenactmentEngine:
             rotation = self._rotation(turned["pitch"], turned["yaw"], turned["roll"])
             size = 1.0 + soft_limit(size - 1.0, *self.scale_range)
         rotation_new = (rotation @ ref["rotation"].permute(0, 2, 1)) @ s["rotation"]
-        expression_new = s["info"]["exp"] + (driving["exp"] - ref["info"]["exp"])
+        expression = driving["exp"] - ref["info"]["exp"]
+        if self.lip_gain != 1.0:
+            expression = expression.clone()
+            expression[:, LIP_KEYPOINTS] *= self.lip_gain
+        expression_new = s["info"]["exp"] + expression
         scale_new = s["info"]["scale"] * size
         shift_new = s["info"]["t"] + (driving["t"] - ref["info"]["t"])
         shift_new[..., 2] = 0

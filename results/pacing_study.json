@@ -12,10 +12,10 @@
           "shortest": 33.3,
           "longest": 66.7
         },
-        "head_acceleration_percent_of_eye_span": 1.394,
+        "head_acceleration_percent_of_eye_span": 1.39,
         "pose_error_deg": {
-          "yaw": 10.26,
-          "pitch": 2.51
+          "yaw": 10.23,
+          "pitch": 2.49
         },
         "mouth_opening_correlation": 0.987
       },
@@ -24,15 +24,15 @@
         "moment_step_ms": {
           "mean": 45.5,
           "sd": 0.0,
-          "shortest": 45.4,
-          "longest": 45.5
+          "shortest": 45.5,
+          "longest": 45.6
         },
-        "head_acceleration_percent_of_eye_span": 0.889,
+        "head_acceleration_percent_of_eye_span": 0.951,
         "pose_error_deg": {
-          "yaw": 10.62,
-          "pitch": 2.83
+          "yaw": 10.21,
+          "pitch": 2.47
         },
-        "mouth_opening_correlation": 0.986
+        "mouth_opening_correlation": 0.987
       }
     },
     "d6": {
@@ -57,15 +57,15 @@
         "moment_step_ms": {
           "mean": 45.5,
           "sd": 0.0,
-          "shortest": 45.4,
-          "longest": 45.5
+          "shortest": 45.5,
+          "longest": 45.6
         },
-        "head_acceleration_percent_of_eye_span": 1.4,
+        "head_acceleration_percent_of_eye_span": 1.493,
         "pose_error_deg": {
           "yaw": 0.8,
-          "pitch": 1.04
+          "pitch": 1.03
         },
-        "mouth_opening_correlation": 0.911
+        "mouth_opening_correlation": 0.925
       }
     },
     "d9": {
@@ -78,10 +78,10 @@
           "shortest": 33.3,
           "longest": 66.7
         },
-        "head_acceleration_percent_of_eye_span": 2.052,
+        "head_acceleration_percent_of_eye_span": 2.051,
         "pose_error_deg": {
-          "yaw": 0.34,
-          "pitch": 0.7
+          "yaw": 0.33,
+          "pitch": 0.72
         },
         "mouth_opening_correlation": 0.987
       },
@@ -90,15 +90,15 @@
         "moment_step_ms": {
           "mean": 45.5,
           "sd": 0.0,
-          "shortest": 45.4,
-          "longest": 45.5
+          "shortest": 45.5,
+          "longest": 45.6
         },
-        "head_acceleration_percent_of_eye_span": 1.378,
+        "head_acceleration_percent_of_eye_span": 1.421,
         "pose_error_deg": {
-          "yaw": 0.34,
-          "pitch": 0.69
+          "yaw": 0.33,
+          "pitch": 0.71
         },
-        "mouth_opening_correlation": 0.97
+        "mouth_opening_correlation": 0.977
       }
     },
     "d10": {
@@ -123,15 +123,15 @@
         "moment_step_ms": {
           "mean": 45.5,
           "sd": 0.0,
-          "shortest": 45.4,
-          "longest": 45.5
+          "shortest": 45.5,
+          "longest": 45.6
         },
-        "head_acceleration_percent_of_eye_span": 1.388,
+        "head_acceleration_percent_of_eye_span": 1.484,
         "pose_error_deg": {
-          "yaw": 0.98,
-          "pitch": 1.75
+          "yaw": 0.97,
+          "pitch": 1.77
         },
-        "mouth_opening_correlation": 0.901
+        "mouth_opening_correlation": 0.908
       }
     },
     "d11": {
@@ -155,16 +155,16 @@
         "frames": 188,
         "moment_step_ms": {
           "mean": 45.5,
-          "sd": 0.1,
-          "shortest": 45.3,
+          "sd": 0.0,
+          "shortest": 45.4,
           "longest": 45.5
         },
-        "head_acceleration_percent_of_eye_span": 3.116,
+        "head_acceleration_percent_of_eye_span": 3.184,
         "pose_error_deg": {
-          "yaw": 1.63,
-          "pitch": 2.36
+          "yaw": 1.57,
+          "pitch": 2.41
         },
-        "mouth_opening_correlation": 0.67
+        "mouth_opening_correlation": 0.652
       }
     },
     "d12": {
@@ -188,33 +188,33 @@
         "frames": 151,
         "moment_step_ms": {
           "mean": 45.5,
-          "sd": 0.1,
-          "shortest": 45.3,
+          "sd": 0.0,
+          "shortest": 45.4,
           "longest": 45.5
         },
-        "head_acceleration_percent_of_eye_span": 8.06,
+        "head_acceleration_percent_of_eye_span": 9.141,
         "pose_error_deg": {
-          "yaw": 1.51,
-          "pitch": 1.45
+          "yaw": 1.43,
+          "pitch": 1.48
         },
-        "mouth_opening_correlation": 0.954
+        "mouth_opening_correlation": 0.95
       }
     }
   },
   "summary": {
     "newest_frame": {
       "moment_step_sd_ms": 15.283,
-      "head_acceleration_percent_of_eye_span": 3.767,
-      "yaw_error_deg": 2.593,
+      "head_acceleration_percent_of_eye_span": 3.766,
+      "yaw_error_deg": 2.587,
       "pitch_error_deg": 1.657,
       "mouth_opening_correlation": 0.898
     },
     "even_motion": {
-      "moment_step_sd_ms": 0.033,
-      "head_acceleration_percent_of_eye_span": 2.705,
-      "yaw_error_deg": 2.647,
-      "pitch_error_deg": 1.687,
-      "mouth_opening_correlation": 0.899
+      "moment_step_sd_ms": 0.0,
+      "head_acceleration_percent_of_eye_span": 2.946,
+      "yaw_error_deg": 2.552,
+      "pitch_error_deg": 1.645,
+      "mouth_opening_correlation": 0.9
     }
   }
 }
