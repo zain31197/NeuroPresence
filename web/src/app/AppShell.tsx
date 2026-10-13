@@ -1,5 +1,5 @@
 import { ArrowLeft, ChartNoAxesColumn, FlaskConical, Lock, MonitorPlay, Server, UserRound, type LucideIcon } from 'lucide-react'
-import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { cn } from '../lib/cn'
 import { useStudio, type Connection } from '../lib/studio'
@@ -28,7 +28,9 @@ function EngineStatus({ connection, className }: { connection: Connection; class
   const engine = ENGINE[connection]
   return (
     <span className={cn('inline-flex items-center gap-2 text-[12.5px] text-ink-600', className)}>
-      <span className={cn('size-2 rounded-full', engine.dot)} />
+      <span className="relative grid size-2 place-items-center">
+        <span className={cn('relative size-2 rounded-full', engine.dot)} />
+      </span>
       {engine.label}
     </span>
   )
@@ -38,6 +40,7 @@ export function AppShell() {
   const { connection, status } = useStudio()
   // Until a picture is enrolled, a camera session cannot start: point at the screen that comes first.
   const startHere = status && status.enrolment.record === null ? '/studio/enrolment' : null
+  const { pathname } = useLocation()
 
   return (
     <div className="flex min-h-screen">
@@ -56,12 +59,16 @@ export function AppShell() {
                   end
                   className={({ isActive }) =>
                     cn(
-                      'flex h-9 items-center gap-2.5 rounded-control px-2.5 text-[13.5px] font-medium transition-colors',
-                      isActive ? 'bg-ink-100 text-ink-950' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-950',
+                      'group relative flex h-9 items-center gap-2.5 rounded-control px-2.5 text-[13.5px] font-medium transition-[background-color,color,box-shadow] duration-200 ease-out-soft',
+                      // The place you are in carries a short ultramarine bar at its left edge.
+                      'before:absolute before:top-2 before:bottom-2 before:-left-3 before:w-[3px] before:rounded-r-full before:bg-accent-500 before:transition-[opacity,transform] before:duration-300',
+                      isActive
+                        ? 'bg-ink-100/80 text-ink-950 shadow-[inset_0_0_0_1px_rgb(11_13_18/0.04)] before:opacity-100'
+                        : 'text-ink-600 before:scale-y-0 before:opacity-0 hover:bg-ink-50 hover:text-ink-950',
                     )
                   }
                 >
-                  <Icon className="size-4" strokeWidth={2} />
+                  <Icon className="size-4 transition-transform duration-200 group-hover:scale-110" strokeWidth={2} />
                   {label}
                   {to === startHere && <span className="label-caps ml-auto rounded-chip bg-accent-50 px-1.5 py-0.5 text-accent-700">Start here</span>}
                 </NavLink>
@@ -75,6 +82,7 @@ export function AppShell() {
               <li key={label} className="flex h-9 items-center gap-2.5 px-2.5 text-[13.5px] text-ink-400" aria-disabled="true">
                 <Icon className="size-4" strokeWidth={2} />
                 {label}
+                <span className="label-caps ml-auto rounded-chip border border-line px-1.5 py-0.5 text-[9.5px] text-ink-400">Soon</span>
               </li>
             ))}
           </ul>
@@ -121,7 +129,10 @@ export function AppShell() {
             ))}
           </nav>
         </header>
-        <Outlet />
+        {/* Each screen arrives with a short rise, so moving between them does not snap. */}
+        <div key={pathname} className="animate-enter">
+          <Outlet />
+        </div>
       </div>
     </div>
   )

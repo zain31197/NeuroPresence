@@ -6,8 +6,8 @@ type Size = 'sm' | 'md' | 'lg'
 
 const variants: Record<Variant, string> = {
   primary:
-    'bg-ink-950 text-white shadow-control hover:bg-ink-800 [box-shadow:inset_0_1px_0_rgb(255_255_255/0.14),0_1px_2px_rgb(11_13_18/0.2)]',
-  secondary: 'border border-line-strong bg-surface text-ink-900 shadow-control hover:bg-ink-50',
+    'bg-gradient-to-b from-ink-800 to-ink-950 text-white hover:from-ink-700 hover:to-ink-900 [box-shadow:inset_0_1px_0_rgb(255_255_255/0.16),0_1px_2px_rgb(11_13_18/0.24),0_6px_14px_-8px_rgb(11_13_18/0.5)] hover:[box-shadow:inset_0_1px_0_rgb(255_255_255/0.2),0_2px_4px_rgb(11_13_18/0.24),0_12px_22px_-10px_rgb(11_13_18/0.55)]',
+  secondary: 'border border-line-strong bg-surface text-ink-900 shadow-control hover:border-ink-300 hover:bg-ink-50 hover:shadow-[0_2px_6px_rgb(11_13_18/0.08)]',
   ghost: 'text-ink-700 hover:bg-ink-100 hover:text-ink-950',
   danger: 'border border-critical/30 bg-surface text-critical-ink shadow-control hover:bg-critical-wash',
 }
@@ -30,7 +30,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function buttonClass(variant: Variant = 'secondary', size: Size = 'md', className?: string) {
   return cn(
     'inline-flex shrink-0 select-none items-center justify-center rounded-control font-medium whitespace-nowrap',
-    'transition-[background-color,transform,opacity] duration-150 active:scale-[0.98]',
+    'transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out-soft hover:-translate-y-px active:translate-y-0 active:scale-[0.98]',
     'disabled:pointer-events-none disabled:opacity-45',
     variants[variant],
     sizes[size],

@@ -52,8 +52,15 @@ POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this sha
 # stared. So whenever the person is seen at rest (facing the camera, mouth closed, eyes open) for a
 # moment, the neutral pose eases toward how they sit and look now, expression included, and the
 # picture eases back to itself. Talking, blinking and turning away are not rest and change nothing.
-REST_HOLD_SECONDS = 1.0  # at rest for this long before the neutral pose starts to follow
-REST_SECONDS = 4.0  # and then it follows this slowly: a look held for a second or two still shows
+#
+# How fast it follows was set on a recording of a person at a real camera (13 October 2026, 56 s:
+# sitting, talking, nodding, turning, looking down). Following within four seconds cured a poor
+# neutral frame and also ate what the face was doing: a held smile is a closed mouth facing the
+# camera too. Expression error 0.040 with it against 0.021 without, mouth agreement 0.88 against
+# 0.91. So the expression follows much more slowly than where the head is.
+REST_HOLD_SECONDS = 1.5  # at rest for this long before the neutral pose starts to follow
+REST_SECONDS = 12.0  # where the head is follows this slowly: a look to one side for a few seconds still shows
+REST_EXPRESSION_SECONDS = 30.0  # what the face is doing follows more slowly still: a poor neutral frame is gone in a minute
 
 # The model draws about as sharply as the face crop it is given, and that crop is softened on its way
 # down to the model's 256 pixels. Strengthening its edges a little first gives the detail back. Measured
@@ -407,11 +414,12 @@ class ReenactmentEngine:
             self._rest_since = now
         if last is None or now - self._rest_since < REST_HOLD_SECONDS:
             return
-        share = 1.0 - math.exp(-min(max(now - last, 0.0), 0.5) / REST_SECONDS)
+        elapsed = min(max(now - last, 0.0), 0.5)
         rest = self._reference["info"]
         moved = dict(rest)
         for key in ("pitch", "yaw", "roll", "t", "scale", "exp"):
             if key in rest and key in driving:
+                share = 1.0 - math.exp(-elapsed / (REST_EXPRESSION_SECONDS if key == "exp" else REST_SECONDS))
                 moved[key] = rest[key] + (driving[key] - rest[key]) * share
         self._reference = {"info": moved, "rotation": self._rotation(moved["pitch"], moved["yaw"], moved["roll"])}
 

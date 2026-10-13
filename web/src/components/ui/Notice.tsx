@@ -20,13 +20,15 @@ export function Notice({ title, tone = 'neutral', action, className, children }:
     <div
       role={critical ? 'alert' : 'status'}
       className={cn(
-        'flex flex-wrap items-center gap-x-4 gap-y-3 rounded-panel border px-4 py-3',
+        'flex animate-drop flex-wrap items-center gap-x-4 gap-y-3 rounded-panel border px-4 py-3 shadow-control',
         critical ? 'border-critical/25 bg-critical-wash' : 'border-line bg-surface',
         className,
       )}
     >
       <div className="flex min-w-0 flex-1 basis-[280px] items-start gap-3">
-        <Icon className={cn('mt-0.5 size-4 shrink-0', critical ? 'text-critical-ink' : 'text-ink-500')} />
+        <span className={cn('mt-px grid size-6 shrink-0 place-items-center rounded-full', critical ? 'bg-critical/12 text-critical-ink' : 'bg-ink-100 text-ink-600')}>
+          <Icon className="size-3.5" />
+        </span>
         <div className="min-w-0 text-[13.5px] leading-snug">
           <p className="font-semibold text-ink-950">{title}</p>
           <p className="mt-0.5 text-ink-700">{children}</p>

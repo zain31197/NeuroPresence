@@ -218,7 +218,7 @@ export function LiveStudio() {
         </Notice>
       )}
 
-      <div className="mt-5 grid gap-5">
+      <div className="stagger mt-5 grid gap-5">
         <Monitors />
         <MetricTiles benchmark={benchmark} />
         <TrackingPanel />

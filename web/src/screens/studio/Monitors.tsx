@@ -149,12 +149,13 @@ export function Monitors() {
           }
           footer={showing && <span>{`${frame.width} × ${frame.height}`}</span>}
           footerAt="right"
+          live={showing && frame.live}
         >
           <canvas ref={output} role="img" aria-label="Reenacted output" className={cn('size-full object-contain', !showing && 'hidden')} />
           {/* During the check the picture stands still. Say why, where a person looking for their moving picture will see it. */}
           {showing && checking && (
             <div className="pointer-events-none absolute inset-x-3 bottom-12 flex justify-center">
-              <p className="max-w-[440px] rounded-panel bg-black/75 px-3.5 py-2 text-center text-[13px] leading-snug font-medium text-white shadow-raised backdrop-blur-sm">
+              <p className="max-w-[440px] rounded-panel bg-black/75 px-3.5 py-2 text-center text-[13px] leading-snug font-medium text-white shadow-raised">
                 Your picture starts moving once you have done the two actions asked for on the camera picture.
               </p>
             </div>

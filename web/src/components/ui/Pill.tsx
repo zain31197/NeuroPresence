@@ -35,7 +35,7 @@ export function Pill({ tone = 'neutral', icon, className, children }: Props) {
   return (
     <span
       className={cn(
-        'inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2 text-[11.5px] font-medium whitespace-nowrap',
+        'inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2 text-[11.5px] font-medium whitespace-nowrap transition-colors duration-300',
         tones[tone],
         className,
       )}

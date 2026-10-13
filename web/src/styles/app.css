@@ -80,6 +80,52 @@
   --animate-rise: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-count: count 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; /* one number of the countdown */
   --animate-flash: flash 0.45s ease-out both; /* the moment a picture is taken */
+  --animate-enter: enter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; /* a screen, or a part of one, arriving */
+  --animate-drop: drop 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; /* a notice sliding in from above */
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite; /* a placeholder while the engine has not answered */
+  --animate-halo: halo 2.4s ease-in-out infinite; /* around the output while it is live */
+
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-lift: 0 2px 4px rgb(11 13 18 / 0.05), 0 16px 36px -18px rgb(11 13 18 / 0.18);
+  --shadow-screen: 0 1px 2px rgb(11 13 18 / 0.1), 0 18px 40px -22px rgb(11 13 18 / 0.45);
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes drop {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes halo {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1px rgb(229 72 77 / 0.35), 0 18px 40px -22px rgb(229 72 77 / 0.35);
+    }
+    50% {
+      box-shadow: 0 0 0 1px rgb(229 72 77 / 0.6), 0 18px 46px -18px rgb(229 72 77 / 0.5);
+    }
+  }
 
   @keyframes lamp {
     0%,
@@ -135,7 +181,11 @@
     scroll-behavior: smooth;
   }
   body {
-    background: var(--color-canvas);
+    /* A little light from above, so the page is not one flat grey. */
+    background:
+      radial-gradient(1200px 520px at 18% -8%, rgb(80 98 240 / 0.055), transparent 62%),
+      radial-gradient(900px 480px at 96% -12%, rgb(90 235 120 / 0.04), transparent 60%),
+      var(--color-canvas);
     color: var(--color-ink-800);
     font-family: var(--font-sans);
     font-size: 14px;
@@ -160,6 +210,38 @@
   [role='switch']:not(:disabled) {
     cursor: pointer;
   }
+}
+
+/* Thin, quiet scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-200) transparent;
+}
+
+/* The parts of a screen arrive one after another, top to bottom. */
+@utility stagger {
+  & > * {
+    animation: var(--animate-enter);
+  }
+  & > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  & > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  & > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+  & > *:nth-child(n + 5) {
+    animation-delay: 240ms;
+  }
+}
+/* A grey bar that stands in for a figure that has not arrived yet. */
+@utility skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--color-ink-100) 25%, var(--color-ink-50) 45%, var(--color-ink-100) 65%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
 }
 
 /* Headlines are set a little wide and tight, the way broadcast titles are. */

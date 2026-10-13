@@ -449,6 +449,33 @@ So more time costs a photograph nothing and a recording of ordinary talking noth
 
 **Measured.** The full benchmark is unchanged (`results/benchmark_rest_windows_rtx5050.json`): identity 0.899 (0.898), pose error 0.63 degrees (0.62), expression error 0.026 (0.026), mouth agreement 0.957 (0.957), flicker 0.75 (0.75), tremble 1.01 (1.00). 324 engine and server tests pass (1 new). Not yet seen on Zain's camera.
 
+### 13 October 2026: measured on a real camera for the first time
+
+**The recording.** `scripts/record_camera.py` records a minute of the user's own camera while a window says what to do (sit still, talk, nod, turn, look down, sit still), and saves it in `data/recordings/`, which git ignores. Zain recorded 1,680 frames in 56 s at 30 frames a second. The benchmark was run on it twice: with a frame of the recording as the picture, and with his enrolled meeting picture (`results/benchmark_own_camera_zain.json`).
+
+**What it showed.** Identity 0.94 to 0.95 against 0.90 on the sample clips; tremble 0.80 to 0.91 of real video and flicker 0.28 to 0.30; render 36 ms. So on a webcam in a room the picture is as steady and as much the person as on studio clips. What was worse was how closely the face is followed: expression error 0.040 of 0.045 of movement, mouth agreement 0.88, and 0.70 with the enrolled picture.
+
+**Cause, found by switching one thing off at a time.** The rest follower added the day before. With it off the expression error was 0.021 and the mouth agreement 0.91. It treated a closed mouth facing the camera as rest and took four seconds to follow, so a held smile or raised brows were eased away. The natural head range accounts for the head: with it off the pose error falls from 4.6 to 0.55 degrees, and identity falls to 0.89 with frames at 0.76, which is the distortion it exists to prevent. A wider range gained 0.2 degrees and was not kept.
+
+**Changed** (`neuropresence/reenactment/engine.py`). At rest, where the head is follows over 12 seconds and what the face is doing over 30, after 1.5 seconds of rest (it was 4 seconds for both, after 1). A poor neutral frame is still gone within a minute, and "Reset neutral pose" does it at once.
+
+| On the recording | Follower at 4 s | Now | Follower off |
+|---|---|---|---|
+| Expression error, own frame as picture | 0.040 | 0.025 | 0.021 |
+| Mouth agreement, own frame | 0.88 | 0.89 | 0.91 |
+| Expression error, enrolled picture | 0.045 | 0.037 | |
+| Mouth agreement, enrolled picture | 0.70 | 0.79 | |
+| Pose error, degrees | 5.3 | 4.8 | 4.6 |
+| Identity | 0.95 | 0.94 | 0.94 |
+
+The eight sample clips are unchanged (`results/benchmark_rest_windows_rtx5050.json`): identity 0.898, pose error 0.62, expression error 0.026, mouth agreement 0.957, flicker 0.75, tremble 1.01.
+
+**The Live Studio and the frame rate.** With the page open in a browser the session lost 1.8 frames a second, because the browser uses the same card. Blurred labels over the video and two pulsing effects were the cost; without them the loss is about 1.0 (20.8 to 20.9 frames a second with the page open, 21.8 to 22.0 without). The app was given a polish pass the same day: figures that glide, screens that arrive, a placeholder before the engine answers.
+
+**Also fixed.** A check that ended as refused still reported the action it had been about to ask for; found by a test that had started failing on timing.
+
+**Checked.** 324 engine and server tests, 50 web tests. One recording by one person: the other two members have not recorded yet.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

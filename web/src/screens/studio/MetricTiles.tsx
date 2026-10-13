@@ -7,6 +7,7 @@ import { Meter } from '../../components/viz/Meter'
 import { Sparkline } from '../../components/viz/Sparkline'
 import type { Benchmark } from '../../lib/api'
 import { verdict, type Verdict } from '../../lib/format'
+import { useEased } from '../../lib/motion'
 import { useStudio } from '../../lib/studio'
 import { guardNote } from './holds'
 
@@ -33,10 +34,11 @@ interface FigureProps {
 }
 
 function Figure({ label, about, value, digits, unit, result, target, benchmark, unavailable, note, children }: FigureProps) {
-  const known = value !== null && value !== undefined
+  const eased = useEased(value)
+  const known = value !== null && value !== undefined && eased !== null && eased !== undefined
   const hasBenchmark = benchmark !== null && benchmark !== undefined
   return (
-    <div className="flex min-w-0 flex-col bg-surface px-5 py-4 last:@lg:col-span-2 last:@4xl:col-span-1">
+    <div className="flex min-w-0 flex-col bg-surface px-5 py-4 transition-colors duration-300 hover:bg-ink-50/60 last:@lg:col-span-2 last:@4xl:col-span-1">
       <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink-600">
         <span className="truncate">{label}</span>
         <Tooltip content={about}>
@@ -47,7 +49,7 @@ function Figure({ label, about, value, digits, unit, result, target, benchmark, 
       </div>
       <p className="mt-2 flex items-baseline gap-1.5">
         {known ? (
-          <span className="display text-[30px] leading-none font-semibold text-ink-950 tabular-nums">{value.toFixed(digits)}</span>
+          <span className="display text-[30px] leading-none font-semibold text-ink-950 tabular-nums">{eased.toFixed(digits)}</span>
         ) : (
           <span className="text-[30px] leading-none font-light text-ink-300" aria-label="No reading yet">
             &mdash;
@@ -81,7 +83,24 @@ function Figure({ label, about, value, digits, unit, result, target, benchmark, 
 /** The five figures the project is judged on, live, each against its target. */
 export function MetricTiles({ benchmark }: { benchmark: Benchmark | null }) {
   const { status, history } = useStudio()
-  if (!status) return null
+  // Before the engine has answered: the shape of the figures, so the page does not jump when they arrive.
+  if (!status) {
+    return (
+      <Card className="@container overflow-hidden" aria-busy="true" aria-label="Loading the live figures">
+        <div className="grid grid-cols-1 gap-px bg-line @lg:grid-cols-2 @4xl:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((tile) => (
+            <div key={tile} className="bg-surface px-5 py-4">
+              <div className="skeleton h-3.5 w-24" />
+              <div className="skeleton mt-3 h-8 w-20" />
+              <div className="skeleton mt-3 h-[22px] w-[84px] rounded-full" />
+              <div className="skeleton mt-3 h-3 w-28" />
+              <div className="skeleton mt-4 h-[46px] w-full" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    )
+  }
 
   const { targets, identity, gpu } = status
   const metrics = status.session.metrics

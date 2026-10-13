@@ -44,7 +44,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={toast.id}
             role={toast.kind === 'problem' ? 'alert' : 'status'}
-            className="pointer-events-auto flex animate-rise items-start gap-2.5 rounded-panel border border-line bg-surface p-3 shadow-raised"
+            className="pointer-events-auto flex animate-enter items-start gap-2.5 rounded-panel border border-line bg-surface/95 p-3 shadow-raised backdrop-blur-md"
           >
             <span
               className={cn(

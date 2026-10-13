@@ -214,7 +214,7 @@ def test_a_held_posture_becomes_the_rest_position_and_a_small_movement_does_not(
 def test_at_rest_the_neutral_pose_follows_the_person_and_a_passing_look_does_not_move_it():
     import torch
 
-    from neuropresence.reenactment.engine import REST_HOLD_SECONDS, ReenactmentEngine
+    from neuropresence.reenactment.engine import REST_EXPRESSION_SECONDS, REST_HOLD_SECONDS, REST_SECONDS, ReenactmentEngine
 
     def face(brows=0.0, yaw=0.0):
         return {"pitch": torch.tensor([[0.0]]), "yaw": torch.tensor([[yaw]]), "roll": torch.tensor([[0.0]]),
@@ -238,21 +238,25 @@ def test_at_rest_the_neutral_pose_follows_the_person_and_a_passing_look_does_not
 
     # At rest: nothing for the first second, then the neutral pose eases toward how the person looks now.
     engine.resting = True
-    for step in range(int(REST_HOLD_SECONDS * 10)):
+    hold = int(REST_HOLD_SECONDS * 10)
+    for step in range(hold):
         engine._follow_rest(relaxed, at=10.0 + step * 0.1)
     assert off() == pytest.approx(0.02)
-    for step in range(10, 50):
+    # A look held for five seconds still shows: most of it is left. The head has come further back than the look.
+    for step in range(hold, hold + 50):
         engine._follow_rest(relaxed, at=10.0 + step * 0.1)
-    assert 0.02 * 0.3 < off() < 0.02 * 0.45  # four seconds on, about two thirds of it is gone
-    for step in range(50, 300):
+    assert off() > 0.02 * 0.8
+    assert REST_EXPRESSION_SECONDS > REST_SECONDS and abs(float(engine._reference["info"]["yaw"])) < 6.0 * 0.72
+    # Left at rest for two minutes and a half, the look and the head are back.
+    for step in range(hold + 50, hold + 1500):
         engine._follow_rest(relaxed, at=10.0 + step * 0.1)
-    assert off() < 0.0005 and abs(float(engine._reference["info"]["yaw"])) < 0.05  # the look and the head are back
+    assert off() < 0.0005 and abs(float(engine._reference["info"]["yaw"])) < 0.05
     assert abs(engine._reference["rotation"][1]) < 0.05
 
     # A blink or a word breaks the rest, and the wait starts again.
     engine.resting = False
-    engine._follow_rest(face(brows=0.03), at=40.1)
+    engine._follow_rest(face(brows=0.03), at=170.1)
     engine.resting = True
     for step in range(5):
-        engine._follow_rest(face(brows=0.03), at=40.2 + step * 0.1)
+        engine._follow_rest(face(brows=0.03), at=170.2 + step * 0.1)
     assert off() < 0.0005

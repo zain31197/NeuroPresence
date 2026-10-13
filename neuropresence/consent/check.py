@@ -112,6 +112,9 @@ class ConsentCheck:
             state["stage"], state["prompt"] = "confirming", "Hold still for a moment"
         elif self.passed is not None:
             state["stage"], state["prompt"] = ("passed" if self.passed else "refused"), ""
+            # The check is over: nothing is being asked for any more, whatever the prompt was about to ask.
+            state["action"] = state["seconds_left"] = state["progress"] = None
+            state["note"] = ""
         state["reason"] = self.reason
         state["failure"] = self.failure
         state["match"] = None if self.match is None else round(self.match, 3)

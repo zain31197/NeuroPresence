@@ -21,32 +21,37 @@ interface MonitorProps {
   footer?: ReactNode
   /** Which lower corner the footer sits in. The output carries its disclosure mark in the lower left, so its footer goes right. */
   footerAt?: 'left' | 'right'
+  /** The picture is live right now: the screen carries a soft red halo, like a tally light. */
+  live?: boolean
   className?: string
   children: ReactNode
 }
 
 /** A 16:9 screen with a label in its corner: the frame around every picture in the studio. */
-export function Monitor({ label, detail, lit, chip, footer, footerAt = 'left', className, children }: MonitorProps) {
+export function Monitor({ label, detail, lit, chip, footer, footerAt = 'left', live, className, children }: MonitorProps) {
   return (
     <div
       className={cn(
-        'relative aspect-video overflow-hidden rounded-panel transition-colors duration-300',
-        lit ? 'bg-stage' : 'border border-dashed border-line-strong bg-ink-50',
+        'relative aspect-video overflow-hidden rounded-panel transition-[background-color,box-shadow] duration-500 ease-out-soft',
+        lit ? 'bg-stage shadow-screen ring-1 ring-black/10' : 'border border-dashed border-line-strong bg-ink-50',
+        lit && live && 'shadow-[0_0_0_1.5px_rgb(229_72_77/0.55),0_18px_44px_-20px_rgb(229_72_77/0.5)]',
         className,
       )}
     >
       {children}
+      {/* A little shade at the top and bottom edge, so the labels read on any picture. */}
+      {lit && <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/20" />}
       <div className="absolute top-3 left-3 flex items-center gap-1.5">
-        <span className={cn('label-caps rounded-chip px-2 py-1', lit ? 'bg-black/55 text-white backdrop-blur-sm' : 'bg-surface text-ink-600 shadow-control')}>
+        <span className={cn('label-caps rounded-chip px-2 py-1', lit ? 'bg-black/65 text-white' : 'bg-surface text-ink-600 shadow-control')}>
           {label}
         </span>
-        {detail && <span className="label-caps rounded-chip bg-black/55 px-2 py-1 text-white/80 backdrop-blur-sm">{detail}</span>}
+        {detail && <span className="label-caps rounded-chip bg-black/65 px-2 py-1 text-white/80">{detail}</span>}
       </div>
       {chip && <div className="absolute top-3 right-3">{chip}</div>}
       {footer && (
         <div
           className={cn(
-            'absolute bottom-3 rounded-chip bg-black/55 px-2 py-1 font-mono text-[11px] text-white/90 tabular-nums backdrop-blur-sm',
+            'absolute bottom-3 rounded-chip bg-black/65 px-2 py-1 font-mono text-[11px] text-white/90 tabular-nums',
             footerAt === 'right' ? 'right-3' : 'left-3',
           )}
         >
@@ -70,7 +75,7 @@ export function Empty({ icon, title, hint, action }: EmptyProps) {
   return (
     <div className="absolute inset-0 grid place-items-center p-6 text-center">
       <div className="max-w-[300px]">
-        <span className="mx-auto grid size-10 place-items-center rounded-full bg-surface text-ink-500 shadow-control">{icon}</span>
+        <span className="mx-auto grid size-11 place-items-center rounded-full bg-surface text-ink-500 shadow-card ring-1 ring-line">{icon}</span>
         <p className="mt-3 text-[13.5px] font-medium text-ink-900">{title}</p>
         <p className="mt-1 text-[12.5px] leading-snug text-ink-500">{hint}</p>
         {action && <div className="mt-4 flex flex-wrap items-center justify-center gap-2">{action}</div>}

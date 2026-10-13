@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-13T01:12:58",
+  "date": "2026-10-13T06:54:04",
   "machine": {
     "os": "Windows-11-10.0.26200-SP0",
     "gpu": "NVIDIA GeForce RTX 5050",
@@ -7,7 +7,7 @@
     "torch": "2.11.0+cu128"
   },
   "code": {
-    "neuropresence": "02829ee+uncommitted",
+    "neuropresence": "794b367+uncommitted",
     "liveportrait": "9b294b3"
   },
   "manifest": "samples.json",
@@ -21,20 +21,20 @@
   },
   "summary": {
     "pairs": 8,
-    "fps": 17.03,
-    "render_ms": 37.176,
-    "pipeline_ms": 58.742,
+    "fps": 16.678,
+    "render_ms": 36.156,
+    "pipeline_ms": 60.04,
     "peak_vram_gb": 1.28,
-    "csim_self_reenactment": 0.899,
+    "csim_self_reenactment": 0.898,
     "csim_real_video": 0.85,
-    "pose_error_deg": 0.629,
+    "pose_error_deg": 0.624,
     "pose_motion_deg": 1.393,
     "expression_error": 0.026,
     "expression_motion": 0.072,
     "mouth_opening_correlation": 0.957,
-    "lag_frames": -0.015,
-    "warping_error_ratio": 0.746,
-    "jitter_ratio": 1.009
+    "lag_frames": -0.014,
+    "warping_error_ratio": 0.747,
+    "jitter_ratio": 1.006
   },
   "notes": [
     "pipeline_ms covers tracker, crop, motion, render and compose; it excludes camera capture and display.",
@@ -53,32 +53,32 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 10.65,
-          "p95": 12.71,
-          "p99": 14.73
+          "mean": 11.84,
+          "p95": 15.03,
+          "p99": 19.07
         },
         "motion": {
-          "mean": 6.45,
-          "p95": 7.3,
-          "p99": 8.87
+          "mean": 6.73,
+          "p95": 8.03,
+          "p99": 8.76
         },
         "render": {
-          "mean": 37.49,
-          "p95": 39.42,
-          "p99": 40.93
+          "mean": 35.7,
+          "p95": 36.41,
+          "p99": 36.66
         },
         "compose": {
-          "mean": 0.68,
+          "mean": 0.79,
           "p95": 1.07,
-          "p99": 1.16
+          "p99": 1.43
         },
         "total": {
-          "mean": 58.01,
-          "p95": 63.62,
-          "p99": 66.12
+          "mean": 58.13,
+          "p95": 63.25,
+          "p99": 66.41
         }
       },
-      "fps": 17.24,
+      "fps": 17.2,
       "peak_vram_gb": 1.28,
       "csim": {
         "mean": 0.878,
@@ -123,37 +123,37 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 11.09,
-          "p95": 14.5,
-          "p99": 18.35
+          "mean": 12.11,
+          "p95": 15.24,
+          "p99": 22.8
         },
         "motion": {
-          "mean": 6.76,
-          "p95": 8.02,
-          "p99": 8.98
+          "mean": 6.86,
+          "p95": 7.96,
+          "p99": 8.59
         },
         "render": {
-          "mean": 38.51,
-          "p95": 41.33,
-          "p99": 41.91
+          "mean": 35.9,
+          "p95": 37.14,
+          "p99": 38.94
         },
         "compose": {
-          "mean": 0.72,
-          "p95": 0.99,
-          "p99": 1.32
+          "mean": 0.81,
+          "p95": 1.07,
+          "p99": 1.31
         },
         "total": {
-          "mean": 60.49,
-          "p95": 65.91,
-          "p99": 72.68
+          "mean": 59.49,
+          "p95": 64.74,
+          "p99": 75.12
         }
       },
-      "fps": 16.53,
+      "fps": 16.81,
       "peak_vram_gb": 1.28,
       "csim": {
-        "mean": 0.894,
+        "mean": 0.891,
         "min": 0.808,
-        "p05": 0.817,
+        "p05": 0.814,
         "share_at_or_above_threshold": 1.0,
         "threshold": 0.8,
         "frames": 150
@@ -168,22 +168,22 @@
         "frames": 150
       },
       "motion": {
-        "pose_error_deg": 1.0,
+        "pose_error_deg": 0.97,
         "pose_motion_deg": 2.6,
-        "expression_error": 0.0213,
+        "expression_error": 0.0223,
         "expression_motion": 0.0864,
         "mouth_opening_correlation": 0.88,
-        "lag_frames": -0.55
+        "lag_frames": -0.52
       },
       "warping_error_x1000": {
-        "output": 0.0615,
+        "output": 0.0621,
         "driving": 0.098,
-        "ratio": 0.628
+        "ratio": 0.634
       },
       "jitter_percent_of_eye_span": {
-        "output": 0.8395,
+        "output": 0.8214,
         "driving": 0.6061,
-        "ratio": 1.385
+        "ratio": 1.355
       }
     },
     {
@@ -193,38 +193,38 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 10.53,
-          "p95": 12.51,
-          "p99": 15.23
+          "mean": 11.7,
+          "p95": 13.56,
+          "p99": 20.88
         },
         "motion": {
-          "mean": 6.33,
-          "p95": 7.13,
-          "p99": 7.76
+          "mean": 6.75,
+          "p95": 8.03,
+          "p99": 10.26
         },
         "render": {
-          "mean": 36.73,
-          "p95": 38.04,
-          "p99": 40.23
+          "mean": 35.74,
+          "p95": 36.88,
+          "p99": 37.42
         },
         "compose": {
-          "mean": 0.64,
-          "p95": 0.85,
-          "p99": 1.11
+          "mean": 0.74,
+          "p95": 0.91,
+          "p99": 1.0
         },
         "total": {
-          "mean": 57.35,
-          "p95": 61.44,
-          "p99": 64.28
+          "mean": 58.33,
+          "p95": 62.87,
+          "p99": 68.71
         }
       },
-      "fps": 17.44,
+      "fps": 17.15,
       "peak_vram_gb": 1.28,
       "csim": {
-        "mean": 0.873,
-        "min": 0.754,
-        "p05": 0.777,
-        "share_at_or_above_threshold": 0.793,
+        "mean": 0.87,
+        "min": 0.746,
+        "p05": 0.767,
+        "share_at_or_above_threshold": 0.773,
         "threshold": 0.8,
         "frames": 150
       },
@@ -238,22 +238,22 @@
         "frames": 150
       },
       "motion": {
-        "pose_error_deg": 0.52,
+        "pose_error_deg": 0.51,
         "pose_motion_deg": 1.81,
-        "expression_error": 0.0443,
+        "expression_error": 0.0433,
         "expression_motion": 0.09,
-        "mouth_opening_correlation": 0.957,
-        "lag_frames": 0.06
+        "mouth_opening_correlation": 0.959,
+        "lag_frames": 0.04
       },
       "warping_error_x1000": {
-        "output": 0.0881,
+        "output": 0.089,
         "driving": 0.1577,
-        "ratio": 0.559
+        "ratio": 0.564
       },
       "jitter_percent_of_eye_span": {
-        "output": 1.1093,
+        "output": 1.1398,
         "driving": 1.2153,
-        "ratio": 0.913
+        "ratio": 0.938
       }
     },
     {
@@ -263,37 +263,37 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 11.18,
-          "p95": 14.79,
-          "p99": 17.42
+          "mean": 11.67,
+          "p95": 14.29,
+          "p99": 17.77
         },
         "motion": {
-          "mean": 6.62,
-          "p95": 8.04,
-          "p99": 9.99
+          "mean": 6.74,
+          "p95": 8.31,
+          "p99": 10.41
         },
         "render": {
-          "mean": 37.39,
-          "p95": 39.33,
-          "p99": 40.52
+          "mean": 36.01,
+          "p95": 38.69,
+          "p99": 39.85
         },
         "compose": {
-          "mean": 0.69,
-          "p95": 1.02,
-          "p99": 1.22
+          "mean": 0.85,
+          "p95": 1.26,
+          "p99": 2.08
         },
         "total": {
-          "mean": 58.85,
-          "p95": 64.81,
-          "p99": 68.71
+          "mean": 58.44,
+          "p95": 64.83,
+          "p99": 69.51
         }
       },
-      "fps": 16.99,
+      "fps": 17.11,
       "peak_vram_gb": 1.28,
       "csim": {
-        "mean": 0.95,
-        "min": 0.886,
-        "p05": 0.9,
+        "mean": 0.949,
+        "min": 0.882,
+        "p05": 0.898,
         "share_at_or_above_threshold": 1.0,
         "threshold": 0.8,
         "frames": 150
@@ -310,20 +310,20 @@
       "motion": {
         "pose_error_deg": 0.21,
         "pose_motion_deg": 0.52,
-        "expression_error": 0.0133,
+        "expression_error": 0.013,
         "expression_motion": 0.0309,
         "mouth_opening_correlation": 0.997,
         "lag_frames": 0.06
       },
       "warping_error_x1000": {
-        "output": 0.0345,
+        "output": 0.0344,
         "driving": 0.063,
-        "ratio": 0.548
+        "ratio": 0.546
       },
       "jitter_percent_of_eye_span": {
-        "output": 0.4433,
+        "output": 0.4342,
         "driving": 0.523,
-        "ratio": 0.848
+        "ratio": 0.83
       }
     },
     {
@@ -333,32 +333,32 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 10.97,
-          "p95": 15.16,
-          "p99": 17.16
+          "mean": 12.55,
+          "p95": 14.69,
+          "p99": 15.91
         },
         "motion": {
-          "mean": 6.64,
-          "p95": 7.89,
-          "p99": 8.97
+          "mean": 7.7,
+          "p95": 9.04,
+          "p99": 23.54
         },
         "render": {
-          "mean": 36.67,
-          "p95": 37.39,
-          "p99": 39.29
+          "mean": 37.01,
+          "p95": 39.21,
+          "p99": 40.42
         },
         "compose": {
-          "mean": 0.74,
-          "p95": 1.09,
-          "p99": 1.94
+          "mean": 0.99,
+          "p95": 1.52,
+          "p99": 3.05
         },
         "total": {
-          "mean": 58.14,
-          "p95": 65.68,
-          "p99": 69.52
+          "mean": 61.96,
+          "p95": 68.98,
+          "p99": 85.6
         }
       },
-      "fps": 17.2,
+      "fps": 16.14,
       "peak_vram_gb": 1.28,
       "csim": {
         "mean": 0.884,
@@ -403,32 +403,32 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 12.07,
-          "p95": 15.29,
-          "p99": 17.58
+          "mean": 14.67,
+          "p95": 21.28,
+          "p99": 30.86
         },
         "motion": {
-          "mean": 6.28,
-          "p95": 6.98,
-          "p99": 8.5
+          "mean": 7.43,
+          "p95": 9.87,
+          "p99": 14.48
         },
         "render": {
-          "mean": 36.61,
-          "p95": 38.45,
-          "p99": 40.36
+          "mean": 36.88,
+          "p95": 39.37,
+          "p99": 41.66
         },
         "compose": {
-          "mean": 1.43,
-          "p95": 1.73,
-          "p99": 1.93
+          "mean": 2.01,
+          "p95": 3.55,
+          "p99": 4.84
         },
         "total": {
-          "mean": 59.78,
-          "p95": 66.39,
-          "p99": 68.22
+          "mean": 65.05,
+          "p95": 79.6,
+          "p99": 94.72
         }
       },
-      "fps": 16.73,
+      "fps": 15.37,
       "peak_vram_gb": 1.28,
       "csim": {
         "mean": 0.943,
@@ -473,32 +473,32 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 10.63,
-          "p95": 13.6,
-          "p99": 16.19
+          "mean": 11.68,
+          "p95": 13.34,
+          "p99": 14.61
         },
         "motion": {
-          "mean": 6.31,
-          "p95": 6.9,
-          "p99": 8.05
+          "mean": 6.94,
+          "p95": 8.56,
+          "p99": 9.96
         },
         "render": {
-          "mean": 36.72,
-          "p95": 38.28,
-          "p99": 39.1
+          "mean": 35.94,
+          "p95": 38.49,
+          "p99": 40.54
         },
         "compose": {
-          "mean": 0.61,
-          "p95": 0.79,
-          "p99": 0.89
+          "mean": 0.8,
+          "p95": 1.21,
+          "p99": 1.97
         },
         "total": {
-          "mean": 57.37,
-          "p95": 62.53,
-          "p99": 65.02
+          "mean": 58.72,
+          "p95": 63.38,
+          "p99": 67.11
         }
       },
-      "fps": 17.43,
+      "fps": 17.03,
       "peak_vram_gb": 1.28,
       "csim": {
         "mean": 0.873,
@@ -543,32 +543,32 @@
       "frames_fallback": 0,
       "latency_ms": {
         "tracker": {
-          "mean": 11.39,
-          "p95": 15.51,
-          "p99": 20.91
+          "mean": 12.25,
+          "p95": 14.24,
+          "p99": 15.48
         },
         "motion": {
-          "mean": 6.52,
-          "p95": 7.72,
-          "p99": 9.07
+          "mean": 7.17,
+          "p95": 9.21,
+          "p99": 10.97
         },
         "render": {
-          "mean": 37.29,
-          "p95": 39.84,
-          "p99": 40.22
+          "mean": 36.07,
+          "p95": 37.53,
+          "p99": 38.79
         },
         "compose": {
-          "mean": 1.51,
-          "p95": 1.91,
-          "p99": 2.91
+          "mean": 1.33,
+          "p95": 1.81,
+          "p99": 1.87
         },
         "total": {
-          "mean": 59.95,
-          "p95": 66.34,
-          "p99": 73.66
+          "mean": 60.2,
+          "p95": 64.87,
+          "p99": 66.54
         }
       },
-      "fps": 16.68,
+      "fps": 16.61,
       "peak_vram_gb": 1.28,
       "csim": {
         "mean": 0.825,

@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 
 export function Card({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-card border border-line bg-surface shadow-card', className)} {...rest} />
+  return <div className={cn('rounded-card border border-line bg-surface shadow-card transition-shadow duration-300 ease-out-soft', className)} {...rest} />
 }
 
 interface HeaderProps {
