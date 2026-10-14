@@ -36,6 +36,10 @@ class FeaturePatch(BaseModel):
     enabled: bool
 
 
+class CameraSwitch(BaseModel):
+    on: bool
+
+
 def create_app(runtime=None, web_dist=WEB_DIST):
     runtime = runtime or Runtime()
 
@@ -200,6 +204,13 @@ def create_app(runtime=None, web_dist=WEB_DIST):
             raise HTTPException(status_code=404, detail=f"Unknown feature: {key}") from None
         runtime.events.add("info", f"{feature['label']} turned {'on' if feature['enabled'] else 'off'}.")
         return feature
+
+    # --------------------------------------------------------- virtual camera
+
+    @app.post("/api/virtual-camera")
+    def virtual_camera(switch: CameraSwitch):
+        """Offer the output to meeting applications as a camera, or stop offering it."""
+        return attempt(lambda: runtime.switch_virtual_camera(switch.on))
 
     # ----------------------------------------------------------------- stream
 

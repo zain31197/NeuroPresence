@@ -127,6 +127,21 @@ class FakeEngine:
         self.neutral_faces.append(face.shape)
 
 
+class FakeCamera:
+    """Stands in for the virtual camera device: keeps the newest frame it was sent."""
+
+    device = "Test Camera"
+
+    def __init__(self):
+        self.sent, self.newest, self.closed = 0, None, False
+
+    def send(self, frame):
+        self.sent, self.newest = self.sent + 1, frame.copy()
+
+    def close(self):
+        self.closed = True
+
+
 class FakeScorer:
     """Gives every face the signature `face`. Two faces with the same signature are `alike`; any other two are not."""
 
@@ -158,10 +173,16 @@ def make_runtime(tmp_path, parts):
     samples = tmp_path / "samples"
     samples.mkdir(exist_ok=True)
     (samples / "d0.mp4").touch()  # the fake feed never opens it; it only has to be listed
+    def open_camera(width, height, fps):
+        if parts.get("no_camera"):
+            raise RuntimeError("No virtual camera could be opened. Install OBS Studio.")
+        parts.setdefault("cameras", []).append(FakeCamera())
+        return parts["cameras"][-1]
+
     return Runtime(engine_factory=make_engine, feed_factory=make_feed,
                    tracker_factory=lambda video=True: parts["tracker"], scorer_factory=FakeScorer,
                    gpu_probe=read_gpu, data_dir=tmp_path / "data", results_dir=tmp_path / "results",
-                   sample_dir=samples)
+                   sample_dir=samples, camera_opener=open_camera)
 
 
 @pytest.fixture
@@ -1448,3 +1469,112 @@ def test_a_camera_slower_than_the_drawing_is_pointed_out_once(parts, monkeypatch
     start(parts)
     time.sleep(0.6)
     assert sum(message.startswith("The camera is delivering") for message in events(parts)) == 1  # nothing new to say
+
+
+# ---------------------------------------------------------- virtual camera
+
+
+def camera_card():
+    from neuropresence.server.virtual_camera import card
+    return card()
+
+
+def sends_the_output(parts, camera):
+    """Is the camera being sent the output of the session as it is now, mark and all, fitted to the device?"""
+    from neuropresence.server.virtual_camera import fit
+    pair = parts["runtime"].session.latest_pair()
+    return (pair is not None and camera.newest is not None and is_marked(pair.output)
+            and np.array_equal(camera.newest, fit(pair.output)))
+
+
+def picture_in(sent, like=FRAME):
+    """The part of a frame sent to the camera that holds the picture, without the bars beside or above it."""
+    height, width = sent.shape[:2]
+    scale = min(width / like.shape[1], height / like.shape[0])
+    w, h = int(round(like.shape[1] * scale)), int(round(like.shape[0] * scale))
+    x, y = (width - w) // 2, (height - h) // 2
+    return sent[y:y + h, x:x + w]
+
+
+def test_the_virtual_camera_is_off_until_it_is_switched_on(parts):
+    assert status(parts)["virtual_camera"] == {"on": False, "device": None, "reason": None, "showing": "nothing",
+                                               "size": [1280, 720], "fps": 30}
+    reply = parts["client"].post("/api/virtual-camera", json={"on": True})
+    assert reply.status_code == 200 and reply.json()["on"] is True and reply.json()["device"] == "Test Camera"
+    assert any("Virtual camera turned on" in message for message in events(parts))
+    assert parts["client"].post("/api/virtual-camera", json={"on": False}).json()["on"] is False
+    assert parts["cameras"][0].closed and status(parts)["virtual_camera"]["on"] is False
+
+
+def test_a_meeting_sees_nothing_of_the_user_until_the_prompt_has_been_answered(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_left", "blink")
+    client = parts["client"]
+    client.post("/api/virtual-camera", json={"on": True})
+    camera = parts["cameras"][0]
+    assert wait_for(lambda: camera.sent >= 2)
+    assert np.array_equal(camera.newest, camera_card())  # no session: the card, not the enrolled picture
+    client.post("/api/session/start", json={"input": "camera:0"})
+    assert wait_for(lambda: (status(parts)["session"]["consent"] or {}).get("action") == "turn_left")
+    sent = camera.sent
+    assert wait_for(lambda: camera.sent >= sent + 3)
+    # The check is running and the Live Studio shows the still picture beside the camera. The meeting does not get it.
+    assert np.array_equal(camera.newest, camera_card()) and status(parts)["virtual_camera"]["showing"] == "card"
+    answer(parts, lambda: status(parts)["session"]["consent"], lambda: status(parts)["session"]["state"] != "starting")
+    assert wait_for(lambda: status(parts)["virtual_camera"]["showing"] == "session")
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().live)
+    assert wait_for(lambda: not np.array_equal(camera.newest, camera_card()) and sends_the_output(parts, camera))
+    assert camera.newest.shape == (720, 1280, 3)
+    client.post("/api/session/stop")
+    assert wait_for(lambda: np.array_equal(camera.newest, camera_card()))  # the session is over: the card again
+
+
+def test_a_face_that_does_nothing_never_reaches_the_meeting(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_right", "open_mouth", seconds=0.3)
+    parts["client"].post("/api/virtual-camera", json={"on": True})
+    camera = parts["cameras"][0]
+    parts["client"].post("/api/session/start", json={"input": "camera:0"})  # a photograph: the right face, doing nothing
+    seen = []
+    while status(parts)["session"]["state"] == "starting":
+        seen.append(np.array_equal(camera.newest, camera_card()) if camera.newest is not None else True)
+        time.sleep(0.02)
+    assert status(parts)["session"]["state"] == "error" and seen and all(seen)
+    assert np.array_equal(camera.newest, camera_card())
+
+
+def test_a_sample_clip_is_not_sent_to_the_meeting(parts):
+    parts["client"].post("/api/virtual-camera", json={"on": True})
+    camera = parts["cameras"][0]
+    start(parts, "sample:d0")
+    assert wait_for(lambda: parts["runtime"].session.latest_pair() is not None and parts["runtime"].session.latest_pair().live)
+    sent = camera.sent
+    assert wait_for(lambda: camera.sent >= sent + 3)
+    assert np.array_equal(camera.newest, camera_card())  # it animates someone else's face: the Live Studio only
+
+
+def test_the_meeting_sees_the_still_picture_when_someone_else_sits_down(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.runtime.WATCH_SECONDS", 0.03)
+    start(parts)
+    runtime, _, client = watch_identity_quickly(parts)
+    client.post("/api/virtual-camera", json={"on": True})
+    camera = parts["cameras"][0]
+    assert wait_for(lambda: runtime.session.latest_pair().live)
+    assert wait_for(lambda: camera.newest is not None and level(picture_in(camera.newest)) != pytest.approx(level(FRAME), abs=1))
+    monkeypatch.setattr(FakeScorer, "face", (0.0, 1.0))  # someone else sits down
+    assert wait_for(lambda: status(parts)["session"]["holds"]["consent"])
+    assert wait_for(lambda: level(picture_in(camera.newest)) == pytest.approx(level(FRAME), abs=1) and sends_the_output(parts, camera))
+    assert runtime.session.latest_pair().live is False  # the still picture, with its mark, is what the meeting gets
+
+
+def test_a_missing_camera_driver_is_said_in_words(parts):
+    parts["no_camera"] = True
+    reply = parts["client"].post("/api/virtual-camera", json={"on": True})
+    assert reply.status_code == 409 and "Install OBS Studio" in reply.json()["detail"]
+    assert status(parts)["virtual_camera"]["on"] is False
+
+
+def test_the_virtual_camera_is_let_go_when_the_engine_shuts_down(parts):
+    parts["client"].post("/api/virtual-camera", json={"on": True})
+    parts["runtime"].shutdown()
+    assert parts["cameras"][0].closed

@@ -60,7 +60,9 @@ STAGES = [
         "key": "virtual_camera",
         "name": "Virtual camera",
         "summary": "Delivers the output to meeting apps as an ordinary camera.",
-        "status": "planned",
-        "note": None,
+        "status": "working",
+        "note": "Switched on in the Live Studio. A meeting app sees the output of a running session, with its mark and "
+                "its fallbacks, and a plain card at any other time. Needs OBS Virtual Camera on Windows or "
+                "v4l2loopback on Linux.",
     },
 ]

@@ -22,6 +22,7 @@ from .features import FeatureSet
 from .guide import enrolment_guide
 from .preview import EnrolmentPreview
 from .session import LiveSession, SessionError, SessionState
+from .virtual_camera import VirtualCamera, open_device
 
 log = logging.getLogger("neuropresence.server")
 ROOT = Path(__file__).resolve().parents[2]
@@ -288,7 +289,7 @@ def _jpeg(image):
 class Runtime:
     def __init__(self, engine_factory=_default_engine, feed_factory=_default_feed,
                  tracker_factory=_default_tracker, scorer_factory=_default_scorer, gpu_probe=_default_gpu,
-                 data_dir=DATA_DIR, results_dir=RESULTS_DIR, sample_dir=SAMPLE_CLIPS):
+                 data_dir=DATA_DIR, results_dir=RESULTS_DIR, sample_dir=SAMPLE_CLIPS, camera_opener=open_device):
         self._engine_factory = engine_factory
         self.make_feed = feed_factory
         self.make_tracker = tracker_factory
@@ -317,6 +318,8 @@ class Runtime:
         self.session = LiveSession(self)
         self.preview = EnrolmentPreview(self)
         self.identity = IdentityMonitor(self)
+        # What a meeting application sees when it selects the virtual camera (virtual_camera.py).
+        self.virtual_camera = VirtualCamera(self.meeting_picture, opener=camera_opener)
 
     # ------------------------------------------------------------- engine
 
@@ -755,7 +758,29 @@ class Runtime:
         """The newest frames to show: from the live session, or else from the enrolment preview."""
         return self.session.latest_pair() or self.preview.latest_pair()
 
+    def meeting_picture(self):
+        """The frame the virtual camera sends now, or None when nothing of the user may be shown.
+
+        Only the output of a running camera session is sent: by then the consent check has passed,
+        and the frame carries the disclosure mark and every fallback. Not the picture shown while
+        the check runs, and not a sample clip, which animates someone else's face.
+        """
+        session = self.session
+        if session.state is not SessionState.RUNNING or not session.uses_enrolment:
+            return None
+        pair = session.latest_pair()
+        return None if pair is None else pair.output
+
+    def switch_virtual_camera(self, on):
+        state = self.virtual_camera.switch(on)
+        if on and not state["on"]:
+            raise SessionError(state["reason"] or "The virtual camera could not be switched on.")
+        self.events.add("info", f"Virtual camera turned on: meeting applications list it as \"{state['device']}\"."
+                        if on else "Virtual camera turned off.")
+        return state
+
     def shutdown(self):
+        self.virtual_camera.close()
         self.session.stop()
         self.preview.stop()
         self.identity.stop()
@@ -791,6 +816,7 @@ class Runtime:
             },
             "identity": self.identity.snapshot(),
             "features": self.features.as_list(),
+            "virtual_camera": self.virtual_camera.snapshot(),
             "gpu": self.gpu(),
             "targets": TARGETS,
             "inputs": self.inputs(),

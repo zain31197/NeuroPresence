@@ -2,7 +2,7 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (12 October 2026)
+## Where the project stands (14 October 2026)
 
 | Stage | State |
 |---|---|
@@ -12,7 +12,7 @@ A running record of what was built, what was decided and why, what was measured,
 | 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
 | 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
-| 6. Virtual camera (meeting apps) | Not built |
+| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. Not yet tried inside a call, nor on Kubuntu |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 326 for the engine and server, 50 for the web app, all passing.
+Tests: 342 for the engine and server, 55 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -521,6 +521,22 @@ Over the whole recording (`benchmarks/own_camera.json`, `results/benchmark_own_c
 A shorter lag brings the uneven steps back. Reading past the newest frame, by carrying the movement on the way it was going, keeps the steps even and takes its own length off the delay; it overshoots where the movement turns, which is the rise in the third column.
 
 **Decided by Zain: 10 ms** (`pipeline.py`: `LEAD_SECONDS`; `server/pacing.py`). A stand-in session then measured 91 ms at 21.3 frames a second with a camera at 30 frames a second (105 ms before), and 100 ms with a camera at 24. `results/pacing_study.json` is the study with it built in. 326 tests pass.
+
+### 14 October 2026: the virtual camera, the sixth feature
+
+Approved by Zain after an investigation of his PC: Python 3.12 on Windows 11, no virtual camera installed, Zoom installed and Google Meet in Chrome. The proposal names v4l2loopback on Linux and nothing for Windows; the mid report says the Windows driver is chosen in iteration 2. Chosen: OBS Virtual Camera on Windows, v4l2loopback on Kubuntu, both through `pyvirtualcam` (GPL v2, an optional dependency that is called, not copied). A camera of Windows 11's own would carry our name and needs a native component; not for this iteration. Zain installed OBS Studio 32.2.2.
+
+**Built** (`neuropresence/server/virtual_camera.py`).
+
+- A writer in the service layer, where the architecture has shown it as planned since the proposal. It sends the frame the Live Studio shows, so the mark and every fallback are on what a meeting sees, and no second path exists.
+- Outside a running camera session it sends a plain card, "NeuroPresence is not running". The enrolled picture is not shown while idle or while the prompt is being answered: that would let anyone at the computer put the user's picture into a meeting without passing the consent check. A sample clip is not sent either.
+- One size and rate, 1280 x 720 at 30 frames a second, as a webcam has. An upright picture is set in the middle. The newest frame is sent again until the next is drawn; a frame is fitted once however often it is sent.
+- Switched off, or when the engine shuts down, the last frame a meeting gets is the card, never a frozen face.
+- A switch in the Live Studio with one line on what a meeting sees now, and the install step in words when no driver is found. `POST /api/virtual-camera`.
+
+**Checked.** With a stand-in session feeding the real device, the device was read back by its name at five moments: the card with no session; the card while the prompt was being answered; the marked output once the session ran; the marked still picture when another face sat down; the card after the session stopped. The session ran at 21.1 frames a second and 90 ms with the camera on. 342 engine and server tests (16 new) and 55 web tests (5 new).
+
+**Not done yet.** A call in Google Meet and in Zoom, with the table of what works where. Kubuntu. The microphone delayed to match the picture (FR6.4). The camera is listed as "OBS Virtual Camera", not under our own name.
 
 ## Decisions and their reasons
 

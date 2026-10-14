@@ -212,6 +212,19 @@ export interface Targets {
   csim: number
 }
 
+/** The camera that meeting applications can select (server/virtual_camera.py in the engine). */
+export interface VirtualCamera {
+  on: boolean
+  /** The name a meeting application lists it under, once it has been opened. */
+  device: string | null
+  /** Why it could not be switched on, or why it stopped, in words. */
+  reason: string | null
+  /** 'session': the output of a running session. 'card': a plain card, because no session is running. */
+  showing: 'session' | 'card' | 'nothing'
+  size: [number, number]
+  fps: number
+}
+
 export interface Status {
   session: Session
   enrolment: Enrolment
@@ -224,6 +237,8 @@ export interface Status {
     consent?: { held: boolean; match: number | null }
   }
   features: Feature[]
+  /** Absent from an engine older than the virtual camera. */
+  virtual_camera?: VirtualCamera
   gpu: { name: string; total_gb: number; allocated_gb: number; peak_gb: number } | null
   targets: Targets
   inputs: InputOption[]
@@ -383,6 +398,7 @@ export const api = {
   resetNeutral: () => request<{ ok: boolean }>('/api/session/neutral', { method: 'POST' }),
   /** Go live again after the identity monitor put the still picture up. A fresh neutral pose is taken. */
   resumeSession: () => request<Status>('/api/session/resume', { method: 'POST' }),
+  setVirtualCamera: (on: boolean) => request<VirtualCamera>('/api/virtual-camera', { method: 'POST', ...json({ on }) }),
   setFeature: (key: string, enabled: boolean) =>
     request<Feature>(`/api/features/${encodeURIComponent(key)}`, { method: 'PATCH', ...json({ enabled }) }),
 }

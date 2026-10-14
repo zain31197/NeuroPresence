@@ -107,7 +107,7 @@ Supervisor: Muhammad Aamir Gulzar
 | 3 Reenactment | Working at about 22 frames a second live, with the movement shown in even steps (`neuropresence/reenactment`, `neuropresence/pipeline.py`, `neuropresence/server/pacing.py`) |
 | 4 Identity preservation | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until you resume (`neuropresence/identity/guard.py`). A delay watchdog shows the still picture while the output arrives too late (`neuropresence/server/watchdog.py`) |
 | 5 Consent and disclosure | Working: before a face is verified and before every camera session, two actions chosen at random are asked for and the face is matched all the way through (`neuropresence/consent/liveness.py`, `check.py`); during a session the camera face is compared once a second; every output frame carries the label "AI reenacted" (`neuropresence/consent/disclosure.py`) |
-| 6 Virtual camera | Not started |
+| 6 Virtual camera | Working on Windows with OBS Virtual Camera; not yet tried inside a meeting application, nor on Kubuntu |
 | Evaluation | Benchmark of speed, identity and temporal stability (`scripts/benchmark.py`, `neuropresence/evaluation`) |
 | Web app | Landing page, Enrolment and Live Studio (`web/`, `neuropresence/server`); Test Lab, Benchmarks and System screens come with the features they belong to |
 
@@ -369,3 +369,26 @@ This is a research prototype. It builds on LivePortrait, InsightFace/ArcFace, Me
 ## Responsible use
 
 NeuroPresence is intended for consented self-presentation only. It must not be used to animate another person's likeness or to represent a user as present when they are not.
+
+## Virtual camera
+
+The output can be offered to meeting applications as an ordinary camera (`neuropresence/server/virtual_camera.py`).
+
+**What to install once.** On Windows, OBS Studio (obsproject.com): it brings the "OBS Virtual Camera", and OBS itself does not have to be running. On Kubuntu, the `v4l2loopback` module: `sudo modprobe v4l2loopback exclusive_caps=1 card_label=NeuroPresence`. The Python side is `pyvirtualcam`, which `requirements.txt` installs.
+
+**How to use it.** In the Live Studio, switch on "Virtual camera". In the meeting application choose "OBS Virtual Camera" as the camera. Start a camera session and answer the prompt.
+
+**What a meeting sees.**
+
+| When | The camera shows |
+|---|---|
+| No session, or the liveness prompt is still being answered | A plain card: "NeuroPresence is not running". Nothing of the user |
+| A camera session is running | The output, with the "AI reenacted" mark |
+| The face is lost, the output stops looking like the user, the picture is late, or someone else sits down | The still enrolled picture, with the mark, as in the Live Studio |
+| A session from a sample clip | The card: a sample clip animates someone else's face |
+
+The frame sent is the one the Live Studio shows, so there is no path to a meeting that goes around the mark or the fallbacks. Nothing of the user is sent before the consent check has passed: if the enrolled picture were shown while idle, anyone at the computer could put it into a meeting without answering the prompt.
+
+The device is 1280 x 720 at 30 frames a second. An upright picture is set in the middle with bars beside it, and the newest frame is sent again until the next is drawn.
+
+Checked on 14 October 2026 (Windows 11, OBS Studio 32.2.2) by reading the device back by name while a stand-in session ran: the card before and during the check, the marked output once it ran, the marked still picture when another face sat down, the card again after the session stopped. The session ran at 21.1 frames a second and 90 ms with the camera on, as without it. Not yet done: a call in Google Meet and in Zoom, the same on Kubuntu, and the microphone delayed to match the picture.
