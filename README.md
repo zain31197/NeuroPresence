@@ -107,7 +107,7 @@ Supervisor: Muhammad Aamir Gulzar
 | 3 Reenactment | Working at about 22 frames a second live, with the movement shown in even steps (`neuropresence/reenactment`, `neuropresence/pipeline.py`, `neuropresence/server/pacing.py`) |
 | 4 Identity preservation | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until you resume (`neuropresence/identity/guard.py`). A delay watchdog shows the still picture while the output arrives too late (`neuropresence/server/watchdog.py`) |
 | 5 Consent and disclosure | Working: before a face is verified and before every camera session, two actions chosen at random are asked for and the face is matched all the way through (`neuropresence/consent/liveness.py`, `check.py`); during a session the camera face is compared once a second; every output frame carries the label "AI reenacted" (`neuropresence/consent/disclosure.py`) |
-| 6 Virtual camera | Working on Windows with OBS Virtual Camera; not yet tried inside a meeting application, nor on Kubuntu |
+| 6 Virtual camera | Working on Windows with OBS Virtual Camera, and the voice held back to match it through VB-Audio Virtual Cable; not yet tried inside a meeting application, nor on Kubuntu |
 | Evaluation | Benchmark of speed, identity and temporal stability (`scripts/benchmark.py`, `neuropresence/evaluation`) |
 | Web app | Landing page, Enrolment and Live Studio (`web/`, `neuropresence/server`); Test Lab, Benchmarks and System screens come with the features they belong to |
 
@@ -391,4 +391,27 @@ The frame sent is the one the Live Studio shows, so there is no path to a meetin
 
 The device is 1280 x 720 at 30 frames a second. An upright picture is set in the middle with bars beside it, and the newest frame is sent again until the next is drawn.
 
-Checked on 14 October 2026 (Windows 11, OBS Studio 32.2.2) by reading the device back by name while a stand-in session ran: the card before and during the check, the marked output once it ran, the marked still picture when another face sat down, the card again after the session stopped. The session ran at 21.1 frames a second and 90 ms with the camera on, as without it. Not yet done: a call in Google Meet and in Zoom, the same on Kubuntu, and the microphone delayed to match the picture.
+Checked on 14 October 2026 (Windows 11, OBS Studio 32.2.2) by reading the device back by name while a stand-in session ran: the card before and during the check, the marked output once it ran, the marked still picture when another face sat down, the card again after the session stopped. The session ran at 21.1 frames a second and 90 ms with the camera on, as without it. Not yet done: a call in Google Meet and in Zoom, and the same on Kubuntu.
+
+## Voice in step
+
+The picture a meeting sees is late by the time the system takes to make it, about 90 to 110 ms; the voice, sent straight from the microphone, is not. A virtual microphone holds the voice back by the same amount (`neuropresence/server/virtual_microphone.py`), so lips and words arrive together.
+
+**What to install once.** On Windows, VB-Audio Virtual Cable (vb-audio.com/Cable, the free "VBCABLE_Driver_Pack"; run `VBCABLE_Setup_x64.exe` as administrator, then restart). It adds "CABLE Input" to the speakers and "CABLE Output" to the microphones; neither should be made the Windows default. On Kubuntu nothing is installed: `pactl load-module module-null-sink sink_name=NeuroPresence sink_properties=device.description=NeuroPresence` creates the cable. The Python side is `sounddevice`, which `requirements.txt` installs.
+
+**How to use it.** In the Live Studio, switch on "Voice in step" and choose the microphone you speak into. In the meeting application choose "CABLE Output (VB-Audio Virtual Cable)" as the microphone, and the virtual camera as the camera.
+
+**How long the voice is held back.**
+
+| When | The voice is held back |
+|---|---|
+| No camera session, the prompt is being answered, or a sample clip runs (the meeting sees the card) | 40 ms, the least the two sound devices need |
+| A camera session is running | The session's delay from camera to output, plus half a frame of the virtual camera when it is on, plus the adjustment |
+
+The delay follows the session's figure only when it moves by more than 8 ms, and gets there by playing the voice one per cent faster or slower, which no one hears. A change of more than 40 ms (a session starting or stopping) is made at once with a 2.5 ms fade. The two devices keep their own clocks; the same catching up keeps their drift from adding up.
+
+**The adjustment.** The meeting application adds delays of its own that cannot be measured from here, and so do the camera itself and the cable. The adjustment, 10 ms a step and up to 200 ms either way, is for those: words before lips, raise it; lips before words, lower it. The chosen microphone and the adjustment are kept between runs; the switch always starts off.
+
+Nothing is recorded. The voice is held in memory for the length of the delay; the buffer holds two seconds and is written over all the time.
+
+Checked on 15 October 2026 (Windows 11, VB-Audio Virtual Cable, WASAPI at 48 kHz) without opening a microphone: the cable's far end was fed back in as the microphone, so one click went round and round, and the time for each trip was measured. At 40, 100 and 150 ms the trip took the set delay plus 100 to 112 ms, the same to a tenth of a millisecond on every trip, with no catching up once settled. Those 100 to 112 ms are the cable and the Windows sound buffers, and they come on top of the delay. Not yet done: a call in Google Meet and in Zoom with a clap seen and heard, which settles the adjustment, and Kubuntu.

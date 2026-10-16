@@ -62,7 +62,8 @@ STAGES = [
         "summary": "Delivers the output to meeting apps as an ordinary camera.",
         "status": "working",
         "note": "Switched on in the Live Studio. A meeting app sees the output of a running session, with its mark and "
-                "its fallbacks, and a plain card at any other time. Needs OBS Virtual Camera on Windows or "
-                "v4l2loopback on Linux.",
+                "its fallbacks, and a plain card at any other time. A virtual microphone holds the voice back by as "
+                "long as the picture takes, so lips and words arrive together. Needs OBS Virtual Camera and "
+                "VB-Audio Virtual Cable on Windows, or v4l2loopback and a PipeWire null sink on Linux.",
     },
 ]

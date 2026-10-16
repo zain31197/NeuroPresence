@@ -23,6 +23,7 @@ from .guide import enrolment_guide
 from .preview import EnrolmentPreview
 from .session import LiveSession, SessionError, SessionState
 from .virtual_camera import VirtualCamera, open_device
+from .virtual_microphone import VirtualMicrophone, list_devices, open_streams
 
 log = logging.getLogger("neuropresence.server")
 ROOT = Path(__file__).resolve().parents[2]
@@ -289,7 +290,8 @@ def _jpeg(image):
 class Runtime:
     def __init__(self, engine_factory=_default_engine, feed_factory=_default_feed,
                  tracker_factory=_default_tracker, scorer_factory=_default_scorer, gpu_probe=_default_gpu,
-                 data_dir=DATA_DIR, results_dir=RESULTS_DIR, sample_dir=SAMPLE_CLIPS, camera_opener=open_device):
+                 data_dir=DATA_DIR, results_dir=RESULTS_DIR, sample_dir=SAMPLE_CLIPS, camera_opener=open_device,
+                 sound_devices=list_devices, sound_opener=open_streams):
         self._engine_factory = engine_factory
         self.make_feed = feed_factory
         self.make_tracker = tracker_factory
@@ -320,6 +322,9 @@ class Runtime:
         self.identity = IdentityMonitor(self)
         # What a meeting application sees when it selects the virtual camera (virtual_camera.py).
         self.virtual_camera = VirtualCamera(self.meeting_picture, opener=camera_opener)
+        # The voice for meeting applications, held back to stay in step with that picture (virtual_microphone.py).
+        self.virtual_microphone = VirtualMicrophone(self.picture_delay, devices=sound_devices, opener=sound_opener,
+                                                    settings=Path(data_dir) / "virtual_microphone.json")
 
     # ------------------------------------------------------------- engine
 
@@ -771,6 +776,31 @@ class Runtime:
         pair = session.latest_pair()
         return None if pair is None else pair.output
 
+    def picture_delay(self):
+        """How late the picture a meeting sees is, in ms, or None while that picture is not the user's.
+
+        The session's delay from camera to output, and, with the virtual camera on, half a frame of
+        its own on average: it sends the newest frame at a steady rate.
+        """
+        if self.meeting_picture() is None:
+            return None
+        delay = self.session.delay_ms()
+        if delay is None:
+            return None
+        if self.virtual_camera.on:
+            delay += 500.0 / self.virtual_camera.fps
+        return round(delay, 1)
+
+    def change_virtual_microphone(self, on=None, microphone=None, offset_ms=None):
+        was_on = self.virtual_microphone.on
+        state = self.virtual_microphone.change(on=on, microphone=microphone, offset_ms=offset_ms)
+        if on and not state["on"]:
+            raise SessionError(state["reason"] or "The virtual microphone could not be switched on.")
+        if state["on"] != was_on:
+            self.events.add("info", f"Virtual microphone turned on: {state['microphone']} into \"{state['cable']}\"."
+                            if state["on"] else "Virtual microphone turned off.")
+        return state
+
     def switch_virtual_camera(self, on):
         state = self.virtual_camera.switch(on)
         if on and not state["on"]:
@@ -780,6 +810,7 @@ class Runtime:
         return state
 
     def shutdown(self):
+        self.virtual_microphone.close()
         self.virtual_camera.close()
         self.session.stop()
         self.preview.stop()
@@ -817,6 +848,7 @@ class Runtime:
             "identity": self.identity.snapshot(),
             "features": self.features.as_list(),
             "virtual_camera": self.virtual_camera.snapshot(),
+            "virtual_microphone": self.virtual_microphone.snapshot(),
             "gpu": self.gpu(),
             "targets": TARGETS,
             "inputs": self.inputs(),

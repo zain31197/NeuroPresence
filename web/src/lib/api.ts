@@ -225,6 +225,28 @@ export interface VirtualCamera {
   fps: number
 }
 
+/** The voice for meeting applications, held back to stay in step with the picture (server/virtual_microphone.py). */
+export interface VirtualMicrophone {
+  on: boolean
+  /** Why it could not be switched on, in words. */
+  reason: string | null
+  /** The virtual cable the voice is played into, if one is installed. */
+  cable: string | null
+  /** What to choose as the microphone in the meeting application: the other end of the cable. */
+  meeting_device: string | null
+  /** The microphone that is read, and the ones there are to choose from. */
+  microphone: string | null
+  microphones: string[]
+  /** The person's own adjustment, added to the picture's delay. -200 to 200. */
+  offset_ms: number
+  /** The picture delay the voice follows; null while no picture of the user is sent. */
+  picture_ms: number | null
+  /** How far the voice is held back now; null while off. */
+  delay_ms: number | null
+  /** How loud the microphone is, 0 to 1. */
+  level: number
+}
+
 export interface Status {
   session: Session
   enrolment: Enrolment
@@ -239,6 +261,8 @@ export interface Status {
   features: Feature[]
   /** Absent from an engine older than the virtual camera. */
   virtual_camera?: VirtualCamera
+  /** Absent from an engine older than the virtual microphone. */
+  virtual_microphone?: VirtualMicrophone
   gpu: { name: string; total_gb: number; allocated_gb: number; peak_gb: number } | null
   targets: Targets
   inputs: InputOption[]
@@ -399,6 +423,8 @@ export const api = {
   /** Go live again after the identity monitor put the still picture up. A fresh neutral pose is taken. */
   resumeSession: () => request<Status>('/api/session/resume', { method: 'POST' }),
   setVirtualCamera: (on: boolean) => request<VirtualCamera>('/api/virtual-camera', { method: 'POST', ...json({ on }) }),
+  changeVirtualMicrophone: (change: { on?: boolean; microphone?: string; offset_ms?: number }) =>
+    request<VirtualMicrophone>('/api/virtual-microphone', { method: 'PATCH', ...json(change) }),
   setFeature: (key: string, enabled: boolean) =>
     request<Feature>(`/api/features/${encodeURIComponent(key)}`, { method: 'PATCH', ...json({ enabled }) }),
 }

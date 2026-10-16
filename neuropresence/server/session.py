@@ -220,6 +220,12 @@ class LiveSession:
         with self._lock:
             return self._pair
 
+    def delay_ms(self):
+        """The delay from camera to output over the last seconds, or None when no session is running."""
+        if self.state is not SessionState.RUNNING:
+            return None
+        return self._metrics.summary()["end_to_end_ms"]
+
     def snapshot(self):
         with self._lock:
             state, message, label = self.state, self.message, self.input_label

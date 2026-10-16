@@ -156,6 +156,17 @@ class FakeScorer:
         return self.alike if np.array_equal(a, b) else self.unlike
 
 
+class FakeVoice:
+    """Stands in for the microphone and the cable: keeps the two ends the virtual microphone was given."""
+
+    def __init__(self, microphone, cable, on_input, on_output):
+        self.microphone, self.cable, self.on_input, self.on_output = microphone, cable, on_input, on_output
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
 def make_runtime(tmp_path, parts):
     def make_feed(source):
         parts["sources"].append(source)
@@ -179,10 +190,18 @@ def make_runtime(tmp_path, parts):
         parts.setdefault("cameras", []).append(FakeCamera())
         return parts["cameras"][-1]
 
+    def sound_devices():
+        return {"microphones": ["Headset", "Webcam"], "default": "Webcam",
+                "cable": None if parts.get("no_cable") else "CABLE Input (VB-Audio Virtual Cable)"}
+
+    def open_sound(microphone, cable, on_input, on_output):
+        parts.setdefault("voices", []).append(FakeVoice(microphone, cable, on_input, on_output))
+        return parts["voices"][-1]
+
     return Runtime(engine_factory=make_engine, feed_factory=make_feed,
                    tracker_factory=lambda video=True: parts["tracker"], scorer_factory=FakeScorer,
                    gpu_probe=read_gpu, data_dir=tmp_path / "data", results_dir=tmp_path / "results",
-                   sample_dir=samples, camera_opener=open_camera)
+                   sample_dir=samples, camera_opener=open_camera, sound_devices=sound_devices, sound_opener=open_sound)
 
 
 @pytest.fixture
@@ -1578,3 +1597,49 @@ def test_the_virtual_camera_is_let_go_when_the_engine_shuts_down(parts):
     parts["client"].post("/api/virtual-camera", json={"on": True})
     parts["runtime"].shutdown()
     assert parts["cameras"][0].closed
+
+
+# ------------------------------------------------------ virtual microphone
+
+
+def test_the_virtual_microphone_is_off_until_it_is_switched_on(parts):
+    found = status(parts)["virtual_microphone"]
+    assert found["on"] is False and found["microphone"] == "Webcam" and found["microphones"] == ["Headset", "Webcam"]
+    assert found["cable"] == "CABLE Input (VB-Audio Virtual Cable)" and found["delay_ms"] is None
+    client = parts["client"]
+    reply = client.patch("/api/virtual-microphone", json={"on": True, "microphone": "Headset"})
+    assert reply.status_code == 200 and reply.json()["on"] is True
+    voice = parts["voices"][0]
+    assert (voice.microphone, voice.cable) == ("Headset", "CABLE Input (VB-Audio Virtual Cable)")
+    assert any("Virtual microphone turned on: Headset" in message for message in events(parts))
+    assert client.patch("/api/virtual-microphone", json={"offset_ms": 25}).json()["offset_ms"] == 25
+    assert client.patch("/api/virtual-microphone", json={"on": False}).json()["on"] is False
+    assert voice.closed and any(message == "Virtual microphone turned off." for message in events(parts))
+
+
+def test_a_missing_cable_is_said_in_words(parts):
+    parts["no_cable"] = True
+    reply = parts["client"].patch("/api/virtual-microphone", json={"on": True})
+    assert reply.status_code == 409 and "No virtual cable was found" in reply.json()["detail"]
+    assert status(parts)["virtual_microphone"]["on"] is False
+
+
+def test_the_voice_is_held_back_only_while_the_meeting_sees_the_user(parts):
+    runtime = parts["runtime"]
+    assert runtime.picture_delay() is None  # no session: the card, and no picture to keep in step with
+    start(parts, "sample:d0")
+    assert wait_for(lambda: runtime.session.delay_ms() is not None)
+    assert runtime.picture_delay() is None  # a sample clip never reaches the meeting
+    parts["client"].post("/api/session/stop")
+    start(parts)
+    assert wait_for(lambda: runtime.session.delay_ms() is not None)
+    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms(), abs=5)
+    parts["client"].post("/api/virtual-camera", json={"on": True})
+    # The virtual camera sends the newest frame at a steady rate: half a frame later, on average.
+    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms() + 500 / 30, abs=5)
+
+
+def test_the_virtual_microphone_is_let_go_when_the_engine_shuts_down(parts):
+    parts["client"].patch("/api/virtual-microphone", json={"on": True})
+    parts["runtime"].shutdown()
+    assert parts["voices"][0].closed

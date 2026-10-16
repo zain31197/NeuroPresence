@@ -40,6 +40,12 @@ class CameraSwitch(BaseModel):
     on: bool
 
 
+class MicrophoneChange(BaseModel):
+    on: bool | None = None
+    microphone: str | None = None
+    offset_ms: float | None = None
+
+
 def create_app(runtime=None, web_dist=WEB_DIST):
     runtime = runtime or Runtime()
 
@@ -211,6 +217,13 @@ def create_app(runtime=None, web_dist=WEB_DIST):
     def virtual_camera(switch: CameraSwitch):
         """Offer the output to meeting applications as a camera, or stop offering it."""
         return attempt(lambda: runtime.switch_virtual_camera(switch.on))
+
+    # ----------------------------------------------------- virtual microphone
+
+    @app.patch("/api/virtual-microphone")
+    def virtual_microphone(change: MicrophoneChange):
+        """Switch the delayed voice on or off, choose the microphone, or adjust the delay."""
+        return attempt(lambda: runtime.change_virtual_microphone(change.on, change.microphone, change.offset_ms))
 
     # ----------------------------------------------------------------- stream
 

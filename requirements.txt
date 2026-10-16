@@ -28,6 +28,9 @@ huggingface-hub==2.1.1
 # Virtual camera (needs OBS Virtual Camera on Windows, v4l2loopback on Linux)
 pyvirtualcam==0.15.0
 
+# Virtual microphone (needs VB-Audio Virtual Cable on Windows, a PipeWire or PulseAudio null sink on Linux)
+sounddevice==0.5.6
+
 # Web app backend
 fastapi==0.142.2
 uvicorn[standard]==0.54.0

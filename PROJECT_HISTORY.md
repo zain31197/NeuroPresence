@@ -2,7 +2,7 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (14 October 2026)
+## Where the project stands (15 October 2026)
 
 | Stage | State |
 |---|---|
@@ -12,7 +12,7 @@ A running record of what was built, what was decided and why, what was measured,
 | 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
 | 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
-| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. Not yet tried inside a call, nor on Kubuntu |
+| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Not yet tried inside a call, nor on Kubuntu |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 342 for the engine and server, 55 for the web app, all passing.
+Tests: 366 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -538,6 +538,28 @@ Approved by Zain after an investigation of his PC: Python 3.12 on Windows 11, no
 
 **Not done yet.** A call in Google Meet and in Zoom, with the table of what works where. Kubuntu. The microphone delayed to match the picture (FR6.4). The camera is listed as "OBS Virtual Camera", not under our own name.
 
+### 15 October 2026: the voice in step with the picture (FR6.4)
+
+Zain approved the design after an investigation of his PC: no virtual microphone installed, `sounddevice` 0.5.6 already in the environment, Windows' default microphone the Brio 105 webcam's, the one he speaks into the HyperX headset's. Windows has no virtual microphone of its own without a driver. Chosen: VB-Audio Virtual Cable (free; Voicemeeter would do it too but is a whole mixer); on Kubuntu a PipeWire null sink, nothing to install. Zain installed the cable; Windows lists "CABLE Input" and "CABLE Output", and his default devices did not change.
+
+**Built** (`neuropresence/server/virtual_microphone.py`).
+
+- A delay line between the chosen microphone and the cable, both opened through WASAPI at 48 kHz in 10 ms blocks. The voice is held in memory, two seconds at most, and nothing is recorded.
+- How long it holds the voice is taken from the running session: its delay from camera to output, plus half a frame of the virtual camera when that is on (it sends the newest frame at 30 a second). While the meeting sees the card, no added delay: there are no lips to keep in step with.
+- The delay does not chase every frame. It follows when the figure has moved by more than 8 ms; it gets there by playing one per cent faster or slower; a change of more than 40 ms is made at once with a 2.5 ms crossfade.
+- A switch "Voice in step" in the Live Studio under the virtual camera, with the microphone to choose, a level meter, and an adjustment of 10 ms a step up to 200 ms either way for the delays the meeting application adds. The microphone and the adjustment are kept in `data/virtual_microphone.json`; the switch starts off every time. `PATCH /api/virtual-microphone`.
+- In the stage list it is part of the sixth stage, as in the proposal (FR6.4), not a seventh.
+
+**Measured on the cable, without opening a microphone.** The cable's far end was fed back in as the microphone, so one click went round and round; the time for each trip is the delay plus the cable's own. Three things came out of it.
+
+- The reader's lead swung by up to 17 ms from read to read, because the two devices hand sound over unevenly. Judged read by read, the voice would have been sped up and slowed down all the time. The lead is now judged over half a second, and catching up starts 8 ms off and goes on until within 2 ms. Both are far inside what anyone notices: sound ahead of the picture by 45 ms, or behind it by 125 ms (ITU-R BT.1359).
+- A device that has just opened asks for several blocks at once, which left the voice 17 ms short for two seconds after switching on. The lead of the first half second is now averaged and set right once.
+- After both changes, at 40, 100 and 150 ms the trip took the set delay plus 100 to 112 ms, the same to a tenth of a millisecond on every trip, with no catching up. Those 100 to 112 ms are the cable and the Windows sound buffers, and they come on top of the delay. The camera adds a delay of its own before a frame reaches the engine, which nothing here measures; the two may roughly cancel. Which one is larger is what a call with a clap will show, and the adjustment is there to correct it.
+
+The Live Studio was looked at with a stand-in voice and a stand-in session, at desktop and phone width. 366 engine and server tests (24 new) and 62 web tests (7 new).
+
+**Not done yet.** A call in Google Meet and in Zoom with a clap seen and heard, to set the adjustment from a real measurement. Kubuntu.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -633,7 +655,8 @@ Approved by Zain after an investigation of his PC: Python 3.12 on Windows 11, no
 - The progress plan does not yet list the web app.
 - The proposal inconsistencies listed under 5 October are settled in the draft of the mid report (8 October 2026); the team has not confirmed the settlements yet.
 - The mid report is in a local folder that git ignores, by Zain's decision on 7 October 2026. Still missing from it: the design diagrams and screenshots (13 dummy pictures stand in), the two other members' contributions, the meeting log, and the tag for the mid evaluation.
-- Nothing has been measured with a meeting application running beside the system. The committee asked about exactly this; it waits for the virtual camera.
+- Nothing has been measured with a meeting application running beside the system. The committee asked about exactly this; the virtual camera and microphone are ready for it.
+- How far the voice and the picture are apart in a real call is not known. The cable adds 100 to 112 ms to the voice and the camera adds an unmeasured delay to the picture; a clap in a recorded call settles the adjustment.
 - The repository shows commits from one account only. The rubric asks for commits from all members.
 
 ## External components and tools
@@ -645,5 +668,8 @@ Approved by Zain after an investigation of his PC: Python 3.12 on Windows 11, no
 | ArcFace `w600k_r50` (InsightFace) | Identity embedding | Non-commercial research use |
 | RAFT through torchvision (Teed and Deng, 2020) | Optical flow for the flicker measurement | BSD-3 code |
 | PyTorch, OpenCV, FastAPI, React, Tailwind CSS | Framework and libraries | Open source |
+| pyvirtualcam | Sending the output to the virtual camera | GPL v2, called as a separate package |
+| sounddevice (PortAudio) | Reading the microphone and feeding the virtual cable | MIT |
+| OBS Virtual Camera, VB-Audio Virtual Cable | The camera and microphone devices meeting applications select (installed by the user) | Free; OBS is GPL v2, VB-Cable is donationware |
 
 An AI coding assistant (Claude Code) was used to write and test the code and documents recorded in this log from 5 October 2026, directed by the project team. The mid-evaluation rubric asks for this to be disclosed in the report (Form 3, criterion 8) and for each member to be able to explain the code they own.
