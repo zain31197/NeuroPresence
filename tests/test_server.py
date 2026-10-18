@@ -230,7 +230,7 @@ def consent_at_once(monkeypatch):
 
 
 def level(image):
-    """How bright a picture is, read from its upper half: the disclosure mark sits in the lower left corner."""
+    """How bright a picture is, read from its upper half: the disclosure mark sits on the lower edge."""
     return image[: image.shape[0] // 2].mean()
 
 
@@ -1508,8 +1508,9 @@ def sends_the_output(parts, camera):
 
 def picture_in(sent, like=FRAME):
     """The part of a frame sent to the camera that holds the picture, without the bars beside or above it."""
+    from neuropresence.server.virtual_camera import SAFE_HEIGHT_SHARE
     height, width = sent.shape[:2]
-    scale = min(width / like.shape[1], height / like.shape[0])
+    scale = min(width / like.shape[1], SAFE_HEIGHT_SHARE * height / like.shape[0])
     w, h = int(round(like.shape[1] * scale)), int(round(like.shape[0] * scale))
     x, y = (width - w) // 2, (height - h) // 2
     return sent[y:y + h, x:x + w]

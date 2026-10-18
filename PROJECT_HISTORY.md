@@ -2,7 +2,7 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (15 October 2026)
+## Where the project stands (18 October 2026)
 
 | Stage | State |
 |---|---|
@@ -11,8 +11,8 @@ A running record of what was built, what was decided and why, what was measured,
 | 2. Motion encoding | Working: head pose, expression signals; the keypoints are steadied, and a lost face fades to the still picture |
 | 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
-| 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted". An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
-| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Not yet tried inside a call, nor on Kubuntu |
+| 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted", in the middle of the lower edge so that a meeting's crop leaves it. An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
+| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Tried in one Google Meet call (18 October): 17 to 18 frames a second shown, lips and voice within 80 ms of each other; the mark, cut by Meet's crop, was moved. Not yet tried in Zoom, nor on Kubuntu |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 366 for the engine and server, 62 for the web app, all passing.
+Tests: 367 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -560,6 +560,25 @@ The Live Studio was looked at with a stand-in voice and a stand-in session, at d
 
 **Not done yet.** A call in Google Meet and in Zoom with a clap seen and heard, to set the adjustment from a real measurement. Kubuntu.
 
+### 18 October 2026: the first call in Google Meet
+
+Zain held a Google Meet call with the virtual camera and the voice in step on, his headset as the microphone and no adjustment, and recorded it from the other side (52 s, `video_testing/`, git ignores it). The recording was read frame by frame: the picture in Meet's tile with the face tracker, the sound as Meet played it.
+
+**What came out.**
+
+- The disclosure mark was cut in half. Meet's main tile was 1.97 to 1, wider than the 16:9 camera picture, and Meet fills a tile by cropping, here 5% off the top and the bottom; the mark sat 2.5% above the lower edge. A phone held upright crops the sides instead, which would take the start of a mark in the lower left corner.
+- Meet showed 17 to 18 new frames a second (the rest were repeats), against about 21 drawn. The head moved with Zain throughout, turns of 30 degrees included.
+- Lips and voice were in step with the adjustment at 0. Timed at each start of speech after a pause where the lips were shut before (five clean cases), the lips opened between 80 ms before and 40 ms after the voice started, the median 20 ms before. Sound out of step is noticed past 45 ms early or 125 ms late (ITU-R BT.1359). A first estimate by correlating loudness with the lip gap over the whole call gave 240 ms, but the loudness sits at its ceiling through long stretches and carries no timing there; the starts of speech are the measure to trust.
+- In a few stretches between 2 and 14 s the voice is loud while the output's mouth barely opens. Without the camera picture of the same moments it cannot be told whether Zain spoke with little lip movement or the mouth was drawn too closed.
+
+**Changed.**
+
+- The mark moved to the middle of the lower edge (`neuropresence/consent/disclosure.py`): a crop from the sides never reaches it.
+- The virtual camera keeps the picture within the middle 84% of the device's height (`neuropresence/server/virtual_camera.py`), so a tile up to 2.1 to 1 leaves the picture whole, mark included. The picture is 16% smaller in the camera frame for it.
+- A test crops the camera frame as tiles of 16:9, 1.97 and 2.1 to 1 do and reads the mark in what is left. 367 engine and server tests (1 new) and 62 web tests.
+
+The voice delay needed no change.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -632,7 +651,7 @@ The Live Studio was looked at with a stand-in voice and a stand-in session, at d
 - A recording made on purpose passes the prompt about one attempt in seven, and attempts are not limited. A live reenactment fed in as the camera passes like a person.
 - How much a face narrows as it turns separates a tilted photograph from a head in the sample material. It needs real heads turned to 35 degrees and beyond before it can be made a rule.
 - Someone else sitting down during a session drives the picture for two to three seconds before the still picture goes up.
-- The mark is small when a meeting application shows the picture small: 22 pixels at least, an eighteenth of the frame. Whether it can still be read there waits for the virtual camera.
+- The mark is small when a meeting application shows the picture small. In Meet's main tile (598 pixels high) it was about 30 pixels high and readable; in a small grid tile it would be under 10. Not yet looked at in a grid of several people.
 - The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
 - A covered mouth is caught in only about half the runs, because its scores sit on the level, and until the guard acts the mouth is drawn smeared.
 - A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. The step-down rule repairs the one case seen (a covered mouth); others may exist.
@@ -655,8 +674,9 @@ The Live Studio was looked at with a stand-in voice and a stand-in session, at d
 - The progress plan does not yet list the web app.
 - The proposal inconsistencies listed under 5 October are settled in the draft of the mid report (8 October 2026); the team has not confirmed the settlements yet.
 - The mid report is in a local folder that git ignores, by Zain's decision on 7 October 2026. Still missing from it: the design diagrams and screenshots (13 dummy pictures stand in), the two other members' contributions, the meeting log, and the tag for the mid evaluation.
-- Nothing has been measured with a meeting application running beside the system. The committee asked about exactly this; the virtual camera and microphone are ready for it.
-- How far the voice and the picture are apart in a real call is not known. The cable adds 100 to 112 ms to the voice and the camera adds an unmeasured delay to the picture; a clap in a recorded call settles the adjustment.
+- The engine's own figures (frame rate, delay, GPU) have not been read while a meeting application runs beside it; the Meet call of 18 October was judged from its recording only. The committee asked about exactly this.
+- In the Meet recording the output's mouth barely opened in a few stretches where the voice was loud. A recording of the camera beside the output is needed to tell whether the mouth is drawn too closed.
+- Lips and voice were within 80 ms of each other in one Meet call with the adjustment at 0. Zoom, and other cameras than Zain's, are not measured.
 - The repository shows commits from one account only. The rubric asks for commits from all members.
 
 ## External components and tools

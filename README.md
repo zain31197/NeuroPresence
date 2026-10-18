@@ -330,7 +330,7 @@ A picture is animated only for the person it belongs to, and every output frame 
 
 **The face match** (`neuropresence/consent/check.py`). All the way through the prompt the face at the camera is compared, about four times a second, with every signature registered for you (the verified face and the five poses). The best match decides, and 0.35 or more is the same person. A face that does not match is looked at again in the very next frame, and two in a row refuse. So the face that answers is the face that matches: your photograph cannot be held up for the match while someone else does the moving. After the session has started the camera face is still compared once a second. Three readings in a row that do not match put the still picture up; two that match bring the live picture back, with a fresh neutral pose.
 
-**The disclosure mark** (`neuropresence/consent/disclosure.py`). The label "AI reenacted" in the lower left corner of every output frame: live frames, the still picture, and the frames that fade between them. The pipeline draws it as its last step. It is an eighteenth of the frame high and never under 22 pixels, and drawing it takes 0.09 ms a frame.
+**The disclosure mark** (`neuropresence/consent/disclosure.py`). The label "AI reenacted" in the middle of the lower edge of every output frame: live frames, the still picture, and the frames that fade between them. The pipeline draws it as its last step. It is an eighteenth of the frame high and never under 22 pixels, and drawing it takes 0.09 ms a frame.
 
 `python scripts/study_liveness.py --stand-in` measured what the limits rest on, with no camera (`results/liveness_study.json`):
 
@@ -390,6 +390,8 @@ The output can be offered to meeting applications as an ordinary camera (`neurop
 The frame sent is the one the Live Studio shows, so there is no path to a meeting that goes around the mark or the fallbacks. Nothing of the user is sent before the consent check has passed: if the enrolled picture were shown while idle, anyone at the computer could put it into a meeting without answering the prompt.
 
 The device is 1280 x 720 at 30 frames a second. An upright picture is set in the middle with bars beside it, and the newest frame is sent again until the next is drawn.
+
+Meeting applications crop the camera picture to fill their tiles: a wide tile takes off the top and bottom, a narrow one (a phone held upright) the sides. In a Google Meet call on 18 October 2026 the main tile was 1.97 to 1 and cut the mark, then in the lower left corner, in half. So the mark now sits in the middle of the lower edge, which a crop from the sides never reaches, and the picture is kept within the middle 84% of the device's height, which a tile up to 2.1 to 1 leaves whole.
 
 Checked on 14 October 2026 (Windows 11, OBS Studio 32.2.2) by reading the device back by name while a stand-in session ran: the card before and during the check, the marked output once it ran, the marked still picture when another face sat down, the card again after the session stopped. The session ran at 21.1 frames a second and 90 ms with the camera on, as without it. Not yet done: a call in Google Meet and in Zoom, and the same on Kubuntu.
 

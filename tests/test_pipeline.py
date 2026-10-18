@@ -39,7 +39,7 @@ FRAME = np.zeros((480, 640, 3), dtype=np.uint8)
 
 
 def level(output):
-    """How bright the picture is, read from its upper half: the disclosure mark sits in the lower left corner."""
+    """How bright the picture is, read from its upper half: the disclosure mark sits on the lower edge."""
     return output[: output.shape[0] // 2].mean()
 
 

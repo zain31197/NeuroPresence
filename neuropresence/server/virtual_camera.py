@@ -17,6 +17,12 @@ The device has one size and one rate for as long as it is open, as a webcam has:
 frames a second. An upright picture is set in the middle with bars beside it. The newest frame
 is sent again until the next is drawn, so the application gets an even feed.
 
+Meeting applications crop the camera picture to fill their tiles. A wide tile takes off the top and
+bottom: Google Meet's main tile was 1.97 to 1 in a call on 18 October 2026, and cut the disclosure
+mark in half. So the picture is kept within the middle 84% of the height, which a tile up to 2.1 to
+1 leaves whole, mark included. A narrow tile takes off the sides, which the bars and the mark's
+place in the middle of the lower edge allow for.
+
 Measured on 14 October 2026 (Windows 11, OBS Studio 32.2.2, pyvirtualcam 0.15.0): the device opens
 as "OBS Virtual Camera" and takes 29.9 frames a second.
 """
@@ -29,6 +35,7 @@ import numpy as np
 
 SIZE = (1280, 720)  # width, height
 FPS = 30
+SAFE_HEIGHT_SHARE = 0.84  # the picture stays within this much of the height: whole in a tile up to 2.1 to 1
 
 NOT_RUNNING = "NeuroPresence is not running"
 NOT_RUNNING_HINT = "The picture appears here once a session has started."
@@ -40,13 +47,12 @@ INSTALL = {
 }
 
 
-def fit(frame, size=SIZE):
-    """The frame at the size of the device: scaled to fit, in the middle, with black beside or above it."""
+def fit(frame, size=SIZE, safe=SAFE_HEIGHT_SHARE):
+    """The frame at the size of the device: scaled to fit the middle of it, clear of the band a wide
+    tile crops off, with black around it."""
     width, height = size
     h, w = frame.shape[:2]
-    if (w, h) == (width, height):
-        return frame
-    scale = min(width / w, height / h)
+    scale = min(width / w, safe * height / h)
     new_w, new_h = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
     resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR)
     canvas = np.zeros((height, width, 3), dtype=np.uint8)

@@ -19,7 +19,7 @@ interface MonitorProps {
   lit: boolean
   chip?: ReactNode
   footer?: ReactNode
-  /** Which lower corner the footer sits in. The output carries its disclosure mark in the lower left, so its footer goes right. */
+  /** Which lower corner the footer sits in. The output carries its disclosure mark in the middle of the lower edge. */
   footerAt?: 'left' | 'right'
   /** The picture is live right now: the screen carries a soft red halo, like a tally light. */
   live?: boolean

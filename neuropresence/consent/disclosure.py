@@ -1,8 +1,14 @@
 """The disclosure mark: every output frame says that it is not a camera picture.
 
-A small label, "AI reenacted", in the lower left corner. It is drawn as the last step, on live
-frames and on the still picture alike, and it has no switch: whoever sees the output, in a meeting
-or in a recording of one, can tell what they are looking at.
+A small label, "AI reenacted", in the middle of the lower edge. It is drawn as the last step, on
+live frames and on the still picture alike, and it has no switch: whoever sees the output, in a
+meeting or in a recording of one, can tell what they are looking at.
+
+It sits in the middle because meeting applications crop the picture to fill their tiles: from the
+sides when the tile is narrow, as on a phone held upright, and from the top and bottom when it is
+wide. In a Google Meet call on 18 October 2026 the label, then in the lower left corner, was cut in
+half by a tile of 1.97 to 1. In the middle of the lower edge a crop from the sides never reaches it;
+the virtual camera keeps it clear of a crop from the top and bottom (server/virtual_camera.py).
 
 The label is as tall as an eighteenth of the frame, and never smaller than 22 pixels, so that it
 can still be read when a meeting application shows the picture small. It is made once for a frame
@@ -17,7 +23,7 @@ import numpy as np
 LABEL = "AI reenacted"
 HEIGHT_SHARE = 0.055  # the height of the label, as a share of the frame's height ...
 MIN_HEIGHT_PX = 22  # ... and at least this, while the frame has the room
-MARGIN_SHARE = 0.025  # its distance from the left and lower edges, as a share of the frame's height
+MARGIN_SHARE = 0.025  # its distance from the lower edge, as a share of the frame's height
 BOX_BGR = (28, 24, 22)
 BOX_OPACITY = 0.78
 TEXT_BGR = (255, 255, 255)
@@ -57,7 +63,7 @@ def _label(frame_h, frame_w):
     cover = np.maximum(BOX_OPACITY * box, letters)[:, :, None]
     colour = (np.array(BOX_BGR, dtype=np.float32) * (1.0 - letters[:, :, None])
               + np.array(TEXT_BGR, dtype=np.float32) * letters[:, :, None])
-    return margin, frame_h - margin - height, colour * cover, 1.0 - cover, letters
+    return (frame_w - width) // 2, frame_h - margin - height, colour * cover, 1.0 - cover, letters
 
 
 def mark(frame_bgr):

@@ -167,7 +167,7 @@ def test_another_person_at_the_camera_is_held_back_after_three_readings():
 
 
 @pytest.mark.parametrize("size", [(720, 1280), (1080, 1920), (360, 640), (512, 512), (240, 320), (1280, 720)])
-def test_the_mark_is_drawn_in_the_lower_left_corner_and_found_again(size):
+def test_the_mark_is_drawn_in_the_middle_of_the_lower_edge_and_found_again(size):
     height, width = size
     rng = np.random.default_rng(3)
     for frame in (np.full((height, width, 3), 235, np.uint8), np.zeros((height, width, 3), np.uint8),
@@ -177,7 +177,9 @@ def test_the_mark_is_drawn_in_the_lower_left_corner_and_found_again(size):
         assert mark(frame) is frame and is_marked(frame)  # drawn in place
         changed = np.argwhere((frame != plain).any(axis=2))
         tall = changed[:, 0].max() - changed[:, 0].min() + 1
-        assert changed[:, 0].min() > 0.9 * height - 20 and changed[:, 1].max() < 0.5 * width  # low and to the left
+        assert changed[:, 0].min() > 0.9 * height - 20  # low
+        left, right = changed[:, 1].min(), width - 1 - changed[:, 1].max()
+        assert abs(left - right) <= 1  # and in the middle, where a meeting's crop from the sides never reaches it
         assert tall >= max(label.MIN_HEIGHT_PX, round(label.HEIGHT_SHARE * height)) - 1
         assert (frame != plain).any(axis=2).mean() < 0.03  # and small: under 3% of the picture
         assert is_marked(mark(frame))  # drawing it twice leaves it readable
