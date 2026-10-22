@@ -2,7 +2,7 @@
 
 A running record of what was built, what was decided and why, what was measured, and what went wrong. New entries go at the end of the log. Whenever an entry is added, the section "Where the project stands" is brought up to date.
 
-## Where the project stands (18 October 2026)
+## Where the project stands (October 2026, after the mid evaluation)
 
 | Stage | State |
 |---|---|
@@ -12,7 +12,7 @@ A running record of what was built, what was decided and why, what was measured,
 | 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
 | 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted", in the middle of the lower edge so that a meeting's crop leaves it. An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
-| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Tried in one Google Meet call (18 October): 17 to 18 frames a second shown, lips and voice within 80 ms of each other; the mark, cut by Meet's crop, was moved. Not yet tried in Zoom, nor on Kubuntu |
+| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Tried in one Google Meet call (18 October): 17 to 18 frames a second shown, lips and voice within 80 ms of each other; the mark, cut by Meet's crop, was moved. A script to measure the engine during Meet and Zoom calls is ready; the measurement itself is not yet made. Not yet tried in Zoom, nor on Kubuntu |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 367 for the engine and server, 62 for the web app, all passing.
+Tests: 386 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -578,6 +578,30 @@ Zain held a Google Meet call with the virtual camera and the voice in step on, h
 - A test crops the camera frame as tiles of 16:9, 1.97 and 2.1 to 1 do and reads the mark in what is left. 367 engine and server tests (1 new) and 62 web tests.
 
 The voice delay needed no change.
+
+### October 2026: the mid report finished, and the mid evaluation
+
+From 20 to 22 October the mid report was completed for submission (`F26_182_i232582_i232548_i232594.pdf`, 119 pages; the report folder stays out of git).
+
+- The nine design diagrams drawn in TikZ were replaced by the team's own drawings in draw.io, in three rounds from Sana Ullah; the deployment diagram is still TikZ. Version 3 still marks the disclosure mark as planned in the architecture figure; the team was told.
+- The four screenshots of the application, which had a sample face as the camera, were replaced by screenshots at the team's own cameras. Zain asked for the old screenshots to be edited with a member's face instead; that was refused, because edited screenshots presented as taken from the running application would be false evidence, and the team took real ones.
+- Ownership in the report was balanced at Zain's request and matched to the commits of the tag: four work packages of iteration 1 each, the same split in every table that names an owner. The commit table, written from git, was not touched.
+- The paragraph on research licences and the FYP 2 models was removed at Zain's request; the citation of F5 TTS moved to the plan of FYP 2, where the model is still named.
+- A run sheet for the demonstration was written for the three members.
+
+The mid evaluation has since been held. The panel's remarks are not yet recorded here.
+
+### October 2026: measuring during a call
+
+Approved by Zain after the mid evaluation, as the next item of iteration 2: the committee asked about resource use beside Zoom or Teams, and so far only a recording of a Meet call had been looked at, not the engine's own figures while a meeting application shares the graphics card.
+
+**Built.** `neuropresence/evaluation/call.py` and the guided script `scripts/measure_call.py`. Three phases of two minutes: no meeting, Google Meet, Zoom. Once a second: the engine's figures read from its status over HTTP, without changing the engine; the whole graphics card from nvidia-smi; the CPU time of the engine, the browser and Zoom through `psutil` (BSD licence, the one new package). Only the seconds in which the session was running are summarised, with both tails of every figure (the low end matters for a frame rate, the high end for a delay), the share of seconds the still picture was up and why, and the share of seconds over the delay limit. After each call the script asks four questions about what the phone showed and played, which gives the table of what works where. The results file is kept after every phase, and one phase can be measured again on its own.
+
+`neuropresence.evaluation` now loads its flicker and jitter measures, which need PyTorch, only when they are first used, so that the script does not wait seven seconds for a library it does not use.
+
+**Checked.** 19 new tests with a stand-in engine status, a stand-in nvidia-smi and a stand-in process list. The whole guided run, prompts, answers, file and table, was tried against a stand-in status server on another port. On this PC one reading of the CPU takes 2 ms and one of the graphics card 61 ms.
+
+**Not done yet.** The measurement itself: it needs Zain at the camera, in a Meet call and a Zoom call, with a second device in each.
 
 ## Decisions and their reasons
 

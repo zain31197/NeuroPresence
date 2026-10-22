@@ -31,6 +31,9 @@ pyvirtualcam==0.15.0
 # Virtual microphone (needs VB-Audio Virtual Cable on Windows, a PipeWire or PulseAudio null sink on Linux)
 sounddevice==0.5.6
 
+# Measuring during a meeting call: CPU time per program (scripts/measure_call.py)
+psutil==7.2.2
+
 # Web app backend
 fastapi==0.142.2
 uvicorn[standard]==0.54.0

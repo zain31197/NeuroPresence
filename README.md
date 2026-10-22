@@ -417,3 +417,13 @@ The delay follows the session's figure only when it moves by more than 8 ms, and
 Nothing is recorded. The voice is held in memory for the length of the delay; the buffer holds two seconds and is written over all the time.
 
 Checked on 15 October 2026 (Windows 11, VB-Audio Virtual Cable, WASAPI at 48 kHz) without opening a microphone: the cable's far end was fed back in as the microphone, so one click went round and round, and the time for each trip was measured. At 40, 100 and 150 ms the trip took the set delay plus 100 to 112 ms, the same to a tenth of a millisecond on every trip, with no catching up once settled. Those 100 to 112 ms are the cable and the Windows sound buffers, and they come on top of the delay. Not yet done: a call in Google Meet and in Zoom with a clap seen and heard, which settles the adjustment, and Kubuntu.
+
+## Measuring during a call
+
+The committee asked what the system does when a meeting application runs beside it on the same computer. `scripts/measure_call.py` measures it in three phases of two minutes: no meeting, a Google Meet call, a Zoom call.
+
+1. Start the engine and a camera session in the Live Studio, with "Virtual camera" and "Voice in step" switched on.
+2. Run `python scripts/measure_call.py` and follow it. For each call, join from a second device (a phone) so that video really flows, and keep talking and moving.
+
+Once a second it reads the engine's own figures from its status (frame rate, delay, render time, dropped frames, and whether the still picture was up and why), the graphics card from `nvidia-smi` (how busy, memory, power, clock), and the CPU time of the engine, the browser and Zoom (`psutil`). After each call it asks whether the phone showed the picture, whether the mark could be read, whether the voice was heard and whether lips and voice looked in step. Everything goes to `results/call_measurements_windows_rtx5050.json`, kept after every phase, and a table of the phases side by side is printed at the end. `--phases zoom` measures one phase again and keeps the others; `--seconds 60` makes the phases shorter. Nothing of the picture or the sound is recorded.
+
