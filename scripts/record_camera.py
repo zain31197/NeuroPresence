@@ -64,7 +64,7 @@ class Microphone:
     def __init__(self, part_of_name=None):
         import sounddevice as sd
 
-        from neuropresence.server.virtual_microphone import list_devices
+        from neuropresence.server.virtual_microphone import _device_index, list_devices
 
         found = list_devices()
         names = found["microphones"]
@@ -77,7 +77,8 @@ class Microphone:
             self.name = found["default"] or (names[0] if names else None)
         if self.name is None:
             raise SystemExit("No microphone was found.")
-        index = next(i for i, d in enumerate(sd.query_devices()) if d["name"] == self.name and d["max_input_channels"] > 0)
+        # The same device is listed once per Windows sound system; this is its WASAPI entry, which the settings below fit.
+        index = _device_index(sd, self.name, "input")
         extra = sd.WasapiSettings(auto_convert=True) if sys.platform == "win32" else None
         self.blocks = []
         self._stream = sd.InputStream(device=index, channels=1, samplerate=SOUND_RATE, dtype="float32",
