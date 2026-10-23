@@ -34,6 +34,11 @@ sounddevice==0.5.6
 # Measuring during a meeting call: CPU time per program (scripts/measure_call.py)
 psutil==7.2.2
 
+# The voice driving the picture with Ditto (scripts/setup_ditto.py fetches Ditto itself into third_party/)
+librosa==1.0.0
+filetype==1.2.0
+einops==0.8.2
+
 # Web app backend
 fastapi==0.142.2
 uvicorn[standard]==0.54.0

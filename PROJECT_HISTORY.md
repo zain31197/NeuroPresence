@@ -648,7 +648,52 @@ The lips are the open question. The sample clips could not be used to judge them
 
 11 new tests for the speech stage. The directions fitted twice agree (cosine 1.0).
 
-**Next.** A recording at the camera with the microphone (`record_camera.py --speech`), to measure the lips against a real mouth and a raw voice. If loudness alone is not good enough, a model that reads the shape of the sound, at a cost on the card that the speed above leaves room for. Then the switch in the Live Studio, the voice delay for this mode, and the phone relay.
+**The recording at the camera** (later the same day). The first `record_camera.py --speech` failed to open the microphone: the device was looked up by name across all of Windows' sound systems and its DirectSound entry was taken, which the WASAPI settings do not fit. It now takes the WASAPI entry, as the virtual microphone does. Zain then recorded 66 seconds at his camera with his headset: quiet, vowels, two sentences full of b, m and p, free talk, quiet again.
+
+| Part of the recording | Agreement r | Voice's mouth open | Real mouth open |
+|---|---|---|---|
+| Vowels | 0.38 | 25% | 61% |
+| "Bob bought a big blue map for my mum" | 0.42 | 26% | 42% |
+| "Peter met Pam by the main pool on Monday" | 0.51 | 29% | 50% |
+| Free talk | 0.14 | 28% | 44% |
+
+With the settings taken from the Meet call the whole recording gave r = 0.41, the voice's mouth a frame behind the real one, shut in quiet stretches, but open too rarely (24% against 40%) and only about half as wide. Settings chosen on this recording (the range below the peak 30 dB, the gate 3 dB; a fully open mouth a lip gap of 0.15, from his real lip gap per unit of the voice's openness) give r = 0.44, the mouth open in 45% of the frames, and slightly more opening in pauses (0.17 against 0.08). The Meet call does not get worse with them (0.24). Run again with nothing else on the card: 26.0 frames a second driven from speech against 23.5 from camera frames.
+
+So loudness alone reaches about r = 0.44 on a real voice and a real mouth, and no setting moves it much further: it cannot tell lips that meet on an "m" from a vowel at the same volume, and in free talk, where words run together, it follows the mouth least. Looked at frame by frame beside his camera (`video_testing/speech_compare_clean.mp4`), the picture's mouth is shut in the quiet and opens with the voice, but less wide than his at his widest.
+
+**Next.** Decide with Zain whether this is good enough for a first switch in the Live Studio, or whether a model that reads the shape of the sound comes first.
+
+### 23 October 2026: Ditto, a trained model from speech to motion
+
+Zain wants the voice driven picture to look real, which loudness alone cannot do. A search for models that drive LivePortrait's motion from speech found two: Ditto (Ant Group, ACM MM 2025) and JoyVASA, whose authors leave real time to future work. Ditto was chosen to try: it is built on LivePortrait's own networks, writes LivePortrait's own motion (21 expression keypoints, head angles as 66 bins, shift and scale) from a HuBERT speech encoder and a diffusion model, generates head movement and blinks, reports lip synchronization at the level of real video (Sync-C 8.1 against 8.0 for real video, 7.7 for Hallo2), and is under Apache-2.0, code and weights. Approved by Zain: a test offline first.
+
+**Set up.** `scripts/setup_ditto.py` fetches its code at commit `c3e47ee` and its PyTorch weights (2.2 GB) into `third_party/ditto/`, which git ignores. Its ready-made TensorRT engines (built for older cards with TensorRT 8.6) and its ONNX files are not fetched. Three small libraries were added to the environment: librosa, filetype and einops. Ditto blends the drawn face into the picture with a Cython routine that needs a C compiler, which this PC does not have; the same blend in numpy is supplied in its place when Ditto is loaded, so Ditto's files are left as they are.
+
+**Quality.** Ditto's own pipeline drove Zain's enrolled picture with his recorded voice (the 66 s recording of the same day), and the lip gap of the result was compared with his real one, frame for frame:
+
+| Part of the recording | Loudness alone (r) | Ditto (r) |
+|---|---|---|
+| Whole recording | 0.44 | 0.77 |
+| Vowels | 0.38 | 0.78 |
+| "Bob bought a big blue map for my mum" | 0.42 | 0.75 |
+| "Peter met Pam by the main pool on Monday" | 0.51 | 0.73 |
+| Free talk | 0.14 | 0.66 |
+
+The timing is within a frame of the real mouth, and at his widest openings Ditto's mouth opens about as wide as his (a lip gap of 0.11 to 0.15 against 0.14 to 0.16), teeth showing, with the head and eyes moving. Its one fault: in silence it sometimes moves the lips a little, most in the first three seconds and again in the closing quiet stretch. The comparison is in `video_testing/speech_compare_ditto.mp4` (not in git).
+
+**Speed on the RTX 5050.** Ditto's own pipeline took 3.8 times as long as the speech, almost all of it in its drawing, which runs in plain PyTorch. Its parts on their own, for the same 66 s:
+
+| Part | Time | Against real time |
+|---|---|---|
+| Speech features (HuBERT, on the CPU) | 28 to 35 s | 0.45 |
+| Motion, 50 denoising steps (the default) | 51 s | 0.78 |
+| Motion, 10 steps | 11 s | 0.16 |
+
+With 10 steps the mouth moves as with 50 (correlation 0.975 on the main mouth keypoint), as the paper also found. Our own engine draws with TensorRT at about 26 frames a second. So the speech features, the motion at 10 steps and our engine's drawing each fit inside real time on this card; together on the graphics card they should reach about 20 to 23 frames a second, the rate of the camera mode.
+
+**What it costs.** Ditto writes motion in clips of 80 frames. Live, it has to be run on overlapping windows, and at 0.43 s a run on this card a new stretch of motion can come about every half second, so the picture would be some 0.8 to 1.2 s behind the voice. The voice would have to be held back by as much to stay in step: lips in step, but a conversation that feels slightly late.
+
+**Next.** Draw Ditto's motion with our engine (its head angles turned from bins into degrees), keep the lips shut in silence with the loudness detector, and measure the whole chain fed with speech as it arrives: frame rate, delay, and the lips against Zain's real mouth. If loudness alone is not good enough, a model that reads the shape of the sound, at a cost on the card that the speed above leaves room for. Then the switch in the Live Studio, the voice delay for this mode, and the phone relay.
 
 ## Decisions and their reasons
 
