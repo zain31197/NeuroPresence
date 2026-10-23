@@ -12,7 +12,7 @@ A running record of what was built, what was decided and why, what was measured,
 | 3. Reenactment | Working, 22 frames per second live against a target of 24, with the movement shown in even steps; the render target is met |
 | 4. Identity | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until the person resumes. A delay watchdog shows the still picture while the output arrives too late |
 | 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted", in the middle of the lower edge so that a meeting's crop leaves it. An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
-| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Tried in one Google Meet call (18 October): 17 to 18 frames a second shown, lips and voice within 80 ms of each other; the mark, cut by Meet's crop, was moved. A script to measure the engine during Meet and Zoom calls is ready; the measurement itself is not yet made. Not yet tried in Zoom, nor on Kubuntu |
+| 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Tried in one Google Meet call (18 October): 17 to 18 frames a second shown, lips and voice within 80 ms of each other; the mark, cut by Meet's crop, was moved. Measured on 23 October with a phone as the second person, in Meet and in Zoom: no change in frame rate (about 20), delay (95 ms) or render time against no meeting, the picture, the mark and the voice all arrived, lips and voice in step. Not yet tried on Kubuntu |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
 | Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
 
@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 386 for the engine and server, 62 for the web app, all passing.
+Tests: 397 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -601,7 +601,54 @@ Approved by Zain after the mid evaluation, as the next item of iteration 2: the 
 
 **Checked.** 19 new tests with a stand-in engine status, a stand-in nvidia-smi and a stand-in process list. The whole guided run, prompts, answers, file and table, was tried against a stand-in status server on another port. On this PC one reading of the CPU takes 2 ms and one of the graphics card 61 ms.
 
-**Not done yet.** The measurement itself: it needs Zain at the camera, in a Meet call and a Zoom call, with a second device in each.
+**Measured on 23 October 2026** (Windows 11, RTX 5050 at its 130 W power limit, a camera session at Zain's own camera with the virtual camera and the voice in step on, two minutes a phase, a phone as the second person; `results/call_measurements_windows_rtx5050.json`).
+
+| | No meeting | Google Meet | Zoom |
+|---|---|---|---|
+| Frame rate, median (low 5%) | 20.0 (19.8) | 20.2 (19.7) | 20.2 (19.4) |
+| Delay camera to output, median (high 5%) | 95 (100) ms | 95 (99) ms | 95 (103) ms |
+| Render time, median | 39.5 ms | 38.7 ms | 39.1 ms |
+| Camera frames dropped | 33% | 33% | 33% |
+| Graphics card busy, median | 86% | 85% | 86% |
+| Graphics memory in use, median | 2.80 GB | 2.85 GB | 2.89 GB |
+| CPU of the engine, median | 24% | 24% | 24% |
+| Seconds over the delay limit of 150 ms | 0 | 0 | 0 |
+| Still picture shown | 0% | 0% | 0% |
+
+- A meeting application running beside the system changed nothing that could be measured: the frame rate, the delay and the render time are the same to within the spread of one run, and the delay watchdog never had to act. The card was already about 86% busy and at its power limit without a meeting, so the engine, not the meeting, sets the frame rate.
+- The graphics memory read from the whole card (2.8 GB) is higher than what the engine reports for itself (1.3 GB) because it includes the browser and Windows. It is well inside the 8 GB limit.
+- On the phone, in both Meet and Zoom: the picture was the NeuroPresence output, the mark could be read, the voice was heard, and lips and voice looked in step. Zoom is therefore confirmed, as Meet was on 18 October.
+- The 20 frames a second is below the target of 24, as before.
+- Zoom's CPU time was not counted: the script found no Zoom program running. It is left as it is for now; the browser's CPU in the Zoom phase matches the other phases, so Zoom may have been used in the browser.
+- One person, one camera, one phone, two minutes a phase. Kubuntu and a long call are not measured.
+
+### 23 October 2026: can the voice drive the picture? (the audio driven mode, first step)
+
+Zain asked to start on the proposal's second form of the live mode: with the camera off, the user's voice drives the picture. The report places it in FYP 2 (M10) and starts it with a measurement of whether it is feasible on this card, on purpose, because it was expected to add a network to a live path already below its frame rate target. Approved: the feasibility step first, with the simplest way of turning speech into a mouth, no network; idle blinks and a little movement of the head, since a still face with a moving mouth looks like a photograph.
+
+**Built** (`neuropresence/speech/`, not yet in the Live Studio).
+
+- How open the mouth should be, from the loudness of the voice in steps of 10 ms, judged against a floor (the quietest moment of the last second) and a peak (the loudest, falling back slowly), and only within 25 dB below the peak. It opens with a time constant of 25 ms and closes with one of 40 ms.
+- The movement for the engine: the picture's own reading (`engine.source_reading()`, new) changed along two directions in LivePortrait's 21 expression keypoints, one for an opening mouth and one for a blink, plus a sway of the head of about a degree and a nod with loud speech. The directions are fitted on LivePortrait's twelve bundled clips (4,412 frames) against the face tracker's lip gap and blink score, and kept to LivePortrait's own lip and eye keypoints, so that a blink never moves the mouth.
+- `scripts/study_speech.py`: the directions, the speed both ways, and the agreement with real lips on recordings with sound. `scripts/record_camera.py --speech` makes such a recording, with the microphone recorded in step with the camera.
+
+**Measured.**
+
+| | Driven from camera frames | Driven from speech |
+|---|---|---|
+| Frames a second, drawn one after another | 23.3 | 26.1 |
+| Making the movement | 5.1 ms (the motion network) | 0.1 ms |
+| Render time | 36.3 ms | 36.8 ms |
+
+The fear behind the plan does not hold: without the camera the motion network and the face tracker are not needed, so the voice driven picture is drawn faster than the camera driven one, above the target of 24 frames a second. A second run in the study's file (`results/speech_study.json`) has lower figures for both (19.0 and 21.2) because a game was running on the card at the time; it should be run again with nothing else open.
+
+The lips are the open question. The sample clips could not be used to judge them: three have silent sound tracks and the others follow the mouth too weakly to be the speaker's own voice. Against Zain's mouth in the recorded Meet call of 18 October, the voice's mouth was open in 40% of the frames (the real one in 23%) and stayed shut in pauses, with modest agreement with the real lip gap (r = 0.28; 0.26 before the settings were chosen on that call). Two reasons cannot be told apart there: loudness cannot see lips that meet on an "m", and the "real" mouth of that call is the camera driven output, which itself under-opened, behind Meet's processing of the sound. A clip of Zain's picture driven by his voice from that call, and the same beside the call, are in `video_testing/` (not in git).
+
+**Found by the tests.** A microphone switched on after silence: its hiss, being new, was taken for a voice and held the mouth open, because the floor rose too slowly. The floor is now the quietest moment of the last second, so a steady sound stops moving the mouth within about a second. Telling hiss from a voice by how much it varies was not taken: it would also shut the mouth on a long held vowel.
+
+11 new tests for the speech stage. The directions fitted twice agree (cosine 1.0).
+
+**Next.** A recording at the camera with the microphone (`record_camera.py --speech`), to measure the lips against a real mouth and a raw voice. If loudness alone is not good enough, a model that reads the shape of the sound, at a cost on the card that the speed above leaves room for. Then the switch in the Live Studio, the voice delay for this mode, and the phone relay.
 
 ## Decisions and their reasons
 
@@ -698,7 +745,7 @@ Approved by Zain after the mid evaluation, as the next item of iteration 2: the 
 - The progress plan does not yet list the web app.
 - The proposal inconsistencies listed under 5 October are settled in the draft of the mid report (8 October 2026); the team has not confirmed the settlements yet.
 - The mid report is in a local folder that git ignores, by Zain's decision on 7 October 2026. Still missing from it: the design diagrams and screenshots (13 dummy pictures stand in), the two other members' contributions, the meeting log, and the tag for the mid evaluation.
-- The engine's own figures (frame rate, delay, GPU) have not been read while a meeting application runs beside it; the Meet call of 18 October was judged from its recording only. The committee asked about exactly this.
+- The engine's figures were read beside Meet and Zoom on 23 October (two minutes each, one camera). A longer call, a call with several people and the Teams application have not been measured; Zoom's own CPU time was not counted.
 - In the Meet recording the output's mouth barely opened in a few stretches where the voice was loud. A recording of the camera beside the output is needed to tell whether the mouth is drawn too closed.
 - Lips and voice were within 80 ms of each other in one Meet call with the adjustment at 0. Zoom, and other cameras than Zain's, are not measured.
 - The repository shows commits from one account only. The rubric asks for commits from all members.

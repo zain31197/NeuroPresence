@@ -1,0 +1,34 @@
+{
+ "date": "2026-10-23T04:06:14",
+ "machine": {
+  "os": "Windows-11-10.0.26200-SP0",
+  "gpu": "NVIDIA GeForce RTX 5050"
+ },
+ "code": "e6970bc+uncommitted",
+ "directions": {
+  "clips": 12,
+  "frames": 4412,
+  "open_largest": {
+   "keypoint": 19,
+   "per_unit_gap": 0.2071
+  },
+  "blink_largest": {
+   "keypoint": 15,
+   "per_unit_score": 0.0318
+  }
+ },
+ "speed": {
+  "camera": {
+   "fps_back_to_back": 19.0,
+   "motion_ms": 5.91,
+   "render_ms": 44.35
+  },
+  "speech": {
+   "fps_back_to_back": 21.2,
+   "motion_ms": 0.4,
+   "render_ms": 44.53
+  },
+  "note": "Frames drawn one after another with nothing else running: the ceiling of each way. The camera way also needs the face tracker on the CPU for every frame, which is not counted here."
+ },
+ "agreement": {}
+}

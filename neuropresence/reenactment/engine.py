@@ -509,6 +509,21 @@ class ReenactmentEngine:
         """
         return self._read_motion(driving_face_bgr)
 
+    def source_reading(self):
+        """The movement the picture itself shows, as read() returns a reading.
+
+        Driven with it, the engine draws the picture as it is. When the voice drives the picture
+        (neuropresence/speech), the movement is made by changing this reading a little.
+        """
+        if self._source is None:
+            raise RuntimeError("Call set_source() before source_reading().")
+        info = self._source["info"]
+        return {key: info[key].clone() for key in ("pitch", "yaw", "roll", "t", "exp", "scale")}, self._source["rotation"]
+
+    def rotation(self, pitch, yaw, roll):
+        """The engine's rotation for head angles in degrees, as readings carry them."""
+        return self._rotation(pitch, yaw, roll)
+
     def between(self, before, after, share):
         """The movement part of the way from one reading to a later one: 0 is the first, 1 the second.
 
