@@ -17,10 +17,12 @@ the top of the range counts: sound far below the peak is not speech, however far
 The opening follows the sound with a short time constant when it grows and a slightly longer one when
 it shrinks, which keeps the lips from fluttering with every small dip in loudness.
 
-The settings were chosen against Zain's own mouth in a recorded Meet call (23 October 2026): with them
-the mouth was open in 40% of the frames against 23% for the real one, and stayed shut in pauses.
-Agreement with the real lip gap was modest (r = 0.29): loudness cannot tell lips that meet on an "m"
-from a vowel at the same volume.
+The settings were chosen on a recording of Zain speaking at his own camera with his headset microphone
+(23 October 2026, 66 s: vowels, two sentences full of b, m and p, free talk, quiet): the mouth is open
+in 45% of the frames against 40% for his real one, its timing within a frame of the real mouth, and the
+agreement with his real lip gap r = 0.44, best on read sentences (0.5) and weakest on free talk. That is
+about as far as loudness goes: it cannot tell lips that meet on an "m" from a vowel at the same volume.
+A recorded Meet call, behind Meet's own processing of the sound, gives 0.24 with the same settings.
 """
 
 import math
@@ -34,11 +36,11 @@ FLOOR_UP_SECONDS = 0.1  # when the quiet moments get louder, the floor rises wit
 PEAK_DOWN_SECONDS = 8.0  # the peak falls this slowly after a loud moment
 PEAK_UP_SECONDS = 0.03  # and rises this fast
 MIN_RANGE_DB = 25.0  # the floor and the peak are kept at least this far apart, so that noise alone never opens the mouth wide
-SPEECH_RANGE_DB = 25.0  # the mouth is judged within this much below the peak: in a very quiet room (or behind a
+SPEECH_RANGE_DB = 30.0  # the mouth is judged within this much below the peak: in a very quiet room (or behind a
                         # meeting's noise suppression) faint sound far above the floor is still not speech
-GATE_DB = 10.0  # this far above the floor the mouth starts to open
+GATE_DB = 3.0  # this far above the floor the mouth starts to open
 OPEN_SECONDS = 0.025  # the mouth opens with this time constant
-CLOSE_SECONDS = 0.040  # and closes with this one
+CLOSE_SECONDS = 0.04  # and closes with this one
 CURVE = 2.0  # above 1 keeps the mouth nearer closed except at the loudest moments, the vowels
 SILENT_DB = -100.0  # what an empty step reads as
 

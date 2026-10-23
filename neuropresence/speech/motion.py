@@ -23,7 +23,8 @@ from pathlib import Path
 import torch
 
 DIRECTIONS = Path(__file__).with_name("directions.json")
-MOUTH_GAP = 0.22  # a fully open mouth, as lip gap over eye span: a wide vowel in the clips the directions come from
+MOUTH_GAP = 0.15  # the lip gap (over eye span) of a fully open mouth: on Zain's speech recording, his real lip gap
+                  # per unit of the voice's openness, over the frames in which both were open
 BLINK_DEPTH = 0.75  # a full blink, in the tracker's blink score
 BLINK_SECONDS = 0.22  # how long a blink takes, closing and opening
 BLINK_EVERY = (2.5, 6.0)  # seconds between blinks, chosen at random in this range
