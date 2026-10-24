@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 397 for the engine and server, 62 for the web app, all passing.
+Tests: 405 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -694,6 +694,34 @@ With 10 steps the mouth moves as with 50 (correlation 0.975 on the main mouth ke
 **What it costs.** Ditto writes motion in clips of 80 frames. Live, it has to be run on overlapping windows, and at 0.43 s a run on this card a new stretch of motion can come about every half second, so the picture would be some 0.8 to 1.2 s behind the voice. The voice would have to be held back by as much to stay in step: lips in step, but a conversation that feels slightly late.
 
 **Next.** Draw Ditto's motion with our engine (its head angles turned from bins into degrees), keep the lips shut in silence with the loudness detector, and measure the whole chain fed with speech as it arrives: frame rate, delay, and the lips against Zain's real mouth. If loudness alone is not good enough, a model that reads the shape of the sound, at a cost on the card that the speed above leaves room for. Then the switch in the Live Studio, the voice delay for this mode, and the phone relay.
+
+### 24 October 2026: Ditto's motion drawn by our own engine
+
+Approved by Zain after the Ditto test: keep Ditto's speech to motion, and draw it with our engine, which has TensorRT, the mark and the virtual camera.
+
+**Built** (`neuropresence/speech/ditto.py`).
+
+- `DittoMotion` loads only Ditto's speech parts (the HuBERT encoder, its conditions and the diffusion model), not its drawing, and makes its frames for a stretch of speech as its offline pipeline does.
+- `DittoReadings` turns each frame into a reading for `engine.drive(motion=...)` the way Ditto's own stitching does: relative to the first frame and added to the picture's own pose, the expression driven on the lips and the eyes only, the head tilted down by Ditto's two degrees, the eyes corrected for the turn of the head. The head angles come as 66 bin scores and are turned into degrees as LivePortrait does.
+- `VoiceGate` keeps the lips shut while no voice is heard, from the loudness detector, held open for 0.3 s after the last sound so that the ends of words are kept. Ditto otherwise moves the lips a little in silence.
+
+**Found on the way.** Drawn by our engine, the same frames open the mouth 26% wider than Ditto's own drawing (110 frames, correlation 0.996 between the two), and with 10 denoising steps the mouth moves a little more than with 50, which on its own does not explain it (with 50 steps our engine still opened to a median of 0.165). On Zain's recording the mouth opened to a median lip gap of 0.18 where his opened to 0.07 and Ditto's own drawing to 0.09. The lips' movement is halved before drawing (`LIP_SCALE`); after it, 0.11 (0.155 at the widest, against his 0.128).
+
+**Measured** on Zain's 66 s speech recording, 10 steps, with the gate:
+
+| | Ditto's own drawing | Ditto's motion, our engine |
+|---|---|---|
+| Agreement with the real lip gap | 0.77 | 0.71 to 0.74 (the diffusion draws differently each run) |
+| Lag behind the real mouth | 1 frame | 0 frames |
+| Lips in the first quiet stretch | moving | shut |
+| Drawing | 3.8 times real time | 25.4 frames a second (39 ms a frame) |
+| Speech features and motion | | 0.70 of real time |
+
+The drawing figure was measured with nothing else on the card. In later runs a game was running on the card (130 W, 96% busy) and our engine took 194 to 212 ms a frame; those runs count only for the lips.
+
+19 tests for the speech stage and the conversion (8 new), with stand-in frames; Ditto is not loaded in them.
+
+**Not done yet.** Live use: the speech has to be fed as it arrives, in overlapping windows, and the delay that costs measured; then the switch in the Live Studio.
 
 ## Decisions and their reasons
 
