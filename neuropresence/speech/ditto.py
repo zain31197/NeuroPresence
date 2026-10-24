@@ -25,6 +25,8 @@ that the ends of words are not cut, and the lips are eased back to the picture's
 """
 
 import sys
+import threading
+import time
 import types
 from pathlib import Path
 
@@ -188,3 +190,199 @@ class DittoMotion:
             index += a2m.valid_clip_len
         done = a2m._smo(done[:, :len(conditions)], 0, len(conditions))
         return a2m.cvt_fmt(done)
+
+
+# ------------------------------------------------------------- live, as speech arrives
+
+STREAM_STEPS = 10  # denoising steps live: with the model compiled, about 64 ms a run on the RTX 5050
+HOP = 5  # frames of new motion per run, of the 80 it writes. Ditto's own live setting is 10; measured on the
+         # RTX 5050 with our engine drawing: hop 5, motion ready a median 0.54 s (at most 0.77 s) after the speech,
+         # 16.5 frames a second drawn; hop 10, 0.84 s (at most 1.22 s), 20.4 a second; hop 7 between the two
+PLAY_DELAY = 0.8  # with hop 5, the picture plays this far behind the voice: no frame was missing at it
+CHUNK = (3, 5, 2)  # the speech encoder's window, in frames: before, new, after
+WINDOW = sum(CHUNK) * SAMPLES_PER_FRAME + 80  # 6480 samples, as Ditto cuts them
+PAD_FRONT = WINDOW - sum(CHUNK[1:]) * SAMPLES_PER_FRAME  # silence before the first sample, as Ditto's offline cut
+
+
+class DittoStream(DittoMotion):
+    """Ditto live: speech fed as it arrives, its frames ready one hop at a time, on a thread of its own.
+
+    It works as Ditto's own live pipeline does. Every 5 frames (200 ms) of speech, once the 2 frames
+    after them have arrived too, the speech encoder reads a window of 10 frames. Every 10 new frames of
+    that, the motion model writes 80 frames, 70 of them over the previous run, and the 10 that the
+    previous run left unfinished are blended with it and released. So a frame is ready only after the
+    speech of the next hop has been heard: the price of motion that flows across the joins.
+
+    The speech encoder runs on the CPU and the motion model on the graphics card, each on a thread of
+    its own. One after the other they took 0.45 s for every 0.4 s of speech on the RTX 5050 and fell
+    further behind with every sentence; side by side the slower of the two sets the pace. Call
+    start(), wait for `ready_to_listen` (the motion model is compiled first), then feed speech.
+
+    `ready` maps a frame number (25 a second, counted from the first sample fed) to Ditto's frame and
+    the moment it was ready; `heard(n)` is the moment the speech of frame n had all arrived.
+    """
+
+    def __init__(self, steps=STREAM_STEPS, hop=HOP, compiled=True):
+        super().__init__(steps)
+        self.hop = hop
+        self.compiled = compiled
+        self.ready_to_listen = threading.Event()  # set once the motion model is compiled and warm
+        self._lock = threading.Lock()  # the speech fed and read
+        self._feature_lock = threading.Lock()  # the speech features made and used
+        self._wake = threading.Event()
+        self._features_in = threading.Event()
+        self._stop = threading.Event()
+        self._threads = []
+
+    def start(self, picture):
+        self.set_picture(picture)
+        a2m, overlap = self.audio2motion, self.audio2motion.seq_frames - self.hop
+        a2m.setup(self.conditions.x_s_info_0, overlap_v2=overlap, fix_kp_cond=0, sampling_timesteps=self.steps,
+                  online_mode=True, v_min_max_for_clip=self.defaults.get("v_min_max_for_clip"),
+                  smo_k_d=self.defaults.get("smo_k_d", 3))
+        self._reset(overlap)
+        self._stop.clear()
+        self._threads = [threading.Thread(target=self._run_speech, name="ditto-speech", daemon=True),
+                         threading.Thread(target=self._run_motion, name="ditto-motion", daemon=True)]
+        for thread in self._threads:
+            thread.start()
+
+    def _reset(self, overlap):
+        """Start the speech, its features and the motion afresh (a new session)."""
+        self._audio = np.zeros(PAD_FRONT, np.float32)  # the speech not yet read, with Ditto's silence before it
+        self._audio_from = 0  # the position of _audio[0] in the whole padded stream
+        self._fed = 0  # samples of speech fed
+        self._arrivals = []  # (samples fed so far, when)
+        self._features = self.wav2feat.wav2feat(np.zeros(overlap * SAMPLES_PER_FRAME, np.float32))  # silence before
+        self._next_feature = 0  # the frame whose features come next
+        self._local, self._global, self._cond_start = 0, 0, -len(self._features)
+        self._motion, self._valid_from, self._released = None, None, 0
+        self.ready = {}
+        self.runs = []  # how long each run of the motion model took
+
+    def feed(self, samples):
+        samples = np.asarray(samples, np.float32).reshape(-1)
+        with self._lock:
+            self._audio = np.concatenate([self._audio, samples])
+            self._fed += len(samples)
+            self._arrivals.append((self._fed, time.perf_counter()))
+        self._wake.set()
+
+    def heard(self, frame):
+        """When the speech of this frame had all arrived, or None if it has not yet."""
+        needed = (frame + 1) * SAMPLES_PER_FRAME
+        with self._lock:
+            for fed, at in self._arrivals:
+                if fed >= needed:
+                    return at
+        return None
+
+    def stop(self):
+        self._stop.set()
+        self._wake.set()
+        self._features_in.set()
+        for thread in self._threads:
+            thread.join(timeout=5.0)
+
+    def _run_speech(self):
+        while not self._stop.is_set():
+            self._wake.wait(0.05)
+            self._wake.clear()
+            while not self._stop.is_set() and self._read_speech():
+                self._features_in.set()
+
+    def _warm(self):
+        """Compile the motion model's denoiser (CUDA graphs) and run it once, on this thread.
+
+        Its many small steps cost more in starting work on the graphics card than in the work: one
+        run of 5 steps took 242 ms as it is and 32 ms compiled, with the same output to four decimals.
+        CUDA graphs belong to the thread that records them, so this is done on the motion thread.
+        Compiling takes about 50 s the first time.
+        """
+        lmdm = self.audio2motion.lmdm
+        network = lmdm.model.model
+        # Silence made into conditions exactly as speech is, so that the compiled model meets the same shape
+        # (1103 numbers a frame, not the 1059 the model's own setting gives) and is not compiled again live.
+        with self._feature_lock:
+            quiet = self._features[:lmdm.seq_frames]
+        quiet = np.concatenate([quiet] + [quiet[-1:]] * (lmdm.seq_frames - len(quiet)), 0)
+        silence = self.conditions(quiet, self._cond_start)[None].astype(np.float32)
+        self.audio2motion.kp_cond = np.array(self.audio2motion.kp_cond, dtype=np.float32, copy=True)
+        # Once as it is first: the rotary position embedding keeps what it computes on its first run, and
+        # kept inside a CUDA graph it would be overwritten by the graph's next run.
+        lmdm(self.audio2motion.kp_cond, silence, self.steps)
+        if self.compiled and not getattr(network, "_compiled_by_us", False):
+            network.guided_forward = torch.compile(network.guided_forward, mode="reduce-overhead", dynamic=False)
+            network._compiled_by_us = True
+        # Through the same path as live (a first run, then runs blended into it), so that every variant the
+        # compiler makes is made now and not on the first sentence; then the motion is started afresh.
+        a2m, motion = self.audio2motion, None
+        for _ in range(3):
+            a2m.kp_cond = np.array(a2m.kp_cond, dtype=np.float32, copy=True)
+            motion = a2m(silence, motion)
+        a2m.setup(self.conditions.x_s_info_0, overlap_v2=a2m.seq_frames - self.hop, fix_kp_cond=0,
+                  sampling_timesteps=self.steps, online_mode=True,
+                  v_min_max_for_clip=self.defaults.get("v_min_max_for_clip"), smo_k_d=self.defaults.get("smo_k_d", 3))
+        self.ready_to_listen.set()
+
+    def _run_motion(self):
+        self._warm()
+        while not self._stop.is_set():
+            self._features_in.wait(0.05)
+            self._features_in.clear()
+            while not self._stop.is_set() and self._write_motion():
+                pass
+
+    def _read_speech(self):
+        """Five more frames of speech features, if their window (and the two frames after it) has arrived."""
+        start = self._next_feature * SAMPLES_PER_FRAME
+        with self._lock:
+            if self._audio_from + len(self._audio) < start + WINDOW:
+                return False
+            window = self._audio[start - self._audio_from:start - self._audio_from + WINDOW].copy()
+        made = self.wav2feat(window, chunksize=CHUNK)
+        with self._feature_lock:
+            self._features = np.concatenate([self._features, made], 0)
+        self._next_feature += CHUNK[1]
+        with self._lock:  # what the next window will not need again
+            keep_from = self._next_feature * SAMPLES_PER_FRAME
+            self._audio = self._audio[keep_from - self._audio_from:]
+            self._audio_from = keep_from
+        return True
+
+    def _write_motion(self):
+        """One run of the motion model, if a hop of new speech features has come in."""
+        a2m = self.audio2motion
+        with self._feature_lock:
+            if len(self._features) < self._local + a2m.seq_frames:
+                return False
+            window = self._features[self._local:self._local + a2m.seq_frames].copy()
+        conditions = self.conditions(window, self._global + self._cond_start)
+        # Ditto takes the frame to continue from as a slice of its growing history, whose memory layout
+        # changes as it grows; the compiled model is tied to one layout and would be compiled again each run.
+        a2m.kp_cond = np.array(a2m.kp_cond, dtype=np.float32, copy=True)  # a real copy: a slice of one row counts as compact to NumPy but keeps its odd stride
+        began = time.perf_counter()
+        self._motion = a2m(np.array(conditions[None], dtype=np.float32, copy=True), self._motion)
+        self.runs.append(time.perf_counter() - began)
+        if self._valid_from is None:  # the first run: its newest frames wait for the next one to be blended in
+            self._valid_from = self._motion.shape[1] - a2m.fuse_length
+        else:
+            finished = a2m.cvt_fmt(self._motion[:, self._valid_from:self._valid_from + self.hop])
+            now = time.perf_counter()
+            for frame in finished:
+                self.ready[self._released] = (frame, now)
+                self._released += 1
+            self._valid_from += self.hop
+        self._local += self.hop
+        self._global += self.hop
+        if self._motion.shape[1] > a2m.seq_frames * 2:  # keep only what the blending can still need
+            cut = self._motion.shape[1] - a2m.seq_frames * 2
+            self._motion = self._motion[:, cut:]
+            self._valid_from -= cut
+        if self._local > a2m.seq_frames:  # and the features likewise
+            cut = self._local - a2m.seq_frames
+            with self._feature_lock:
+                self._features = self._features[cut:]
+            self._local -= cut
+        return True
+

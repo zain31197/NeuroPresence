@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 405 for the engine and server, 62 for the web app, all passing.
+Tests: 409 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -717,11 +717,40 @@ Approved by Zain after the Ditto test: keep Ditto's speech to motion, and draw i
 | Drawing | 3.8 times real time | 25.4 frames a second (39 ms a frame) |
 | Speech features and motion | | 0.70 of real time |
 
-The drawing figure was measured with nothing else on the card. In later runs a game was running on the card (130 W, 96% busy) and our engine took 194 to 212 ms a frame; those runs count only for the lips.
+The drawing figure was measured with nothing else on the card. In later runs a game was running on the card (130 W, 96% busy) and our engine took 194 to 212 ms a frame; those runs count only for the lips. Run again with the card free: speech features and motion 0.57 of real time, our engine 38.6 ms a frame (25.9 a second), agreement 0.71.
+
+**Both at once**, as they would run live: our engine drawing continuously while Ditto made the motion for the whole 66 s recording on the same card. Ditto took 0.70 of real time and the engine drew 21.7 frames a second (median 44 ms, 95th percentile 55 ms). Live is therefore feasible on the RTX 5050 at about the camera mode's rate: the motion keeps up with the voice, and the drawing shows the newest motion frame, about 22 of Ditto's 25 a second.
 
 19 tests for the speech stage and the conversion (8 new), with stand-in frames; Ditto is not loaded in them.
 
 **Not done yet.** Live use: the speech has to be fed as it arrives, in overlapping windows, and the delay that costs measured; then the switch in the Live Studio.
+
+### 24 October 2026: Ditto live, as the speech arrives
+
+Approved by Zain: feed the speech as it arrives and measure the delay, before any switch in the Live Studio.
+
+**Built** (`DittoStream` in `neuropresence/speech/ditto.py`), as Ditto's own live pipeline works: every 5 frames of speech (200 ms), once the 2 frames after them have arrived, the speech encoder reads a window of 10 frames; every hop of new features, the motion model writes 80 frames over the previous run, and the frames the previous run left unfinished are blended and released. Each released frame keeps the moment it was ready, and the stream keeps when each frame's speech had arrived, so the delay is measured, not estimated.
+
+**Tested** by feeding Zain's 66 s recording in 20 ms blocks in real time while our engine played the picture at a fixed delay behind the voice, showing the frame due at each moment as the camera mode does. Four faults on the way, each found by that test:
+
+- One after the other, the speech encoder (CPU) and the motion model (GPU) took 0.45 s for every 0.4 s of speech, and the delay grew to 7.5 s within the minute. They now run on two threads, and the slower of the two sets the pace.
+- With the drawing running too, a motion run took as long as the speech it covers, and frames were late. Half precision made it slower (235 ms against 199 ms). Compiling the model's denoiser with CUDA graphs took one run of 5 steps from 242 ms to 32 ms with the same output to four decimals: its many small steps cost more in starting work on the card than in the work. Compiling takes about 50 s the first time, about 9 s once cached, and is done on the motion thread, since CUDA graphs belong to the thread that records them.
+- The compiled model was compiled again on every run, because Ditto hands it the frame to continue from as a slice of its growing history, whose memory layout changes as it grows. It is now given a real copy (NumPy counts a one-row slice as compact and keeps its odd layout, so `ascontiguousarray` was not enough), and the speech conditions likewise.
+- The warm-up has to go through the same path as live and with conditions made from silence exactly as from speech (1103 numbers a frame; the model's own setting says 1059), or the first sentence waits 3.5 to 4.3 s for a compile. The rotary position embedding is run once uncompiled first, or what it keeps would be overwritten inside the CUDA graph.
+
+**Measured**, 10 denoising steps, the card free (a motion run 62 to 88 ms):
+
+| Hop (new frames a run) | Motion ready after the speech | Played behind the voice | Frames missing | Drawn a second | Lips (r) |
+|---|---|---|---|---|---|
+| 10 (Ditto's own) | median 0.84 s, at most 1.22 s | 1.1 s | 12 of 1,649 | 20.4 | 0.68 |
+| 7 | median 0.74 s, at most 0.98 s | 0.9 s | 47 | 18.5 | 0.67 |
+| 5 (chosen) | median 0.54 s, at most 0.77 s | 0.8 s | 0 | 16.5 | 0.69 |
+
+The delay is about two hops and 0.15 s: a frame is released only once the next hop of speech has been heard and blended into it. Hop 5 is the default, the picture 0.8 s behind the voice: in a conversation a shorter delay counts for more than three more frames a second. More motion runs a second leave less of the card for the drawing, hence 16.5 frames a second against 20.4.
+
+27 tests for the speech stage (4 new for the live bookkeeping, with stand-ins that number every frame of speech).
+
+**Not done yet.** The voice held back by the same 0.8 s so that lips and words reach the meeting together, and the switch in the Live Studio that drives the picture from the microphone with the camera off.
 
 ## Decisions and their reasons
 
