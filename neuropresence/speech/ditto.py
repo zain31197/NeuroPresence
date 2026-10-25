@@ -24,6 +24,7 @@ voice is taken from the loudness detector (mouth.py), held open for a moment aft
 that the ends of words are not cut, and the lips are eased back to the picture's own when it closes.
 """
 
+import bisect
 import sys
 import threading
 import time
@@ -272,10 +273,17 @@ class DittoStream(DittoMotion):
         """When the speech of this frame had all arrived, or None if it has not yet."""
         needed = (frame + 1) * SAMPLES_PER_FRAME
         with self._lock:
-            for fed, at in self._arrivals:
-                if fed >= needed:
-                    return at
-        return None
+            index = bisect.bisect_left(self._arrivals, (needed, float("-inf")))
+            return self._arrivals[index][1] if index < len(self._arrivals) else None
+
+    def forget_before(self, frame):
+        """Let go of the frames before this one, and of when their speech arrived: drawn, they are not needed."""
+        for old in [key for key in self.ready if key < frame]:
+            self.ready.pop(old, None)
+        needed = (frame + 1) * SAMPLES_PER_FRAME
+        with self._lock:
+            index = bisect.bisect_left(self._arrivals, (needed, float("-inf")))
+            del self._arrivals[:max(0, index - 1)]
 
     def stop(self):
         self._stop.set()
