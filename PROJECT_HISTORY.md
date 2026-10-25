@@ -30,7 +30,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 409 for the engine and server, 62 for the web app, all passing.
+Tests: 421 for the engine and server, 62 for the web app, all passing.
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -751,6 +751,24 @@ The delay is about two hops and 0.15 s: a frame is released only once the next h
 27 tests for the speech stage (4 new for the live bookkeeping, with stand-ins that number every frame of speech).
 
 **Not done yet.** The voice held back by the same 0.8 s so that lips and words reach the meeting together, and the switch in the Live Studio that drives the picture from the microphone with the camera off.
+
+### 25 October 2026: the camera off mode in the Live Studio
+
+Approved by Zain: the voice drive in a session, and the voice held back to match.
+
+**Built.**
+
+- `neuropresence/speech/live.py` (`VoiceDrive`): opens the microphone at 16 kHz in 20 ms blocks, feeds Ditto's live stream, keeps the loudness of every frame for the silence gate, and says at each moment which frame to draw: the one whose speech ended PLAY_DELAY ago. Ditto is loaded on the first voice session and kept. What has been drawn is let go of once a second, so that a long call does not fill the memory (it would have been about 180 MB an hour), and the moment each frame's speech arrived is found by bisection.
+- A new input, "Voice, camera off". The session starts as every camera session does, with the liveness prompt and the face matched at the camera, so a stranger at the computer cannot start it and nothing is animated before the check. Then the camera is closed and the voice loop draws: the frame due now, with the mark, through the identity guard, to the Live Studio and the virtual camera. The camera monitor shows a card, "Camera off".
+- The delay watchdog does not act in this mode: the picture is late on purpose and the voice is matched to it. The consent watch has no camera face to compare and stays quiet; the identity guard scores the output as before.
+- The voice for the meeting follows the measured delay from speech to frame, as it already followed the camera mode's delay; its limit was raised from 0.6 s to 1.5 s.
+- In the Live Studio, a "Camera off" group in the input list, and a notice while a voice session runs, which asks for "Voice in step" when it is off.
+
+**Checked.** The real voice drive with Zain's recording handed over in 20 ms blocks in real time in place of the microphone (neither his camera nor his microphone was opened), drawn as the session's loop draws: ready 33 s after the start (loading, and the compile from its cache), then 16.5 frames a second, the frame drawn a median 0.87 s after its speech (95th percentile 0.91 s), 30 of 1,649 frames not ready at their moment. A first count of missed frames said 394, because a frame not yet ready was counted at every look; it is now counted once. The run is in `video_testing/voice_drive_live.mp4` (not in git).
+
+6 server tests for the voice session with a stand-in drive, and 6 for the drive itself with a stand-in stream and microphone.
+
+**Not done yet.** A session by Zain at his own camera and microphone, and a call in Meet with the voice in step.
 
 ## Decisions and their reasons
 

@@ -241,6 +241,19 @@ def _default_engine():
     return ReenactmentEngine(tensorrt=True, compile_networks=True)
 
 
+def _default_voice():
+    """The voice drive's maker if Ditto is installed (scripts/setup_ditto.py), or None."""
+    from ..speech.ditto import DITTO_DIR
+
+    if not (DITTO_DIR / "core").exists():
+        return None
+
+    def make():
+        from ..speech.live import VoiceDrive
+        return VoiceDrive()
+    return make
+
+
 def _default_feed(source):
     from ..capture import FrameSourceError
     from ..capture.feed import LiveFeed
@@ -291,7 +304,7 @@ class Runtime:
     def __init__(self, engine_factory=_default_engine, feed_factory=_default_feed,
                  tracker_factory=_default_tracker, scorer_factory=_default_scorer, gpu_probe=_default_gpu,
                  data_dir=DATA_DIR, results_dir=RESULTS_DIR, sample_dir=SAMPLE_CLIPS, camera_opener=open_device,
-                 sound_devices=list_devices, sound_opener=open_streams):
+                 sound_devices=list_devices, sound_opener=open_streams, voice_factory=None):
         self._engine_factory = engine_factory
         self.make_feed = feed_factory
         self.make_tracker = tracker_factory
@@ -301,6 +314,9 @@ class Runtime:
         self._sample_dir = Path(sample_dir)
         self._engine = None
         self._scorer = None
+        # The voice driving the picture with the camera off (speech/live.py), when Ditto is installed.
+        self._voice_factory = voice_factory if voice_factory is not None else _default_voice()
+        self._voice = None
         # Re-entrant: the session thread holds it for a frame and may swap the picture inside it.
         self.engine_lock = threading.RLock()
         self._scorer_lock = threading.Lock()
@@ -725,9 +741,11 @@ class Runtime:
     # ------------------------------------------------------------ session
 
     def inputs(self):
-        """What a session can be driven from: cameras, and sample clips if installed."""
+        """What a session can be driven from: cameras, the voice (camera off) if Ditto is installed, and sample clips."""
         inputs = [{"id": f"camera:{index}", "kind": "camera", "label": f"Camera {index}"}
                   for index in CAMERA_INDEXES]
+        if self._voice_factory is not None:
+            inputs.append({"id": "voice:0", "kind": "voice", "label": "Voice, camera off"})
         for name in SAMPLE_NAMES:
             if (self._sample_dir / f"{name}.mp4").exists():
                 inputs.append({"id": f"sample:{name}", "kind": "sample", "label": f"Sample clip {name}"})
@@ -741,11 +759,12 @@ class Runtime:
 
     def _source_of(self, entry):
         kind, _, value = entry["id"].partition(":")
-        return int(value) if kind == "camera" else str(self._sample_dir / f"{value}.mp4")
+        # A voice session uses the camera for the check before it, then closes it.
+        return int(value) if kind in ("camera", "voice") else str(self._sample_dir / f"{value}.mp4")
 
     def start_session(self, input_id):
         entry = self._input(input_id)
-        uses_enrolment = entry["kind"] == "camera"
+        uses_enrolment = entry["kind"] in ("camera", "voice")
         if uses_enrolment and self.enrolment is None:
             raise SessionError("Enrol a picture first.")
         if uses_enrolment and self.face is None:
@@ -753,8 +772,24 @@ class Runtime:
         if self.session.active:
             raise SessionError("A session is already running.")
         self.preview.stop()  # the camera can only be open in one place
-        self.session.start(self._source_of(entry), entry["label"], uses_enrolment)
+        self.session.start(self._source_of(entry), entry["label"], uses_enrolment, voice=entry["kind"] == "voice")
         self.identity.ensure_started()
+
+    def voice(self):
+        """The voice drive, made on first use and kept, since loading it takes seconds."""
+        if self._voice is None:
+            if self._voice_factory is None:
+                raise SessionError("The voice mode needs Ditto. Run: python scripts/setup_ditto.py")
+            self._voice = self._voice_factory()
+        return self._voice
+
+    def picture_path(self):
+        """The file of the enrolled picture, which the voice model reads the face from."""
+        return self.store.folder / "picture.png"
+
+    def voice_microphone(self):
+        """The microphone chosen for the virtual microphone, or None for the system's own."""
+        return self.virtual_microphone.microphone
 
     def stop_session(self):
         self.session.stop()

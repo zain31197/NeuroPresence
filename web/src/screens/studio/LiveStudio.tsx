@@ -1,4 +1,4 @@
-import { ArrowRight, Clapperboard, Play, RotateCcw, Square, Video } from 'lucide-react'
+import { ArrowRight, Clapperboard, Mic, Play, RotateCcw, Square, Video } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, buttonClass, Spinner } from '../../components/ui/Button'
@@ -92,7 +92,7 @@ export function LiveStudio() {
   const active = session?.state === 'running' || session?.state === 'starting'
   const inputs = status?.inputs ?? []
   // A camera session animates the enrolled picture, so there has to be one. A sample clip brings its own.
-  const needsPicture = !active && input.startsWith('camera') && !!status && status.enrolment.record === null
+  const needsPicture = !active && !input.startsWith('sample') && !!status && status.enrolment.record === null
   const running = session?.state === 'running'
   // Three reasons for the still picture. Someone else at the camera comes first: nothing else matters then.
   const heldForConsent = running && !!session?.holds?.consent
@@ -100,6 +100,9 @@ export function LiveStudio() {
   const heldForDelay = running && !!session?.holds?.delay && !heldForIdentity && !heldForConsent
   // A session that ended because the check before it was not passed can simply be tried again.
   const refused = session?.state === 'error' && session.consent?.stage === 'refused'
+  // The voice drives the picture: the meeting must hear the voice held back by as much, or the lips trail the words.
+  const voiceRunning = running && !!session?.voice
+  const voiceInStep = !!status?.virtual_microphone?.on
 
   const act = async (work: () => Promise<unknown>) => {
     setPending(true)
@@ -138,6 +141,12 @@ export function LiveStudio() {
                 options: inputs
                   .filter((option) => option.kind === 'camera')
                   .map((option) => ({ value: option.id, label: option.label, icon: <Video className="size-3.5 text-ink-500" /> })),
+              },
+              {
+                title: 'Camera off',
+                options: inputs
+                  .filter((option) => option.kind === 'voice')
+                  .map((option) => ({ value: option.id, label: option.label, icon: <Mic className="size-3.5 text-ink-500" /> })),
               },
               {
                 title: 'Recorded clips',
@@ -203,6 +212,14 @@ export function LiveStudio() {
         <Notice className="mt-5" title="The picture is arriving late">
           The delay from camera to output is above {status?.targets.end_to_end_ms} ms, so your still picture is shown: lips that move late are
           worse than a still face. Reenactment returns by itself once the delay is back under the limit.
+        </Notice>
+      )}
+      {voiceRunning && (
+        <Notice className="mt-5" title="Your voice drives the picture">
+          The camera is off. Your picture follows your voice about a second behind it, as a meeting needs it.{' '}
+          {voiceInStep
+            ? 'Your voice goes to the meeting held back by as much, so lips and words arrive together.'
+            : 'Switch on "Voice in step" below, or the meeting hears your words before your lips move.'}
         </Notice>
       )}
       {needsPicture && connection === 'open' && (

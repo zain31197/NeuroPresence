@@ -39,7 +39,7 @@ BUFFER_SECONDS = 2.0  # longer than any delay that is worth keeping
 # The least the voice is held. The two devices hand sound over unevenly, the reader's lead swinging by
 # up to 20 ms either way (measured on the cable), and the reader must never overtake the writer.
 MIN_DELAY_MS = 40.0
-MAX_DELAY_MS = 600.0
+MAX_DELAY_MS = 1500.0  # the voice driven picture is 0.8 s behind the voice and more (speech/ditto.py: PLAY_DELAY)
 FOLLOW_MS = 8.0  # the picture delay has to move by this much before the voice follows it
 NUDGE = 0.01  # how much faster or slower the voice is played while it catches up: one per cent
 SMOOTHING = 0.02  # each read moves the judged lead this share of the way: about half a second

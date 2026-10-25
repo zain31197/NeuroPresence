@@ -439,3 +439,13 @@ The proposal's live mode has a second form: with the camera off, the user's voic
 
 Measured on 23 October 2026 (RTX 5050, frames drawn one after another): driven from speech the engine drew 26.1 frames a second, against 23.3 driven from camera frames, because the motion network (5.1 ms a frame) and the face tracker are not needed; the render time is the same. On a recording of Zain speaking at his camera with his headset (66 s, `record_camera.py --speech`), the voice's mouth was open in 45% of the frames against 40% for his real one, within a frame of it in time, and shut in quiet stretches; its agreement with his real lip gap was r = 0.44, best on read sentences (about 0.5) and weakest on free talk (0.14). At his widest openings the picture's mouth opens less than his. That is about as far as loudness alone goes: it cannot tell lips that meet on an "m" from a vowel at the same volume.
 
+## Camera off: the voice drives the picture
+
+In the Live Studio, choose the input **Voice, camera off** and start the session. The camera opens for the liveness check and the face match, as for every camera session, and closes once they are passed. From then on your voice drives the picture: Ditto (`scripts/setup_ditto.py`) turns the speech from the microphone into the motion of your face, which our engine draws with the mark, to the Live Studio and the virtual camera. The microphone is the one chosen under "Voice in step".
+
+The picture follows the voice about 0.9 s behind it. Switch on **Voice in step** for a meeting: it holds the voice back by the same measured delay, so that the meeting gets lips and words together. The delay watchdog does not act in this mode, since the picture is late on purpose; the identity guard still scores every frame.
+
+The first session after the engine starts takes about half a minute to get ready (loading the voice model and compiling it for the card; a minute the first time on a computer).
+
+Measured on 25 October 2026 (RTX 5050), with a recording of Zain fed in place of the microphone in real time: 16.5 frames a second drawn, the frame drawn a median 0.87 s after its speech was heard (95th percentile 0.91 s), 30 of 1,649 frames not ready at their moment and skipped, and the lips following his real lips at r = 0.69 to 0.74.
+

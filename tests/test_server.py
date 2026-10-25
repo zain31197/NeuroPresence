@@ -126,6 +126,44 @@ class FakeEngine:
     def set_reference(self, face):
         self.neutral_faces.append(face.shape)
 
+    def source_reading(self):
+        """The picture's own pose, for a voice session."""
+        import torch
+        reading = {"pitch": torch.zeros(1, 1), "yaw": torch.zeros(1, 1), "roll": torch.zeros(1, 1),
+                   "t": torch.zeros(1, 3), "scale": torch.ones(1, 1), "exp": torch.zeros(1, 21, 3)}
+        return reading, torch.eye(3)[None]
+
+    def rotation(self, pitch, yaw, roll):
+        import torch
+        return torch.eye(3)[None]
+
+
+class FakeVoiceDrive:
+    """Stands in for the voice drive (speech/live.py): no microphone, no Ditto. It hands out a new frame
+    every 40 ms, its speech heard 850 ms before, as the real one does at its delay."""
+
+    def __init__(self):
+        self.started, self.stopped, self.microphone, self.frame = None, False, None, -1
+
+    def start(self, picture, microphone=None, progress=None):
+        if progress:
+            progress("Preparing the voice model")
+        self.started, self.microphone, self.stopped, self.frame = picture, microphone or "Test microphone", False, -1
+        self._began = time.perf_counter()
+
+    def due(self, now):
+        frame = int((now - self._began) / 0.04)
+        if frame <= self.frame:
+            return None
+        self.frame = frame
+        bins = np.zeros((1, 66), np.float32)
+        ditto = {"pitch": bins, "yaw": bins, "roll": bins, "t": np.zeros((1, 3), np.float32),
+                 "exp": np.zeros((1, 63), np.float32), "scale": np.ones((1, 1), np.float32)}
+        return frame, ditto, 1.0, now - 0.85, 0
+
+    def stop(self):
+        self.stopped = True
+
 
 class FakeCamera:
     """Stands in for the virtual camera device: keeps the newest frame it was sent."""
@@ -194,6 +232,10 @@ def make_runtime(tmp_path, parts):
         return {"microphones": ["Headset", "Webcam"], "default": "Webcam",
                 "cable": None if parts.get("no_cable") else "CABLE Input (VB-Audio Virtual Cable)"}
 
+    def make_voice():
+        parts.setdefault("voices_made", []).append(FakeVoiceDrive())
+        return parts["voices_made"][-1]
+
     def open_sound(microphone, cable, on_input, on_output):
         parts.setdefault("voices", []).append(FakeVoice(microphone, cable, on_input, on_output))
         return parts["voices"][-1]
@@ -201,7 +243,8 @@ def make_runtime(tmp_path, parts):
     return Runtime(engine_factory=make_engine, feed_factory=make_feed,
                    tracker_factory=lambda video=True: parts["tracker"], scorer_factory=FakeScorer,
                    gpu_probe=read_gpu, data_dir=tmp_path / "data", results_dir=tmp_path / "results",
-                   sample_dir=samples, camera_opener=open_camera, sound_devices=sound_devices, sound_opener=open_sound)
+                   sample_dir=samples, camera_opener=open_camera, sound_devices=sound_devices, sound_opener=open_sound,
+                   voice_factory=make_voice)
 
 
 @pytest.fixture
@@ -361,7 +404,7 @@ def test_status_when_nothing_has_happened(parts):
     assert found["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
     assert found["session"]["consent"] is None
     assert found["identity"]["guard"]["state"] == "steady" and found["identity"]["guard"]["enabled"] is True
-    assert [i["id"] for i in found["inputs"]] == ["camera:0", "camera:1", "camera:2", "sample:d0"]
+    assert [i["id"] for i in found["inputs"]] == ["camera:0", "camera:1", "camera:2", "voice:0", "sample:d0"]
     assert found["targets"]["fps"] == 24.0
     assert parts["engines"] == []  # the models are not loaded until they are needed
     # The GPU is not asked about before the engine exists: PyTorch may still be loading.
@@ -1644,3 +1687,67 @@ def test_the_virtual_microphone_is_let_go_when_the_engine_shuts_down(parts):
     parts["client"].patch("/api/virtual-microphone", json={"on": True})
     parts["runtime"].shutdown()
     assert parts["voices"][0].closed
+
+
+# --------------------------------------------------------------- the voice
+
+
+def start_voice(parts):
+    """Start a voice session and wait until it draws. The first one in a test run also loads PyTorch, which
+    the session's conversion of the voice model's motion needs and which takes some seconds to import."""
+    enrol(parts)
+    reply = parts["client"].post("/api/session/start", json={"input": "voice:0"})
+    assert reply.status_code == 200, reply.text
+    assert wait_for(lambda: status(parts)["session"]["state"] == "running", seconds=60)
+    assert wait_for(lambda: parts["runtime"].session.latest_pair() is not None)
+
+
+def test_a_voice_session_starts_with_the_check_at_the_camera_then_closes_the_camera(parts):
+    start_voice(parts)
+    runtime = parts["runtime"]
+    assert parts["sources"][-1] == 0  # the camera was opened, for the check
+    assert wait_for(lambda: parts["feeds"][-1].closed)  # and closed once it was passed
+    voice = parts["voices_made"][0]
+    assert voice.started == runtime.picture_path()
+    found = status(parts)["session"]
+    assert found["voice"] is True and found["source"] == "enrolment"
+    assert any("Session started with the camera off" in message for message in events(parts))
+
+
+def test_the_voice_draws_the_picture_with_its_mark_and_the_camera_monitor_says_the_camera_is_off(parts):
+    from neuropresence.server.session import camera_off_card
+    start_voice(parts)
+    runtime = parts["runtime"]
+    assert wait_for(lambda: runtime.session.latest_pair() is not None and runtime.session.latest_pair().live)
+    pair = runtime.session.latest_pair()
+    assert is_marked(pair.output)
+    assert np.array_equal(pair.camera, camera_off_card())
+    assert pair.landmarks is None  # nothing for the consent watch to compare: there is no camera face
+
+
+def test_the_voice_is_held_back_by_the_delay_of_the_voice_driven_picture(parts):
+    start_voice(parts)
+    runtime = parts["runtime"]
+    assert wait_for(lambda: runtime.session.delay_ms() is not None)
+    assert runtime.session.delay_ms() == pytest.approx(850, abs=30)  # from the speech heard to its frame drawn
+    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms(), abs=5)
+    assert status(parts)["session"]["holds"]["delay"] is False  # the late picture is on purpose: no still picture
+
+
+def test_the_meeting_gets_the_voice_driven_picture(parts):
+    parts["client"].post("/api/virtual-camera", json={"on": True})
+    start_voice(parts)
+    assert wait_for(lambda: status(parts)["virtual_camera"]["showing"] == "session")
+
+
+def test_stopping_a_voice_session_lets_the_microphone_and_the_model_go(parts):
+    start_voice(parts)
+    parts["client"].post("/api/session/stop")
+    assert wait_for(lambda: status(parts)["session"]["state"] == "idle")
+    assert parts["voices_made"][0].stopped
+    assert status(parts)["session"]["voice"] is False
+
+
+def test_a_voice_session_needs_the_verified_face_like_a_camera_session(parts):
+    reply = parts["client"].post("/api/session/start", json={"input": "voice:0"})
+    assert reply.status_code == 409 and "Enrol a picture first" in reply.json()["detail"]

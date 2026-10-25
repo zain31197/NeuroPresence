@@ -7,6 +7,7 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from enum import Enum
 
+import cv2
 import numpy as np
 
 from ..capture import TrackStatus
@@ -112,6 +113,16 @@ class FramePair:
     crop_window: tuple | None = None  # where the driving face crop was cut, as (x, y, side) in the camera frame
 
 
+def camera_off_card(width=640, height=360):
+    """What the camera monitor shows while the voice drives the picture: a plain card, the camera being off."""
+    card = np.full((height, width, 3), (24, 20, 18), dtype=np.uint8)
+    for text, scale, weight, colour, y in (("Camera off", 1.1, 2, (235, 235, 235), height // 2 - 8),
+                                           ("Your voice drives the picture", 0.6, 1, (170, 165, 160), height // 2 + 30)):
+        (text_w, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, weight)
+        cv2.putText(card, text, ((width - text_w) // 2, y), cv2.FONT_HERSHEY_SIMPLEX, scale, colour, weight, cv2.LINE_AA)
+    return card
+
+
 def is_frontal(track):
     return track.ok and all(abs(angle) <= MAX_FRONTAL_ANGLE_DEG for angle in track.pose_deg)
 
@@ -134,6 +145,7 @@ class LiveSession:
         self.message = ""
         self.input_label = None
         self.uses_enrolment = True  # False for a sample clip, which animates its own first frame
+        self.voice = False  # True when the voice drives the picture: the camera only for the check, then off
         self._started_at = None
         self._pair = None
         self._tracking = None
@@ -173,7 +185,7 @@ class LiveSession:
 
     # ------------------------------------------------------------ control
 
-    def start(self, source, label, uses_enrolment):
+    def start(self, source, label, uses_enrolment, voice=False):
         with self._lock:
             if self.active:
                 raise SessionError("A session is already running.")
@@ -188,6 +200,7 @@ class LiveSession:
             self._drawn_seconds, self._slow_camera_told = 0.0, False
             self._anchor.clear()
             self.uses_enrolment = uses_enrolment
+            self.voice = voice
             opening = "Opening the camera" if isinstance(source, int) else "Opening the clip"
             self.state, self.message, self.input_label = SessionState.STARTING, opening, label
             self._thread = threading.Thread(target=self._run, args=(source,), name="live-session", daemon=True)
@@ -249,6 +262,8 @@ class LiveSession:
                       "consent": running and self.consent_hold},
             # The check a camera session starts with: what is being asked for, or how it ended.
             "consent": consent if state is not SessionState.IDLE else None,
+            # True while the voice drives the picture and the camera is off.
+            "voice": self.voice if state is not SessionState.IDLE else False,
         }
 
     # ---------------------------------------------------------- the thread
@@ -266,6 +281,15 @@ class LiveSession:
             if self.uses_enrolment:
                 rt.load_enrolment()
                 self._check_consent(feed, tracker, engine)
+                if self.voice:  # the check is passed: the camera's work is done, and the voice takes over
+                    with self._lock:
+                        self._feed = None
+                    feed.close()
+                    feed = None
+                    self._voice_session(engine)
+                    rt.events.add("info", "Session stopped.")
+                    self._finish(SessionState.IDLE, "")
+                    return
             else:
                 self._progress("Waiting for a front-facing frame")
                 self._borrow_source(feed, tracker)
@@ -358,6 +382,53 @@ class LiveSession:
                 self._rt.use_sample_source(item.image, square_face_crop(item.image, track.bbox))
                 return
         raise SessionError("The clip shows no single front-facing face to animate.")
+
+    def _voice_session(self, engine):
+        """The voice drives the picture (speech/live.py): the frame whose speech was heard a moment ago is
+        drawn, with the mark, the identity guard and the virtual camera as in a camera session. The delay
+        watchdog does not act here: the picture is late on purpose, and the voice is held back to match."""
+        rt = self._rt
+        drive = rt.voice()
+        try:
+            drive.start(rt.picture_path(), microphone=rt.voice_microphone(), progress=self._progress)
+            neutral, rotation = engine.source_reading()
+            with rt.engine_lock:
+                engine.reset_reference()
+                engine.drive(None, motion=(neutral, rotation))
+            from ..speech.ditto import DittoReadings
+            readings = DittoReadings(neutral, engine.rotation)
+            still = mark(engine.source_frame.copy())
+            camera = camera_off_card()
+            with self._lock:
+                self.state, self.message = SessionState.RUNNING, ""
+                self._started_at = time.perf_counter()
+            rt.events.add("info", f"Session started with the camera off: your voice from {drive.microphone} drives "
+                                  "the picture. Switch on \"Voice in step\" so that the meeting hears you in step with it.")
+            pair_id = self._pair_id
+            while not self._stop.is_set():
+                got = drive.due(time.perf_counter())
+                if got is None:
+                    time.sleep(0.003)
+                    continue
+                _, frame, voice, heard, skipped = got
+                self._anchor.clear()  # no neutral pose to take: the picture's own is the neutral one
+                drawing = time.perf_counter()
+                with rt.engine_lock:
+                    reading = readings.reading(frame, voice)
+                    live = rt.features.enabled("reenactment") and not self.identity_hold
+                    output = mark(engine.drive(None, motion=reading).copy()) if live else still
+                    timing = dict(engine.last_timing_ms) if live else {}
+                    self._run_commands(camera, None)
+                finished = time.perf_counter()
+                timing["total"] = (finished - drawing) * 1000
+                # From the speech being heard to its frame drawn: what the voice is held back by.
+                self._metrics.add(finished, timing, (finished - heard) * 1000, live, skipped)
+                pair_id += 1
+                with self._lock:
+                    self._pair = FramePair(pair_id, camera, output, live, TrackStatus.OK.value, None)
+                    self._tracking = {"status": TrackStatus.OK.value, "pose_deg": None, "mouth_open": round(float(voice), 3)}
+        finally:
+            drive.stop()
 
     def _loop(self, feed, pipeline):
         rt = self._rt

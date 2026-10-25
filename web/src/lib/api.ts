@@ -38,6 +38,8 @@ export interface Session {
   holds?: { identity: boolean; delay: boolean; consent?: boolean }
   /** The check a camera session starts with: what is being asked for, or how it ended. Null for a sample clip. */
   consent?: ConsentPrompt | null
+  /** True while the voice drives the picture and the camera is off. */
+  voice?: boolean
 }
 
 export type LivenessAction = 'blink' | 'turn_left' | 'turn_right' | 'open_mouth'
@@ -200,7 +202,8 @@ export interface Feature {
 
 export interface InputOption {
   id: string
-  kind: 'camera' | 'sample'
+  /** 'voice': the camera only for the check, then the microphone drives the picture. */
+  kind: 'camera' | 'voice' | 'sample'
   label: string
 }
 
