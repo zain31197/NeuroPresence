@@ -47,10 +47,19 @@ class FakeFeed:
         self.ended = False
         self.closed = False
 
+    silent_since = None  # set to a time to make the camera give nothing from then on, as a phone may
+
     def read(self, after_index=-1, timeout=1.0):
+        if self.silent_since is not None:
+            time.sleep(min(timeout, 0.05))
+            return None
         time.sleep(0.005)
         self.index += 2  # every other frame is "dropped"
         return FeedFrame(FRAME.copy(), self.index, time.perf_counter() - self.lag)
+
+    @property
+    def silent_seconds(self):
+        return 0.0 if self.silent_since is None else time.perf_counter() - self.silent_since
 
     def close(self):
         self.closed = True
@@ -933,6 +942,20 @@ def test_a_camera_session_animates_the_enrolled_picture(parts):
     assert "Neutral pose taken from the camera. Movement is measured from how you sit now." in events(parts)
     assert len(parts["engines"]) == 1
     assert client.get("/api/enrolment/picture").status_code == 200
+
+
+def test_a_camera_that_falls_silent_for_a_while_does_not_end_the_session(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.session.CAMERA_QUIET_SECONDS", 0.1)
+    start(parts)
+    feed = parts["feeds"][-1]
+    feed.silent_since = time.perf_counter()  # the phone stops sending pictures; the feed reconnects meanwhile
+    assert wait_for(lambda: any("Reconnecting" in message for message in events(parts)))
+    assert status(parts)["session"]["state"] == "running"
+    drawn = parts["runtime"].session.latest_pair().id
+    feed.silent_since = None
+    assert wait_for(lambda: "The camera is back." in events(parts))
+    assert wait_for(lambda: parts["runtime"].session.latest_pair().id > drawn)  # and drawing goes on
+    assert status(parts)["session"]["state"] == "running"
 
 
 def test_a_sample_clip_animates_its_own_frame_and_enrols_nothing(parts):

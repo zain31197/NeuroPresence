@@ -1,5 +1,6 @@
 """A live session: frames from the feed go through the pipeline on a background thread."""
 
+import logging
 import queue
 import threading
 import time
@@ -20,6 +21,8 @@ from .metrics import MetricsWindow
 from .pacing import MotionClock
 from .watchdog import DelayWatchdog
 
+log = logging.getLogger("neuropresence.server")
+
 SAMPLE_SOURCE_SECONDS = 10.0
 # After this long, a camera that delivers clearly fewer frames than could be drawn is pointed out, once.
 SLOW_CAMERA_AFTER_SECONDS = 5.0
@@ -27,6 +30,8 @@ SLOW_CAMERA_SHARE = 0.9
 MAX_FRONTAL_ANGLE_DEG = 20.0
 # The watchdog starts reading this long after the first frame, when the session has found its pace.
 WATCHDOG_AFTER_SECONDS = 2.0
+# A camera silent this long is pointed out while the feed reconnects to it (capture/feed.py).
+CAMERA_QUIET_SECONDS = 1.0
 
 STATUS_EVENTS = {
     TrackStatus.NO_FACE: ("warning", "No face in view. Showing the enrolled picture."),
@@ -308,6 +313,8 @@ class LiveSession:
             self._finish(SessionState.IDLE, "")
         except Exception as err:  # shown to the user, so the session never dies silently
             message = str(err) or type(err).__name__
+            log.error("Session on %s ended: %s", self.input_label, message,
+                      exc_info=not isinstance(err, SessionError))  # the trace, for anything not foreseen
             rt.events.add("error", message)
             self._finish(SessionState.ERROR, message)
         finally:
@@ -436,14 +443,22 @@ class LiveSession:
         newest, tracking_over = _Newest(), threading.Event()
 
         def track_frames():
-            last = -1
+            last, quiet = -1, False
             try:
                 while not self._stop.is_set() and not tracking_over.is_set():
                     item = feed.read(after_index=last, timeout=0.5)
                     if item is None:
                         if feed.ended:
                             raise SessionError("The camera stopped delivering frames.")
+                        # The feed opens a silent camera again by itself (capture/feed.py); say so meanwhile.
+                        if not quiet and getattr(feed, "silent_seconds", 0.0) >= CAMERA_QUIET_SECONDS:
+                            quiet = True
+                            rt.events.add("warning", "The camera stopped sending pictures. Reconnecting to it; "
+                                                     "the session goes on as soon as it is back.")
                         continue
+                    if quiet:
+                        quiet = False
+                        rt.events.add("info", "The camera is back.")
                     skipped = item.index - last - 1 if last >= 0 else 0
                     last = item.index
                     started = time.perf_counter()

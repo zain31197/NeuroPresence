@@ -2,16 +2,49 @@
 
     python -m neuropresence.server            # then open http://127.0.0.1:8000
     python -m neuropresence.server --open     # also opens the browser
+
+What goes wrong is written to logs/server.log (kept to three files of 5 MB), so that a failure in a
+long meeting can be read afterwards and not only in the terminal it was printed to. If the process
+itself dies, in the graphics driver for instance, where Python cannot catch it, the stack of every
+thread at that moment goes to logs/crash.log.
 """
 
 import argparse
+import faulthandler
+import logging
+import logging.handlers
 import threading
 import webbrowser
+from pathlib import Path
 
 import uvicorn
 
 from .app import WEB_DIST, create_app
 from .runtime import DATA_DIR, Runtime, _default_feed
+
+LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+
+
+def keep_logs(folder=LOG_DIR):
+    """Write warnings and errors, with their traces, to folder/server.log, and a dying process's stacks to
+    folder/crash.log. Returns the crash file, which has to stay open for as long as the process runs."""
+    folder.mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(folder / "server.log", maxBytes=5 << 20, backupCount=2,
+                                                   encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s [%(threadName)s] %(message)s"))
+    handler.setLevel(logging.INFO)
+    root = logging.getLogger("neuropresence")
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+    def unhandled(args):  # an error that ends a thread nobody waits on would otherwise only be printed
+        logging.getLogger("neuropresence.server").error(
+            "Unhandled error in thread %s", args.thread.name if args.thread else "?",
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+    threading.excepthook = unhandled
+    crash = open(folder / "crash.log", "a", encoding="utf-8")
+    faulthandler.enable(crash, all_threads=True)
+    return crash
 
 
 def main():
@@ -41,8 +74,15 @@ def main():
         def feed(source):
             return _default_feed(args.camera_file if isinstance(source, int) else source)
 
+    crash = keep_logs()
+    logging.getLogger("neuropresence.server").info("Engine started at %s", url)
+    print(f"Errors are written to {LOG_DIR / 'server.log'}")
     runtime = Runtime(feed_factory=feed, data_dir=args.data_dir)
-    uvicorn.run(create_app(runtime), host=args.host, port=args.port, log_level="warning")
+    try:
+        uvicorn.run(create_app(runtime), host=args.host, port=args.port, log_level="warning")
+    finally:
+        logging.getLogger("neuropresence.server").info("Engine stopped")
+        crash.close()
 
 
 if __name__ == "__main__":

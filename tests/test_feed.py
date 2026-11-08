@@ -77,3 +77,72 @@ def test_read_times_out_when_nothing_new_arrives(clip):
 def test_missing_clip_is_reported():
     with pytest.raises(FrameSourceError):
         LiveFeed("does_not_exist.mp4")
+
+
+class FlakyCamera:
+    """Stands in for a camera (a phone through Camo, say): it gives frames, except where `gaps` says it
+    gives none. `gaps(opened, read)` is asked for every read: the how-manyth opening, and the read in it."""
+
+    opened = []
+
+    def __init__(self, source=0, width=640, height=480, gaps=None):
+        self.is_camera, self.fps = True, 30.0
+        self.opened.append(self)
+        self.number, self.reads, self.released = len(self.opened), 0, False
+
+    def read(self):
+        self.reads += 1
+        time.sleep(0.002)
+        if self.released or FlakyCamera.gaps(self.number, self.reads):
+            return None
+        return np.zeros((8, 8, 3), np.uint8)
+
+    def release(self):
+        self.released = True
+
+
+@pytest.fixture
+def flaky(monkeypatch):
+    FlakyCamera.opened = []
+    monkeypatch.setattr("neuropresence.capture.feed.FrameSource", FlakyCamera)
+    return FlakyCamera
+
+
+def frames_seen(feed, seconds):
+    last, count, until = -1, 0, time.perf_counter() + seconds
+    while time.perf_counter() < until:
+        item = feed.read(after_index=last, timeout=0.05)
+        if item is not None:
+            last, count = item.index, count + 1
+    return count
+
+
+def test_a_camera_that_misses_a_frame_now_and_then_goes_on(flaky):
+    flaky.gaps = staticmethod(lambda opened, read: read % 7 == 0)  # one read in seven gives nothing
+    with LiveFeed(0) as feed:
+        assert frames_seen(feed, 0.5) > 20
+        assert not feed.ended and feed.reopened == 0
+
+
+def test_a_camera_that_goes_silent_is_opened_again_and_the_feed_goes_on(flaky, monkeypatch):
+    monkeypatch.setattr("neuropresence.capture.feed.REOPEN_SECONDS", 0.2)
+    flaky.gaps = staticmethod(lambda opened, read: opened == 1 and read > 10)  # the first opening falls silent
+    with LiveFeed(0) as feed:
+        time.sleep(0.6)
+        assert feed.reopened >= 1 and len(flaky.opened) >= 2
+        assert frames_seen(feed, 0.3) > 10  # the camera opened again gives frames
+        assert not feed.ended
+
+
+def test_a_camera_silent_for_long_has_stopped(flaky, monkeypatch):
+    monkeypatch.setattr("neuropresence.capture.feed.REOPEN_SECONDS", 0.1)
+    monkeypatch.setattr("neuropresence.capture.feed.REOPEN_EVERY_SECONDS", 0.1)
+    monkeypatch.setattr("neuropresence.capture.feed.GIVE_UP_SECONDS", 0.5)
+    flaky.gaps = staticmethod(lambda opened, read: read > 5 or opened > 1)  # never comes back
+    with LiveFeed(0) as feed:
+        started = time.perf_counter()
+        while not feed.ended and time.perf_counter() - started < 3.0:
+            feed.read(after_index=10_000, timeout=0.05)
+        assert feed.ended
+        assert 0.4 < time.perf_counter() - started < 2.0
+        assert feed.silent_seconds >= 0.5

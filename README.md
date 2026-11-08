@@ -143,6 +143,8 @@ cd ..
 python -m neuropresence.server --open
 ```
 
+Warnings and errors, with their full traces, are written to `logs/server.log`; if the engine process itself dies, the stacks of all its threads go to `logs/crash.log` (both kept out of git). If the camera stops sending pictures for a moment, as a phone used as a webcam may, the session reconnects to it and goes on; it ends only after 15 seconds without a picture.
+
 It opens at http://127.0.0.1:8000. The engine listens on this computer only, and the enrolled picture is kept in `data/enrolment/`, which git ignores. A camera session animates the enrolled picture, so enrol one first. For repeatable tests a session can also be driven from one of the sample clips; a clip animates one of its own frames and enrols nothing.
 
 Two options help when testing: `--camera-file clip.mp4` plays a video file in place of every camera, so the camera view of the Enrolment screen and its checks can be tried without a webcam, and `--data-dir folder` keeps the enrolled picture somewhere other than `data/`. A video file cannot verify a face or start a camera session: it does not answer the liveness prompt, which is what the prompt is for. Sessions without a webcam run on the sample clips.
