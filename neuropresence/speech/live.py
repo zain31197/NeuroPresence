@@ -17,6 +17,7 @@ import math
 import sys
 import threading
 import time
+from collections import namedtuple
 
 import numpy as np
 
@@ -26,6 +27,13 @@ from .mouth import SpeechMouth
 RATE = 16000
 BLOCK = 320  # 20 ms handed over at a time
 WARM_SECONDS = 600.0  # how long to wait for the motion model to be compiled before giving up
+DITTO_LATE = 1  # Ditto's lips move this many frames after the real ones (ditto.py), so each is shown this much sooner
+STEP = 0.25  # a new picture is drawn once the moment shown has moved on by a quarter of a frame or more
+
+# What to draw now: Ditto's frame `number` and the next (`after`, None when not ready), `share` of the way
+# from one to the other; the voice for that moment (0 to 1); when frame `number`'s speech was heard; and the
+# frames passed over since the last drawn.
+Due = namedtuple("Due", "number frame after share voice heard skipped")
 
 
 def open_microphone(name, on_samples):
@@ -97,6 +105,8 @@ class VoiceDrive:
         self._voiced = []  # the gate, stepped in order, one value a frame
         self._began = None  # when the first sample was heard
         self.last = -1  # the last frame handed out
+        self._shown = -1.0  # the moment last handed out, in frames
+        self._second = 0  # the last whole second at which what had been drawn was let go of
         self.missed = 0  # frames whose moment came before they were ready, each counted once
         self._missed_at = -1
         self._microphone = self._opener(microphone, self._heard)
@@ -121,25 +131,43 @@ class VoiceDrive:
                 self._voiced.append(self._gate.step(self._openness[len(self._voiced)]))
             return self._voiced[frame] if frame < len(self._voiced) else 1.0
 
+    @property
+    def blink(self):
+        """Ditto's blink (15 frames of change to the eye keypoints), or None when its stream has none."""
+        return (getattr(self.stream, "defaults", None) or {}).get("delta_eye_arr")
+
     def due(self, now):
-        """The frame to draw now, as (number, Ditto's frame, voice 0 to 1, when its speech was heard, frames
-        skipped since the last), or None if there is nothing new to draw. Frames whose moment has passed are
-        skipped, as the camera mode skips camera frames it has no time for."""
+        """What to draw now, as a Due, or None if there is nothing new to draw.
+
+        The moment shown is the one `delay` behind now, in Ditto's frames, with the fraction: drawn at about
+        16 frames a second, Ditto's 25 would otherwise be shown at uneven steps, and the movement would
+        judder. Frames whose moment has passed are skipped, as the camera mode skips camera frames."""
         if self._began is None:
             return None
-        frame = math.floor((now - self.delay - self._began) * FPS) - 1  # the newest whose speech ended `delay` ago
-        if frame <= self.last:
+        moment = (now - self.delay - self._began) * FPS - 1 + DITTO_LATE  # frame k's speech ended `delay` before moment k
+        frame = math.floor(moment)
+        if frame < 0 or moment < self._shown + STEP:
             return None
         ready = self.stream.ready.get(frame)
         if ready is None:
-            if frame != self._missed_at:
+            if frame != self._missed_at and frame > self.last:
                 self.missed, self._missed_at = self.missed + 1, frame
             return None
-        skipped, self.last = frame - self.last - 1, frame
-        heard = self.stream.heard(frame) or (self._began + (frame + 1) / FPS)
-        if frame % FPS == 0:  # once a second, what has been drawn is let go of
-            self.stream.forget_before(frame - FPS)
-        return frame, ready[0], self._voice(frame), heard, skipped
+        following = self.stream.ready.get(frame + 1)
+        share = moment - frame if following is not None else 0.0
+        skipped = max(frame - self.last - 1, 0)
+        self.last, self._shown = frame, moment
+        spoken = max(frame - DITTO_LATE, 0)  # the speech whose lips frame `frame` shows: the voice is held back to it
+        heard = self.stream.heard(spoken) or (self._began + (spoken + 1) / FPS)
+        second = frame // FPS
+        if second > self._second:  # once a second, what has been drawn is let go of
+            self._second = second
+            if second > 1:
+                self.stream.forget_before((second - 1) * FPS)
+        voice = self._voice(frame)
+        if following is not None:
+            voice += (self._voice(frame + 1) - voice) * share
+        return Due(frame, ready[0], following[0] if following is not None else None, share, voice, heard, skipped)
 
     def stop(self):
         if self._microphone is not None:

@@ -770,6 +770,30 @@ Approved by Zain: the voice drive in a session, and the voice held back to match
 
 **Not done yet.** A session by Zain at his own camera and microphone, and a call in Meet with the voice in step.
 
+### 27 October 2026: the camera off mode made to look real
+
+Asked by Zain: the voice driven picture looked fake beside his camera.
+
+**Found.** Measured with the face tracker over the same minute of his speech, the voice driven picture against his own face driving it: it never blinked (0 blinks a minute, his face 12), its head moved more than twice as much as his (a spread of 1.8 and 2.1 degrees in turn and nod, his 0.8 and 0.8), and its movement juddered (1.68 px of change in movement from frame to frame, his 0.98). The sharpness of the two was the same. The causes: Ditto's speech model leaves the eyes as they are, and Ditto adds blinks afterwards from a template, which we had not taken over; its head movement is made for a talking head video, livelier than a person in a call; and Ditto's 25 frames a second, drawn at about 14 to 16, were shown at uneven steps.
+
+**Built.** In `neuropresence/speech/ditto.py` (DittoReadings): Ditto's own blink, its 15 frame template (delta_eye_arr) every 60 to 100 frames at random, as its stitching does, with the eyes driven by the template only; the head's turn and shift scaled by HEAD_SCALE = 0.45; and between(), the reading a share of the way from one of Ditto's frames to the next. In `neuropresence/speech/live.py` the drive now says the exact moment to show, with the fraction between two frames (Due), and a new picture is drawn once that moment has moved on by a quarter of a frame.
+
+**Checked.** The real drive with his recording in place of the microphone, then the same measurement: 16 blinks a minute, a spread of 0.8 and 1.0 degrees, 0.92 px. The delay did not change (median 0.87 s, 95th percentile 0.91 s), nor did the drawing (52 to 54 ms a frame while Ditto runs; the blending costs under 1 ms). Side by side in `video_testing/voice_before_and_now.mp4` (not in git). 5 new tests: the blinks and their spacing, the blinks the same whatever order frames are asked for in, the blending, and the drive's moment with its fraction.
+
+**Still to do.** The enrolled picture's eyes are half lowered (eyes closed 0.20, looking down 0.42 by the tracker), and the voice mode keeps them between blinks. A picture with the eyes open, looking into the camera, would look more natural.
+
+### 27 October 2026: the lips in the camera off mode
+
+Asked by Zain: the lips did not move properly and the mouth looked blurry and fake when open.
+
+**Found.** The lip gap (between the lips, over the distance between the eyes) on the same minute of his speech: his real face had a median of 0.015 and was open 35% of the time; the picture driven by his face in camera mode 0.020 and 35%, so the engine draws mouths faithfully; the voice mode 0.067 and 57%. It opened no wider than he did (98th percentile 0.134 against 0.124), but it hardly ever shut. Ditto's lips, read against his real lips frame by frame as the camera mode reads them, hover half open while a person speaks: when his were shut mid sentence, Ditto's lower lip was still open by 0.015, and its median sat well open. Ditto's lips also moved one frame after his (r 0.83 at that lag, 0.74 without).
+
+**Built.** In `neuropresence/speech/ditto.py` the halving of the lips (LIP_SCALE 0.5) is replaced: Ditto's opening at the lower lip counts from LIP_REST = 0.015, and above it is scaled by LIP_GAIN = 0.57, all the lips' movement with it (lip_share). The two numbers were fitted by matching the spread of Ditto's opening to his, quantile by quantile; fitted this way the opening's median (6.3 against his 6.6, in thousandths), 90th percentile (20.6 against 21.0) and share of time open (51% against 53%) match his, and the lips are shut when his were. Least squares fits were tried too, per coordinate and as a full linear map: they halve the movement, since they shrink what they cannot predict, and the mouth would then barely move. In `neuropresence/speech/live.py` each of Ditto's frames is shown one frame sooner (DITTO_LATE), and the speech a frame is said to have been heard at is that whose lips it shows, so the voice held back for the meeting stays in step.
+
+**Checked.** The real drive with his recording in place of the microphone, measured from the output: lip gap median 0.011, 90th percentile 0.092, open 38% of the time; the drawn lips follow his real ones best 40 ms early (r 0.70; 0.67 in step), part of which is how the test video repeats frames. The delay and the drawing did not change (median 0.87 s; 52 ms a frame). Side by side in `video_testing/voice_lips_before_and_now.mp4` (not in git). 2 new tests for the lip mapping.
+
+**Not done.** The inside of the open mouth is still soft: LivePortrait draws the face from a 256 pixel copy of the picture, and invents the teeth. A face restoration model (GFPGAN v1.4, Apache-2.0) on the mouth alone is the next step to try; its trial was not run, waiting for Zain's approval to run code from outside the project.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

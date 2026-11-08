@@ -449,3 +449,7 @@ The first session after the engine starts takes about half a minute to get ready
 
 Measured on 25 October 2026 (RTX 5050), with a recording of Zain fed in place of the microphone in real time: 16.5 frames a second drawn, the frame drawn a median 0.87 s after its speech was heard (95th percentile 0.91 s), 30 of 1,649 frames not ready at their moment and skipped, and the lips following his real lips at r = 0.69 to 0.74.
 
+Measured on 27 October 2026 against Zain's own face driving the picture, over the same minute of speech: the voice driven picture blinks 16 times a minute (his face 12), its head turns and nods with a spread of 0.8 and 1.0 degrees (his 0.8 and 0.8), and its movement is as even as his (0.92 px of change in movement from frame to frame, his 0.98). For the most natural result, enrol a picture with the eyes open and looking into the camera: the voice mode keeps the picture's own eyes between blinks.
+
+The lips open and shut as his did: measured by the gap between the lips, his real face had a median of 0.015 and was open 35% of the time, the picture driven by his face in camera mode 0.020 and 35%, and the voice mode 0.011 and 38%; the drawn lips follow his real ones within one frame (40 ms).
+

@@ -396,7 +396,7 @@ class LiveSession:
                 engine.reset_reference()
                 engine.drive(None, motion=(neutral, rotation))
             from ..speech.ditto import DittoReadings
-            readings = DittoReadings(neutral, engine.rotation)
+            readings = DittoReadings(neutral, engine.rotation, blink=drive.blink)
             still = mark(engine.source_frame.copy())
             camera = camera_off_card()
             with self._lock:
@@ -410,11 +410,10 @@ class LiveSession:
                 if got is None:
                     time.sleep(0.003)
                     continue
-                _, frame, voice, heard, skipped = got
                 self._anchor.clear()  # no neutral pose to take: the picture's own is the neutral one
                 drawing = time.perf_counter()
                 with rt.engine_lock:
-                    reading = readings.reading(frame, voice)
+                    reading = readings.between(got.frame, got.after, got.share, got.voice, got.number)
                     live = rt.features.enabled("reenactment") and not self.identity_hold
                     output = mark(engine.drive(None, motion=reading).copy()) if live else still
                     timing = dict(engine.last_timing_ms) if live else {}
@@ -422,11 +421,11 @@ class LiveSession:
                 finished = time.perf_counter()
                 timing["total"] = (finished - drawing) * 1000
                 # From the speech being heard to its frame drawn: what the voice is held back by.
-                self._metrics.add(finished, timing, (finished - heard) * 1000, live, skipped)
+                self._metrics.add(finished, timing, (finished - got.heard) * 1000, live, got.skipped)
                 pair_id += 1
                 with self._lock:
                     self._pair = FramePair(pair_id, camera, output, live, TrackStatus.OK.value, None)
-                    self._tracking = {"status": TrackStatus.OK.value, "pose_deg": None, "mouth_open": round(float(voice), 3)}
+                    self._tracking = {"status": TrackStatus.OK.value, "pose_deg": None, "mouth_open": round(float(got.voice), 3)}
         finally:
             drive.stop()
 

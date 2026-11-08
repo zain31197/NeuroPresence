@@ -139,6 +139,7 @@ class FakeEngine:
 
 
 class FakeVoiceDrive:
+    blink = None
     """Stands in for the voice drive (speech/live.py): no microphone, no Ditto. It hands out a new frame
     every 40 ms, its speech heard 850 ms before, as the real one does at its delay."""
 
@@ -159,7 +160,8 @@ class FakeVoiceDrive:
         bins = np.zeros((1, 66), np.float32)
         ditto = {"pitch": bins, "yaw": bins, "roll": bins, "t": np.zeros((1, 3), np.float32),
                  "exp": np.zeros((1, 63), np.float32), "scale": np.ones((1, 1), np.float32)}
-        return frame, ditto, 1.0, now - 0.85, 0
+        from neuropresence.speech.live import Due
+        return Due(frame, ditto, None, 0.0, 1.0, now - 0.85, 0)
 
     def stop(self):
         self.stopped = True

@@ -13,11 +13,15 @@ taken relative to the first one it writes and added to the picture's own pose; o
 the lips and the eyes are driven; the head is tilted down by two degrees; and the eyes are corrected
 for the turn of the head, so that the gaze stays on the viewer.
 
-One setting differs. Drawn by our engine, the same frames open the mouth 26% wider than Ditto's own
-drawing does (measured on 110 frames, correlation 0.996), and with 10 denoising steps the mouth moves a
-little more than with 50. On Zain's speech recording the mouth then opened to a median lip gap of 0.18
-where his real one opened to 0.07 and Ditto's own drawing to 0.09. The lips' movement is therefore
-halved (LIP_SCALE), which leaves when they move, and so the agreement with the real lips, as it is.
+The lips are set differently. While a person speaks, Ditto's lips hover half open and rarely close
+between syllables. Fitted on Zain's speech recording (27 October 2026) against his real lips, read as
+the camera mode reads them: when his lips were shut mid sentence, Ditto's were still open by 0.015 at
+the lower lip, and drawn so the mouth was parted 75% of the time where his was 53%, with a median lip
+gap four times his. So Ditto's opening, at the lower lip's up and down, counts from LIP_REST, and
+above it is scaled by LIP_GAIN, all the lips' movement with it (lip_share). Fitted by matching the two
+spreads of opening, quantile by quantile: drawn this way, the opening's median, 90th percentile and
+share of time open are within a few percent of his, and the lips shut when his did. Ditto's lips also
+move one frame after his (r 0.83 at that lag, 0.74 without), which the drive allows for (live.py).
 
 Ditto moves the lips a little even in silence. A gate keeps them shut while no voice is heard: the
 voice is taken from the loudness detector (mouth.py), held open for a moment after the last sound so
@@ -42,7 +46,12 @@ SAMPLES_PER_FRAME = 640  # at 16 kHz
 LIPS, EYES = [6, 12, 14, 17, 19, 20], [11, 13, 15, 16, 18]  # LivePortrait's own (live_portrait_pipeline.py)
 TILT_DEG = 2.0  # Ditto's own default (overall_ctrl_info delta_pitch)
 GAZE_X, GAZE_Y = 0.26, 0.28  # Ditto's correction of the eyes per degree of turn (motion_stitch.py: _fix_gaze)
-LIP_SCALE = 0.5  # the lips' movement is scaled by this before our engine draws it: see below
+LIP_REST = 0.015  # Ditto's lip opening (keypoint 19, up and down) that counts as shut while speaking: see above
+LIP_GAIN = 0.57  # and its opening above that is scaled by this
+LIP_POINT = (19, 1)  # the lower lip, up and down: the coordinate that moves most with the real lip gap
+HEAD_SCALE = 0.45  # and the head's: Zain's head turned and nodded 0.8 degrees (spread) while he spoke, the voice
+                  # driven one 1.8 and 2.1
+BLINK_EVERY = (60, 100)  # frames between blinks, at random in this range: Ditto's own (motion_stitch.py)
 STEPS = 10  # denoising steps: as good as Ditto's default of 50 on Zain's recording (0.975 on the mouth), five times faster
 VOICE_HOLD_SECONDS = 0.30  # the gate stays open this long after the last sound
 GATE_OPEN_SECONDS = 0.04  # and opens and closes with these time constants
@@ -65,36 +74,71 @@ def _degrees(frame):
     return {axis: float(bin66_to_degree(frame[axis])[0]) for axis in ("pitch", "yaw", "roll")}
 
 
+def lip_share(change):
+    """How much of Ditto's lip movement to draw, for its change from its first frame: none while its
+    lower lip is open by less than LIP_REST, and above that the opening scaled by LIP_GAIN."""
+    opening = float(change[0, LIP_POINT[0], LIP_POINT[1]])
+    return LIP_GAIN * (opening - LIP_REST) / opening if opening > LIP_REST else 0.0
+
+
 class DittoReadings:
     """Turns Ditto's frames into readings for engine.drive(motion=...), from the picture's own reading.
 
-    `neutral` is engine.source_reading()[0]; `rotation` is engine.rotation.
+    `neutral` is engine.source_reading()[0]; `rotation` is engine.rotation; `blink` is Ditto's blink,
+    15 frames of change to the eye keypoints (its configuration's delta_eye_arr), or None for no blinks.
+
+    Three things are done as Ditto's own stitching does them, and two are measured settings. Seen beside
+    Zain's camera (26 October 2026) the voice driven picture looked fake for three reasons:
+    - it never blinked: Ditto's speech model leaves the eyes as they are, and its stitching adds blinks
+      from a template every 2.4 to 4 seconds. That is done here now, the eyes driven by the template only;
+    - the head moved 2.5 times as much as his did while he spoke (1.8 and 2.1 degrees of spread in turn and
+      nod, against 0.8 and 0.8), so the head's movement is scaled by HEAD_SCALE;
+    - drawn at about 16 frames a second from Ditto's 25, the frames shown were uneven steps apart, so the
+      movement is taken between Ditto's two frames around the moment shown (between()).
     """
 
-    def __init__(self, neutral, rotation):
+    def __init__(self, neutral, rotation, blink=None, seed=None):
         self.neutral = neutral
         self._rotation = rotation
         self._first = None
-        mask = np.zeros((21, 3), np.float32)
-        mask[LIPS + EYES] = 1.0
-        self._driven = torch.from_numpy(mask).reshape(1, 21, 3)
         lips = np.zeros((21, 3), np.float32)
         lips[LIPS] = 1.0
         self._lips = torch.from_numpy(lips).reshape(1, 21, 3)
+        self._blink = None if blink is None else torch.as_tensor(np.asarray(blink, np.float32)).reshape(-1, 1, 21, 3)
+        self._random = np.random.default_rng(seed)
+        self._blinks = []  # the frames at which blinks start, made as far ahead as needed
+        self._count = 0
 
-    def reading(self, frame, voice=1.0):
+    def _blink_at(self, number):
+        """The change to the eye keypoints at this frame: Ditto's template while a blink runs, else none."""
+        if self._blink is None:
+            return None
+        length = len(self._blink)
+        while not self._blinks or self._blinks[-1] <= number:
+            last = self._blinks[-1] + length if self._blinks else 0
+            self._blinks.append(last + int(self._random.integers(BLINK_EVERY[0], BLINK_EVERY[1] + 1)))
+        index = bisect.bisect_right(self._blinks, number) - 1
+        if index < 0 or number - self._blinks[index] >= length:
+            return None
+        return self._blink[number - self._blinks[index]]
+
+    def reading(self, frame, voice=1.0, number=None):
         """`frame` is one of Ditto's frames ({pitch, yaw, roll: 66 bins, t: 3, exp: 63, scale}); `voice`
-        from 0 (silent: the lips are the picture's own) to 1."""
+        from 0 (silent: the lips are the picture's own) to 1; `number` the frame's number, for the blinks."""
+        if number is None:
+            number, self._count = self._count, self._count + 1
         if self._first is None:
             self._first = {"angles": _degrees(frame), "t": np.asarray(frame["t"], np.float32).reshape(1, 3),
                            "exp": np.asarray(frame["exp"], np.float32).reshape(1, 21, 3)}
         first = self._first
         angles = _degrees(frame)
-        turn = {axis: angles[axis] - first["angles"][axis] for axis in angles}
+        turn = {axis: (angles[axis] - first["angles"][axis]) * HEAD_SCALE for axis in angles}
         turn["pitch"] += TILT_DEG
-        change = torch.from_numpy(np.asarray(frame["exp"], np.float32).reshape(1, 21, 3) - first["exp"]) * self._driven
-        change = change * (1 - self._lips) + change * self._lips * (LIP_SCALE * float(voice))
-        exp = (self.neutral["exp"] + change).clone()
+        change = torch.from_numpy(np.asarray(frame["exp"], np.float32).reshape(1, 21, 3) - first["exp"])
+        exp = (self.neutral["exp"] + change * self._lips * (lip_share(change) * float(voice))).clone()
+        blink = self._blink_at(number)
+        if blink is not None:
+            exp = exp + blink
         # The eyes follow the turn of the head back toward the viewer (Ditto: _fix_gaze, _eye_delta).
         dx, dy = turn["yaw"] * GAZE_X, turn["pitch"] * GAZE_Y
         flat = exp.reshape(1, 63)
@@ -106,8 +150,18 @@ class DittoReadings:
         info["exp"] = flat.reshape(1, 21, 3)
         for axis, degrees in turn.items():
             info[axis] = self.neutral[axis] + degrees
-        info["t"] = self.neutral["t"] + torch.from_numpy(np.asarray(frame["t"], np.float32).reshape(1, 3) - first["t"])
+        shift = np.asarray(frame["t"], np.float32).reshape(1, 3) - first["t"]
+        info["t"] = self.neutral["t"] + torch.from_numpy(shift) * HEAD_SCALE
         return info, self._rotation(info["pitch"], info["yaw"], info["roll"])
+
+    def between(self, frame, after, share, voice=1.0, number=0):
+        """The reading `share` of the way (0 to 1) from frame `number` to the next one, `after` (or None)."""
+        info, rotation = self.reading(frame, voice, number)
+        if after is None or share <= 0.0:
+            return info, rotation
+        later, _ = self.reading(after, voice, number + 1)
+        blended = {key: torch.lerp(value, later[key], float(share)) for key, value in info.items()}
+        return blended, self._rotation(blended["pitch"], blended["yaw"], blended["roll"])
 
 
 class VoiceGate:

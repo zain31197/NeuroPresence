@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from neuropresence.speech.ditto import FPS, SAMPLES_PER_FRAME
-from neuropresence.speech.live import VoiceDrive
+from neuropresence.speech.live import DITTO_LATE, VoiceDrive
 
 DELAY = 0.8
 
@@ -86,13 +86,34 @@ def test_the_frame_drawn_is_the_one_whose_speech_ended_the_delay_ago(clock):
     speak(microphone, 3.0)
     began = clock["t"] - 320 / 16000  # the first block's samples were heard before it arrived
     got = d.due(began + DELAY + 2.0)
-    number, frame, voice, heard, skipped = got
-    assert number == int(2.0 * FPS) - 1 and frame == {"frame": number}
-    assert heard == pytest.approx(began + (number + 1) / FPS)
-    assert skipped == number  # nothing was drawn before: every earlier frame was skipped
+    spoken = int(2.0 * FPS) - 1  # the newest frame of speech that ended the delay ago ...
+    number = spoken + DITTO_LATE  # ... whose lips Ditto writes this much later
+    assert got.number == number and got.frame == {"frame": number} and got.after == {"frame": number + 1}
+    assert got.share == pytest.approx(0.0, abs=1e-6)
+    assert got.heard == pytest.approx(began + (spoken + 1) / FPS)  # the voice is held back to that speech
+    assert got.skipped == number  # nothing was drawn before: every earlier frame was skipped
     assert d.due(began + DELAY + 2.0) is None  # the same moment again: nothing new
     later = d.due(began + DELAY + 2.0 + 3 / FPS)
-    assert later[0] == number + 3 and later[4] == 2
+    assert later.number == number + 3 and later.skipped == 2
+
+
+def test_the_moment_between_two_frames_is_drawn_with_the_share_of_the_way(clock):
+    d, microphone = drive(clock)
+    speak(microphone, 3.0)
+    began = clock["t"] - 320 / 16000
+    first = d.due(began + DELAY + 1.0 + 0.4 / FPS)
+    assert first.number == FPS - 1 + DITTO_LATE and first.share == pytest.approx(0.4)
+    assert d.due(began + DELAY + 1.0 + 0.6 / FPS) is None  # moved on by less than STEP of a frame
+    again = d.due(began + DELAY + 1.0 + 0.7 / FPS)  # the same frame, further on: drawn again
+    assert again.number == first.number and again.share == pytest.approx(0.7) and again.skipped == 0
+
+
+def test_when_the_next_frame_is_not_ready_the_frame_is_drawn_as_it_is(clock):
+    d, microphone = drive(clock)
+    speak(microphone, 1.0)  # frames 0 to 24
+    began = clock["t"] - 320 / 16000
+    got = d.due(began + DELAY + (25 - DITTO_LATE) / FPS + 0.5 / FPS)  # frame 24, half way to 25
+    assert got.number == 24 and got.after is None and got.share == 0.0
 
 
 def test_a_frame_not_ready_in_time_is_counted_once_and_skipped(clock):
@@ -111,16 +132,16 @@ def test_the_lips_are_shut_in_silence_and_move_with_the_voice(clock):
     began = clock["t"] - 320 / 16000
     quiet = d.due(began + DELAY + 1.0)
     talking = d.due(began + DELAY + 2.8)
-    assert quiet[2] < 0.05 and talking[2] > 0.95
+    assert quiet.voice < 0.05 and talking.voice > 0.95
 
 
 def test_what_has_been_drawn_is_let_go_of_once_a_second(clock):
     d, microphone = drive(clock)
     speak(microphone, 4.0)
     began = clock["t"] - 320 / 16000
-    d.due(began + DELAY + 2.0 + 0.5 / FPS)  # frame 49: not a whole second
+    d.due(began + DELAY + (50 - DITTO_LATE) / FPS + 0.5 / FPS)  # frame 49: not a whole second
     assert not d.stream.forgotten
-    d.due(began + DELAY + 51 / FPS)  # frame 50
+    d.due(began + DELAY + (51 - DITTO_LATE) / FPS)  # frame 50
     assert d.stream.forgotten == [50 - FPS] and min(d.stream.ready) == 50 - FPS
 
 
