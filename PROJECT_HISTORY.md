@@ -794,6 +794,22 @@ Asked by Zain: the lips did not move properly and the mouth looked blurry and fa
 
 **Not done.** The inside of the open mouth is still soft: LivePortrait draws the face from a 256 pixel copy of the picture, and invents the teeth. A face restoration model (GFPGAN v1.4, Apache-2.0) on the mouth alone is the next step to try; its trial was not run, waiting for Zain's approval to run code from outside the project.
 
+### 9 November 2026: a session that ended after a quarter of an hour, and lips that said less
+
+**What Zain saw.** Testing in Google Meet, the session stopped after about 15 minutes; and in camera mode the lips did not follow his speech properly.
+
+**The session ending.**
+- Found: Windows recorded no crash of Python, OBS or the graphics driver, and the server wrote its errors only to the terminal, so the cause could not be read afterwards. In the code, one frame the camera failed to give ended the session ("The camera stopped delivering frames"): the feed took a single failed read for a stopped camera. His camera is a phone through Camo, which drops a frame now and then; over a quarter of an hour one is likely.
+- Built: the camera feed (`capture/feed.py`) asks again when a frame is missed, opens the camera again after 1 s without a frame and every 2 s after that, and gives up only after 15 s without any. The Live Studio says when the camera has gone quiet and when it is back. Warnings and errors, with their traces, now go to `logs/server.log`, and if the process itself dies the stacks of all its threads go to `logs/crash.log`.
+- Checked: a 20 minute session on a test server, a sample clip in place of the camera, the virtual camera on and a client reading the stream as the Live Studio does: 21 to 22 frames a second and 92 to 96 ms throughout, the server's memory flat at 2.59 GB, threads (150) and handles (about 1,040) flat, the card's memory 2.5 to 2.7 GB, no warning or error. Nothing in the engine wears out with time. 4 new tests: a camera missing frames, a camera that falls silent and is opened again, one that never comes back, and a session that goes on through a silence.
+
+**The lips.**
+- Found: his speech recording replayed through the live pipeline as a session runs it, each stage on and off, the drawn lips measured against his real ones (gap between the lips over the eye span). Every stage left the lips as they were except the anchoring of closed lips: with it the widest openings were 0.084 against his 0.105 and the mouth was open 22% of the time against his 30%; without it, 0.098 and 30%. The anchoring counted lips under 0.012 apart as closed, but his lips are a median 0.011 apart while he speaks, so the neutral mouth followed his speaking mouth between syllables, and every opening after it was measured from a mouth half open.
+- Built: lips count as closed only under 0.006 apart (`pipeline.py`), and only once they have stayed closed for 0.4 s, as in a pause, before the neutral mouth follows them (`engine.py`, LIP_HOLD_SECONDS).
+- Checked: five settings, on a normal start and on a start with the neutral pose taken with the lips 0.054 apart (the case of 13 October). Normal start: 0.093 widest, open 26%, r 0.964 (as before: 0.084, 22%, 0.959). Lips apart start: 0.095, 26%, r 0.966; without any anchoring the mouth then stays nearly shut (0.051, 10%, r 0.838). 432 tests pass.
+
+**Not done.** The camera fix was tested with a stand-in camera, not with Camo in a real call; the next long Meet session, with `logs/server.log` read afterwards, will show whether the camera was the cause.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

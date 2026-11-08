@@ -22,7 +22,11 @@ NEUTRAL_MAX_JAW_OPEN = 0.15  # ... the mouth closed ...
 # The tracker's jaw score does not see lips that are a little apart: at a real camera it read 0.02 with
 # the lips 0.09 of the eye span apart. So the gap between the lips is measured as well.
 NEUTRAL_MAX_LIP_GAP = 0.02  # ... the lips together: their gap over the distance between the eyes ...
-LIPS_CLOSED_GAP = 0.012  # under this the lips are closed (0.002 to 0.005 at rest, and in an enrolled picture)
+# Under this the lips are closed (0.002 to 0.005 at rest, and in an enrolled picture). It was 0.012 until
+# 9 November 2026, but while Zain speaks his lips are a median 0.011 apart, so more than half of his speech
+# counted as closed, the neutral mouth followed his speaking mouth, and the picture spoke with its mouth
+# 20% less open than his (see engine.py, LIP_HOLD_SECONDS).
+LIPS_CLOSED_GAP = 0.006
 UPPER_LIP, LOWER_LIP, EYE_OUTER = 13, 14, (33, 263)  # landmarks of the tracker
 NEUTRAL_MAX_EYE_CLOSED = 0.5  # ... and the eyes open. Pitch is left out: it depends on how high the camera sits.
 NEUTRAL_WAIT_SECONDS = 3.0  # after this long the current frame is taken, at rest or not

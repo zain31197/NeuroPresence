@@ -294,14 +294,23 @@ def test_closed_lips_bring_the_mouth_of_the_neutral_pose_to_how_it_reads_now():
         engine._follow_lips(face(mouth=0.08), at=1.0 + step / 30)
     assert mouth_off() == pytest.approx(0.05)
 
-    # The lips close for a third of a second, as between two words: most of the error is gone ...
+    # The lips close for a moment, as between two syllables: that is speech, not a mouth at rest. Nothing moves.
+    from neuropresence.reenactment.engine import LIP_HOLD_SECONDS
     engine.lips_closed = True
-    for step in range(11):
+    for step in range(int(LIP_HOLD_SECONDS * 30)):
         engine._follow_lips(closed, at=2.0 + step / 30)
+    assert mouth_off() == pytest.approx(0.05)
+    engine.lips_closed = False
+    engine._follow_lips(face(mouth=0.08), at=2.5)
+    # Closed for longer, as in a pause: a third of a second after the hold most of the error is gone ...
+    engine.lips_closed = True
+    start = 3.0 + LIP_HOLD_SECONDS
+    for step in range(-int(LIP_HOLD_SECONDS * 30), 11):
+        engine._follow_lips(closed, at=start + step / 30)
     assert mouth_off() < 0.05 * 0.45
     # ... and after a second all of it. Only the mouth was moved: the brows and the head are as they were.
     for step in range(11, 40):
-        engine._follow_lips(closed, at=2.0 + step / 30)
+        engine._follow_lips(closed, at=start + step / 30)
     assert mouth_off() < 0.003
     assert float(engine._reference["info"]["exp"][:, others].mean()) == pytest.approx(-0.02)
     assert engine._reference["rotation"] == "kept"

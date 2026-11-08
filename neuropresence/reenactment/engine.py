@@ -67,6 +67,14 @@ POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this sha
 # time the lips are seen closed, the mouth of the neutral pose is brought to that reading.
 LIP_KEYPOINTS = [6, 12, 14, 17, 19, 20]  # of the model's 21 keypoints, the ones that carry the mouth
 LIP_ANCHOR_SECONDS = 0.35  # how quickly: within one closing of the lips between words
+# The lips must have been closed this long before the neutral mouth follows them: a pause, not the short
+# closings between syllables. Without it (until 9 November 2026), on Zain's speech recording through the live
+# pipeline, the neutral mouth drifted toward his speaking mouth and the picture opened its mouth less than he
+# did: widest 0.084 against his 0.105 (lip gap over eye span, 90th percentile), open 22% of the time against
+# his 30%. Held 0.4 s, with the lips counted as closed below 0.006 (pipeline.py): 0.093 and 26%, close to no
+# anchoring at all (0.098, 30%); and a neutral pose taken with the lips 0.054 apart, which without anchoring
+# leaves the mouth nearly shut (0.051, 10%), is still repaired (0.095, 26%).
+LIP_HOLD_SECONDS = 0.4
 LIP_GAIN = 1.0  # the movement of the mouth, as it is read; kept for trials
 
 REST_HOLD_SECONDS = 1.5  # at rest for this long before the neutral pose starts to follow
@@ -422,8 +430,13 @@ class ReenactmentEngine:
         """While the lips are closed at the camera, bring the mouth of the neutral pose to how it reads now."""
         now = time.perf_counter() if at is None else at
         last, self._lips_at = getattr(self, "_lips_at", None), now
-        if not (self.anchor_lips and self.lips_closed) or last is None:
+        if not (self.anchor_lips and self.lips_closed):
+            self._lips_closed_since = None
             return
+        if getattr(self, "_lips_closed_since", None) is None:
+            self._lips_closed_since = now
+        if last is None or now - self._lips_closed_since < LIP_HOLD_SECONDS:
+            return  # closed for a moment only, between two syllables: not a mouth at rest
         share = 1.0 - math.exp(-min(max(now - last, 0.0), 0.5) / LIP_ANCHOR_SECONDS)
         rest = self._reference["info"]
         mouth = rest["exp"].clone()
