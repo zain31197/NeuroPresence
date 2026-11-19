@@ -165,3 +165,19 @@ def test_fitting_is_done_once_for_a_frame_that_is_sent_again(monkeypatch):
     cam.close()
     assert len(calls) == 1
     assert pytest.approx(99) == float(middle(device.frames[5]).mean())
+
+
+def test_it_counts_the_new_pictures_apart_from_the_frames_sent_again():
+    """A meeting gets 30 frames a second however fast the session draws; how many of them were new pictures
+    is what tells a smooth picture from a jerky one, so it is counted on its own."""
+    frames = [np.full((360, 640, 3), 10 * i, np.uint8) for i in range(4)]
+    shown = {"i": 0}
+    cam, device, _ = camera(lambda: frames[shown["i"]])
+    cam.switch(True)
+    for i in range(1, 4):
+        assert wait_for(lambda: len(device.frames) >= 5 * i)
+        shown["i"] = i  # the session draws a new picture
+    assert wait_for(lambda: cam.fresh == 4)
+    assert wait_for(lambda: cam.sent >= 25)
+    cam.close()
+    assert cam.fresh == 4

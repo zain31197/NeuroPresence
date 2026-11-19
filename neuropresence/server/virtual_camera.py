@@ -103,6 +103,7 @@ class VirtualCamera:
         self.reason = None  # why it could not be switched on, in words for the person
         self.showing = "nothing"  # "session": the output of a session; "card": the plain card
         self.sent = 0
+        self.fresh = 0  # of those, the frames of a session that had not been sent before
 
     def switch(self, on):
         """Switch the camera on or off. Returns the state, with the reason if it could not be opened."""
@@ -129,7 +130,7 @@ class VirtualCamera:
             self.reason = str(err)
             return
         self.reason, self.device = None, getattr(device, "device", None)
-        self.on, self.sent = True, 0
+        self.on, self.sent, self.fresh = True, 0, 0
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, args=(device,), name="virtual-camera", daemon=True)
         self._thread.start()
@@ -150,6 +151,7 @@ class VirtualCamera:
                 else:
                     if frame is not last:  # a frame is fitted once, however often it is sent again
                         shown, last = fit(frame, self.size), frame
+                        self.fresh += 1
                     self.showing = "session"
                 device.send(shown)
                 self.sent += 1

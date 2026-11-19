@@ -32,6 +32,10 @@ MAX_FRONTAL_ANGLE_DEG = 20.0
 WATCHDOG_AFTER_SECONDS = 2.0
 # A camera silent this long is pointed out while the feed reconnects to it (capture/feed.py).
 CAMERA_QUIET_SECONDS = 1.0
+# How often a running session writes its figures to the log (logs/server.log). The Meet recording of 9 November
+# 2026 showed 9 new pictures a second where the engine draws about 21, and nothing said where the rest were lost:
+# the drawing, the virtual camera, or the meeting application. With these lines the log tells.
+FIGURES_EVERY_SECONDS = 30.0
 
 STATUS_EVENTS = {
     TrackStatus.NO_FACE: ("warning", "No face in view. Showing the enrolled picture."),
@@ -171,6 +175,7 @@ class LiveSession:
         self._drawn_seconds = 0.0  # how long a frame that is really drawn takes, as a running average
         self._slow_camera_told = False
         self._anchor = threading.Event()  # a fresh neutral pose has been asked for
+        self._figures_at = None  # when the figures were last written to the log, and the virtual camera's counts then
 
     @property
     def active(self):
@@ -196,7 +201,7 @@ class LiveSession:
                 raise SessionError("A session is already running.")
             self._stop.clear()
             self._metrics = MetricsWindow()
-            self._pair = self._tracking = self._started_at = None
+            self._pair = self._tracking = self._started_at = self._figures_at = None
             self.run += 1
             self.identity_hold = self.delay_hold = self.consent_hold = False
             self._consent = None
@@ -429,6 +434,7 @@ class LiveSession:
                 timing["total"] = (finished - drawing) * 1000
                 # From the speech being heard to its frame drawn: what the voice is held back by.
                 self._metrics.add(finished, timing, (finished - got.heard) * 1000, live, got.skipped)
+                self._log_figures(finished)
                 pair_id += 1
                 with self._lock:
                     self._pair = FramePair(pair_id, camera, output, live, TrackStatus.OK.value, None)
@@ -516,6 +522,7 @@ class LiveSession:
             shown = item.captured_at if result.motion_at is None else result.motion_at
             delay_ms = (finished - shown) * 1000
             self._metrics.add(finished, result.timing_ms, delay_ms, result.live, dropped)
+            self._log_figures(finished)
             self._watch_delay(delay_ms, finished, drawn="render" in result.timing_ms)
             if "render" in result.timing_ms:
                 turn = finished - drawing
@@ -537,6 +544,31 @@ class LiveSession:
                                        result.status.value, track.landmarks if track.ok else None,
                                        crop_window=result.crop_window)
                 self._tracking = tracking
+
+    def _log_figures(self, now):
+        """Every FIGURES_EVERY_SECONDS, one line in the log with how the session is running: frames drawn a second,
+        the delay, the render time, the share of camera frames skipped and of frames reenacted, and what the
+        virtual camera sent: frames a second in all, and how many of them were new pictures."""
+        camera = getattr(self._rt, "virtual_camera", None)
+        counts = (camera.sent, camera.fresh) if camera is not None and camera.on else None
+        if self._figures_at is None:
+            self._figures_at = (now, counts)
+            return
+        then, before = self._figures_at
+        if now - then < FIGURES_EVERY_SECONDS:
+            return
+        self._figures_at = (now, counts)
+        m = self._metrics.summary(now)
+        if m["fps"] is None:
+            return
+        line = (f"Session on {self.input_label}: {m['fps']:.1f} frames a second drawn, {m['end_to_end_ms']:.0f} ms delay, "
+                f"render {m['render_ms'] or 0:.0f} ms, {100 * m['dropped_share']:.0f}% of camera frames skipped, "
+                f"{100 * m['live_share']:.0f}% reenacted")
+        if counts is not None and before is not None and counts[0] >= before[0]:
+            span = now - then
+            line += (f"; virtual camera {(counts[0] - before[0]) / span:.1f} frames a second, "
+                     f"{(counts[1] - before[1]) / span:.1f} of them new")
+        log.info(line)
 
     def _watch_delay(self, delay_ms, finished, drawn):
         """Hold the live picture back while it is arriving too late (see watchdog.py)."""

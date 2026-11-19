@@ -958,6 +958,20 @@ def test_a_camera_that_falls_silent_for_a_while_does_not_end_the_session(parts, 
     assert status(parts)["session"]["state"] == "running"
 
 
+def test_a_running_session_writes_its_figures_to_the_log(parts, monkeypatch, caplog):
+    """So that after a call the log says how fast the picture was drawn and how much of it reached the meeting."""
+    import logging
+
+    monkeypatch.setattr("neuropresence.server.session.FIGURES_EVERY_SECONDS", 0.2)
+    caplog.set_level(logging.INFO, logger="neuropresence.server")
+    parts["client"].post("/api/virtual-camera", json={"on": True})
+    start(parts)
+    lines = lambda: [r.getMessage() for r in caplog.records if "frames a second drawn" in r.getMessage()]  # noqa: E731
+    assert wait_for(lambda: any("virtual camera" in line for line in lines()))
+    line = next(line for line in lines() if "virtual camera" in line)
+    assert "ms delay" in line and "of camera frames skipped" in line and "of them new" in line
+
+
 def test_a_sample_clip_animates_its_own_frame_and_enrols_nothing(parts):
     verify_face(parts)
     register_all_poses(parts)  # poses are registered before the session, since the camera cannot open during one
