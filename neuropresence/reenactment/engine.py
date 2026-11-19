@@ -94,6 +94,23 @@ REST_EXPRESSION_SECONDS = 30.0  # what the face is doing follows more slowly sti
 # detail in place of 0.73. Whether that is worth 4% more tremble is a choice, not a measurement.
 SOURCE_SHARPEN = 0.0
 
+# The mouth alone. The generator draws the whole face from a 256 pixel copy of the picture, and the mouth, the
+# smallest part that moves most, comes out softest: on Zain's speech recording through the live pipeline (14
+# November 2026) the output's mouth had half the fine detail of the picture's (8.4 against 16.7, as the variance
+# of the Laplacian), and wide openings showed smeared teeth. So the generator's output is sharpened over the mouth
+# only, with a soft mask placed on the picture's own mouth (LivePortrait's landmarks 48 and 66 are its corners,
+# 90 and 102 its lips) and wide enough to cover it through the movement the head is allowed (POSE_RANGE_DEG).
+# Nothing else in the face changes, so the tremble and flicker of the rest stay as they were.
+# Measured on 40 s of that recording (mouth detail; the picture's own mouth has 23.0 on the same box):
+#   off 11.7;  0.6: 14.4;  1.0: 16.8;  1.5: 20.3.  The lips against his real ones: r 0.961 off, 0.958 at 1.0.
+#   Flicker of the mouth while the lips are shut, as the mean change from frame to frame: 0.90 off, 1.02 at 1.0,
+#   1.08 at 1.5; his camera's own mouth 1.71. The upper face 1.11 at every setting. 0.6 ms more a frame.
+#   Sharpening the whole picture instead (SOURCE_SHARPEN 0.1) gave the mouth 14.5 and the upper face 1.17.
+# 1.0 brings the mouth from half the picture's detail to three quarters of it and leaves the lips as they were.
+MOUTH_SHARPEN = 1.0
+MOUTH_SHARPEN_SIGMA = 1.5  # pixels of the generator's 512 pixel output
+MOUTH_LANDMARKS = (48, 66, 90, 102)
+
 
 def soft_limit(value, free, most):
     """`value` unchanged while within `free` of zero, then easing toward `most`, which it never passes."""
@@ -194,6 +211,8 @@ class ReenactmentEngine:
         self.source_frame = None  # the full source image, shown as the static fallback frame
         self.source_crop = None  # 512x512 BGR face crop that the networks animate
         self._last_out = None  # the generator's latest output, still on the GPU
+        self.mouth_sharpen = MOUTH_SHARPEN
+        self._mouth = self._mouth_kernel = None  # the mask over the picture's mouth, and the blur to sharpen with
         self.last_timing_ms = {}
         self.last_motion = {}
         self._steady = OneEuro(KEYPOINT_MIN_CUTOFF_HZ, KEYPOINT_BETA)
@@ -322,8 +341,42 @@ class ReenactmentEngine:
         self.source_frame = image_bgr
         self.source_crop = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2BGR)
         self._paste = self._prepare_paste_back(image_bgr, to_frame)
+        self._mouth, self._mouth_kernel = self._mouth_weight(found.get("lmk_crop"), to_crop), None
         self._gpu = None  # the GPU's copy of it, made when first needed
         self.reset_reference()
+
+    @staticmethod
+    def _mouth_weight(landmarks, to_crop):
+        """A soft mask over the picture's mouth in the generator's 512 pixel output, 1 at its middle, or None."""
+        if landmarks is None or len(landmarks) <= max(MOUTH_LANDMARKS):
+            return None
+        points = np.asarray(landmarks, np.float64)[list(MOUTH_LANDMARKS)] @ to_crop[:, :2].T + to_crop[:, 2]
+        centre = points.mean(axis=0)
+        width = float(np.linalg.norm(points[1] - points[0]))
+        if width < 4.0:
+            return None
+        # Wider than the mouth and reaching below it: the lower lip and the chin move most when it opens.
+        ys, xs = np.mgrid[0:OUTPUT_SIZE, 0:OUTPUT_SIZE].astype(np.float64)
+        dx, dy = (xs - centre[0]) / (0.95 * width), (ys - centre[1] - 0.15 * width) / (0.75 * width)
+        return np.exp(-((dx ** 2 + dy ** 2) ** 2)).astype(np.float32)
+
+    def _sharpen_mouth(self, out):
+        """Sharpen the generator's output (1x3x512x512, 0 to 1) over the mouth only (see MOUTH_SHARPEN)."""
+        if not self.mouth_sharpen or self._mouth is None:
+            return out
+        if self._mouth_kernel is None or self._mouth_kernel[0].device != out.device:
+            radius = int(math.ceil(3 * MOUTH_SHARPEN_SIGMA))
+            taps = torch.exp(-torch.arange(-radius, radius + 1, dtype=torch.float32) ** 2 / (2 * MOUTH_SHARPEN_SIGMA ** 2))
+            taps = (taps / taps.sum()).to(out.device)
+            self._mouth_kernel = (taps.view(1, 1, 1, -1).repeat(3, 1, 1, 1), taps.view(1, 1, -1, 1).repeat(3, 1, 1, 1),
+                                  torch.from_numpy(self._mouth).to(out.device)[None, None], radius)
+        across, down, weight, radius = self._mouth_kernel
+        image = out.float()
+        blurred = torch.nn.functional.pad(image, (radius, radius, 0, 0), mode="reflect")
+        blurred = torch.nn.functional.conv2d(blurred, across, groups=3)
+        blurred = torch.nn.functional.pad(blurred, (0, 0, radius, radius), mode="reflect")
+        blurred = torch.nn.functional.conv2d(blurred, down, groups=3)
+        return (image + self.mouth_sharpen * weight * (image - blurred)).clamp_(0.0, 1.0).to(out.dtype)
 
     def _prepare_paste_back(self, frame_bgr, to_frame):
         """Precompute how the animated crop is blended back into the source frame.
@@ -405,6 +458,7 @@ class ReenactmentEngine:
         """Forget the source picture. drive() cannot be used until set_source() is called again."""
         self._source = self._paste = self._reference = None
         self.source_frame = self.source_crop = self._last_out = None
+        self._mouth = self._mouth_kernel = None
 
     def reset_reference(self):
         """Forget the neutral driving pose; the next driven frame becomes the new neutral."""
@@ -610,7 +664,7 @@ class ReenactmentEngine:
         kp_driving = kp_driving.to(self._device)
         motion_done = self._now()
 
-        out = w.warp_decode(s["feature"], s["kp_device"], kp_driving)["out"]
+        out = self._sharpen_mouth(w.warp_decode(s["feature"], s["kp_device"], kp_driving)["out"])
         render_done = self._now()
 
         self._last_out = out

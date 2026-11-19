@@ -70,6 +70,44 @@ def test_reference_frame_reproduces_source(engine):
 
 
 @needs_liveportrait
+def test_mouth_sharpening_changes_the_mouth_and_nothing_else(engine):
+    """The mask sits on the picture's own mouth, sharpens it, and leaves the eyes and the rest of the face alone."""
+    from neuropresence.capture import FaceTracker
+    from neuropresence.pipeline import lip_gap
+
+    engine.set_source(cv2.imread(str(SAMPLE_SOURCE)))
+    face = engine.source_crop
+    with FaceTracker() as tracker:
+        track = tracker.process(face)
+    lips = track.landmarks[[13, 14, 61, 291]].mean(axis=0)  # MediaPipe's lips and mouth corners, in the crop
+    weight = engine._mouth
+    assert weight is not None and weight.shape == (OUTPUT_SIZE, OUTPUT_SIZE)
+    peak = np.unravel_index(np.argmax(weight), weight.shape)[::-1]
+    assert np.linalg.norm(np.array(peak) - lips) < 0.1 * OUTPUT_SIZE  # on the mouth
+    eyes = track.landmarks[[33, 263]].astype(int)
+    assert all(weight[y, x] < 0.01 for x, y in eyes)  # not on the eyes
+    before = engine.mouth_sharpen
+    try:
+        engine.mouth_sharpen = 0.0
+        engine.drive(face)
+        plain = engine.last_crop.astype(np.float32)
+        engine.mouth_sharpen = 1.0
+        engine.drive(face)
+        sharp = engine.last_crop.astype(np.float32)
+    finally:
+        engine.mouth_sharpen = before
+    changed = np.abs(sharp - plain).max(axis=2)
+    assert changed[weight < 0.01].max() <= 1.0  # outside the mouth nothing moves but rounding
+    gray = lambda image: cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # noqa: E731
+    x, y = lips.astype(int)
+    box = (slice(y - 30, y + 30), slice(x - 50, x + 50))
+    detail = lambda image: cv2.Laplacian(gray(image)[box], cv2.CV_32F).var()  # noqa: E731
+    assert detail(sharp) > 1.3 * detail(plain)
+    with FaceTracker() as tracker:  # and the mouth is the same shape: sharper, not opened or closed
+        assert abs(lip_gap(tracker.process(sharp.astype(np.uint8))) - lip_gap(tracker.process(plain.astype(np.uint8)))) < 0.01
+
+
+@needs_liveportrait
 def test_face_at_frame_edge_leaves_no_black_band(engine):
     """A head touching the top of the frame used to drag a black band into view."""
     source = cv2.imread(str(SAMPLE_SOURCE))[200:]  # cut so the forehead is at the top edge
