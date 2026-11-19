@@ -810,6 +810,45 @@ Asked by Zain: the lips did not move properly and the mouth looked blurry and fa
 
 **Not done.** The camera fix was tested with a stand-in camera, not with Camo in a real call; the next long Meet session, with `logs/server.log` read afterwards, will show whether the camera was the cause.
 
+### 14 November 2026: a sharper mouth, and the figures of a session in the log
+
+**What Zain asked.** The lips and mouth to move smoothly and look real, and a fix for pixels that sometimes look distorted.
+
+**Found.**
+- His Meet recording of 9 November (58 s, the self view) was read frame by frame. Only 9.2 new pictures a second reached the Meet window, where the engine draws about 21. At that rate a turn of the head shows in two or three jumps, and those jumps were all a scan for distorted frames found. Nothing recorded whether the drawing, the virtual camera or Meet lost the rest.
+- His speech recording (40 s, 1,200 frames) through the live pipeline at session settings: the lips followed his real ones closely (r 0.961, widest 0.089 against his 0.104, open 32% of the time against 35%) and wobbled from frame to frame 0.73 times as much as his own. No frame of the 1,200 was unlike both its neighbours. The distortion was not reproduced; a recording of it is needed.
+- The mouth is drawn soft. Measured as the variance of the Laplacian on the same box, the output's mouth had 11.7 against 23.0 in his enrolled picture, and wide openings showed smeared teeth. The generator draws from a 256 pixel copy of the face, and the mouth is its smallest moving part.
+
+**Built.**
+- The generator's output is sharpened over the mouth only (`engine.py`, MOUTH_SHARPEN 1.0), under a soft mask placed on the picture's own mouth from LivePortrait's landmarks 48, 66, 90 and 102, wide enough to cover it through the head's allowed range. Nothing outside the mask changes. It works in the voice mode as well, which draws through the same engine.
+- Every 30 s a running session writes one line to `logs/server.log`: frames drawn a second, the delay, the render time, the share of camera frames skipped and of frames reenacted, and what the virtual camera sent, in all and as new pictures (`session.py`, FIGURES_EVERY_SECONDS; `virtual_camera.py`, `fresh`).
+
+**Checked.** Five settings on the same 40 s:
+
+| | Mouth detail | Lips r | Mouth flicker, lips shut | Upper face flicker | Render |
+|---|---|---|---|---|---|
+| Off | 11.7 | 0.961 | 0.90 | 1.11 | 35.8 ms |
+| Mouth 0.6 | 14.4 | 0.959 | 0.97 | 1.11 | 36.2 ms |
+| Mouth 1.0 (chosen) | 16.8 | 0.958 | 1.02 | 1.11 | 36.4 ms |
+| Mouth 1.5 | 20.3 | 0.957 | 1.08 | 1.11 | 36.4 ms |
+| Whole picture, SOURCE_SHARPEN 0.1 | 14.5 | 0.961 | 0.95 | 1.17 | 36.3 ms |
+
+His camera's own mouth flickers 1.71 on the same measure. 3 new tests: the mask sits on the mouth and off the eyes, sharpens it and changes nothing outside it nor the lip gap; the session's figures reach the log; the virtual camera counts new pictures apart from repeated ones. 435 tests pass.
+
+**Not done.** The distortion Zain saw has not been found; it needs a recording or a description of when it happens. The cause of the 9 frames a second in Meet will be in the log after the next call. The inside of the mouth is still invented by the model; a face restoration model on the mouth (GFPGAN or CodeFormer) would go further, and needs Zain's approval as outside code.
+
+### 20 November 2026: a preflight check for the demonstration laptop
+
+The committee set the FYP-1 final evaluations for 9 and 10 December 2026. Zain said the demonstration runs on a laptop with an RTX 5050, not on the desktop the system was built on (a Gigabyte B550M board, the desktop RTX 5050 at a 130 W power limit; a laptop's runs at about 50 to 100 W), with internet in the room, and that a teammate's Kubuntu machine has an NVIDIA card. So everything has to be installed and measured on a second computer, and the TensorRT networks converted again there: their cache key includes the card's name.
+
+**Built.** `neuropresence/preflight.py` and `scripts/preflight.py`. One command checks Python and its packages, the graphics card and its power limit, power (on battery it fails: a laptop's card slows down; a power saving plan warns), the model files and the built web app (each with the command that fetches it), the enrolment and its five poses, the virtual camera (opened for a moment), the virtual cable and the microphone, camera 0 at 1280 x 720 (the frames it really delivers a second; under 24 warns), the internet (Meet), the port and free disk and memory. `--warm` loads the engine as a session does, which converts the networks on a new card, draws for a minute from a sample clip as a session draws and reports the frame rate in the first and last ten seconds (a laptop that heats up slows down), then warms the voice model. The report is printed and kept in `logs/preflight.log`.
+
+**Found on the way.** The first warm-up hung for good after the voice model was ready. Stack dumps showed the voice threads had finished and the function never returned to its caller: the program hung while freeing the function's own objects, after the drawing and the voice model had shared it. Freed one by one in a test, none of them hung, so the exact trigger is not known. With the drawing and the voice model in two functions, the drawing's objects freed before the voice model loads, it ran through every time. What the warm-up loads is kept until the program ends.
+
+**Checked on the desktop.** Every check green: engine ready in 3 s with TensorRT, 21.8 frames a second over a minute (first ten seconds 21.9, last 21.8), 46 ms a frame, the slowest 5% 49 ms, voice model ready in 13 s. 11 tests with stand-ins for every device. The README's setup now names Ditto, OBS and VB-Cable, and the preflight.
+
+**Still to check.** The live server keeps the voice model while sessions come and go, which is different from the warm-up, but the hang above was not explained: on the laptop, a camera session, then a voice session, then a camera session again, and a stop, must be tried before the demonstration.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

@@ -122,9 +122,20 @@ pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytor
 pip install -r requirements.txt
 python scripts/download_models.py        # face landmark model (4 MB) and ArcFace (275 MB download)
 python scripts/setup_liveportrait.py     # LivePortrait code and weights, about 700 MB
+python scripts/setup_ditto.py            # the camera-off voice mode: Ditto's code and weights, about 2.2 GB
 ```
 
 The first benchmark run also downloads the RAFT optical-flow weights (21 MB) through torchvision.
+
+For meetings, install the two devices a meeting application picks up: **OBS Studio** (its virtual camera; on Linux, v4l2loopback) and **VB-Audio Virtual Cable** (the voice held back to match the picture; on Linux, a PipeWire null sink named NeuroPresence). Then build the web app (below).
+
+### Check a computer before a session
+
+```
+python scripts/preflight.py --warm
+```
+
+It checks everything a session needs and says how to fix what is missing: Python and its packages, the graphics card, power (a laptop on battery runs its graphics card much slower), the model files, the web app, the enrolment, the virtual camera and microphone, camera 0 (how many frames a second it really delivers), the internet for Meet, the port and free memory. With `--warm` it also converts the drawing networks for this graphics card (about a minute and a half, once per card), warms the voice model, and draws for a minute as a session does, to say how many frames a second this computer reaches and whether it slows down as it heats. `--camera 1` checks another camera, `--no-camera` none. The report is kept in `logs/preflight.log`. Run it with the virtual camera switched off in the Live Studio, since it opens that device for a moment.
 
 ## Web app
 
@@ -143,7 +154,7 @@ cd ..
 python -m neuropresence.server --open
 ```
 
-Warnings and errors, with their full traces, are written to `logs/server.log`; if the engine process itself dies, the stacks of all its threads go to `logs/crash.log` (both kept out of git). If the camera stops sending pictures for a moment, as a phone used as a webcam may, the session reconnects to it and goes on; it ends only after 15 seconds without a picture.
+Warnings and errors, with their full traces, are written to `logs/server.log`; if the engine process itself dies, the stacks of all its threads go to `logs/crash.log` (both kept out of git). If the camera stops sending pictures for a moment, as a phone used as a webcam may, the session reconnects to it and goes on; it ends only after 15 seconds without a picture. Every 30 seconds a running session also writes its figures there: frames drawn a second, the delay, and how many new pictures the virtual camera sent, so a picture that looked jerky in a call can be traced afterwards.
 
 It opens at http://127.0.0.1:8000. The engine listens on this computer only, and the enrolled picture is kept in `data/enrolment/`, which git ignores. A camera session animates the enrolled picture, so enrol one first. For repeatable tests a session can also be driven from one of the sample clips; a clip animates one of its own frames and enrols nothing.
 
