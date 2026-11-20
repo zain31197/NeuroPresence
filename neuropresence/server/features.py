@@ -57,7 +57,7 @@ DEFAULTS = (
         "identity_guard",
         "Identity fallback",
         "Act when the output stops looking like your picture. A short dip is ignored; a lasting one takes a fresh "
-        "neutral pose; and if that does not help, the still picture is shown until you resume.",
+        "neutral pose; and if that does not help, the still picture is shown until you sit at rest again, or resume.",
         True,
     ),
     Feature(

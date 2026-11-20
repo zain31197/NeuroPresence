@@ -11,7 +11,6 @@ import { Tooltip } from '../../components/ui/Tooltip'
 import { api, ApiError, enrolledPictureUrl, type TrackStatus } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { useStudio } from '../../lib/studio'
-import { FeatureSwitches } from './FeatureSwitches'
 
 interface FrameInfo {
   live: boolean
@@ -175,8 +174,7 @@ export function Monitors() {
         </Monitor>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-3 pt-3.5 pb-2">
-        <FeatureSwitches />
+      <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-3 px-3 pt-3 pb-1.5">
         <Tooltip content="Makes your current pose the starting point that all movement is measured from.">
           <span>
             <Button size="sm" icon={<RotateCcw className="size-3.5" />} disabled={!running} busy={resetting} onClick={resetNeutral}>

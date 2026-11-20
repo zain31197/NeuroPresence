@@ -1,5 +1,5 @@
 import { ArrowRight, Clapperboard, Mic, Play, RotateCcw, Square, Video } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, buttonClass, Spinner } from '../../components/ui/Button'
 import { Notice } from '../../components/ui/Notice'
@@ -11,6 +11,7 @@ import { clock } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
 import { EnrolledPicture } from './EnrolledPicture'
 import { EventsPanel } from './EventsPanel'
+import { FeatureSwitches } from './FeatureSwitches'
 import { identityHoldText } from './holds'
 import { LatencyBreakdown } from './LatencyBreakdown'
 import { MetricTiles } from './MetricTiles'
@@ -18,6 +19,20 @@ import { Monitors } from './Monitors'
 import { TrackingPanel } from './TrackingPanel'
 import { VirtualCameraBar } from './VirtualCameraBar'
 import { VirtualMicrophoneBar } from './VirtualMicrophoneBar'
+
+/** A labelled part of the studio: a quiet heading with a hairline, and what the part shows. */
+function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <h2 className="label-caps text-ink-700">{title}</h2>
+        <span className="hidden h-px min-w-8 flex-1 self-center bg-line sm:block" aria-hidden="true" />
+        <p className="w-full text-[12.5px] text-ink-500 sm:w-auto sm:order-last">{hint}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
 
 function SessionPill({ session }: { session: Session }) {
   if (session.state === 'running') {
@@ -239,17 +254,26 @@ export function LiveStudio() {
         </Notice>
       )}
 
-      <div className="stagger mt-5 grid gap-5">
+      <div className="stagger mt-5 grid gap-7">
         <Monitors />
-        <VirtualCameraBar />
-        <VirtualMicrophoneBar />
-        <MetricTiles benchmark={benchmark} />
-        <TrackingPanel />
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
-          <LatencyBreakdown />
-          <EventsPanel />
-          <EnrolledPicture />
-        </div>
+        <Section title="Meeting output" hint="What Google Meet, Zoom or any other meeting application receives from this session.">
+          <VirtualCameraBar />
+          <VirtualMicrophoneBar />
+        </Section>
+        <Section title="Performance" hint="Live figures against the targets the project committed to, and the signal that drives your picture.">
+          <MetricTiles benchmark={benchmark} />
+          <TrackingPanel />
+        </Section>
+        <Section title="Pipeline" hint="Every stage that can be switched, so its effect can be seen live. All are on in normal use.">
+          <FeatureSwitches />
+        </Section>
+        <Section title="This session" hint="Where each frame's time goes, what happened, and the picture being animated.">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+            <LatencyBreakdown />
+            <EventsPanel />
+            <EnrolledPicture />
+          </div>
+        </Section>
       </div>
     </main>
   )
