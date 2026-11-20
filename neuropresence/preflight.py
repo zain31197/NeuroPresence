@@ -109,6 +109,23 @@ def gpu_check(torch=None):
     return Check("Graphics card", OK, detail)
 
 
+def gpu_smi_check(run=subprocess.run):
+    """The graphics card as the NVIDIA driver reports it, without PyTorch: for the running engine, where PyTorch
+    may still be loading on another thread and must not be touched (server/runtime.py, Runtime.gpu)."""
+    try:
+        out = run(["nvidia-smi", "--query-gpu=name,memory.total,memory.used,power.limit,temperature.gpu,driver_version",
+                   "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=10).stdout.strip()
+        name, total, used, power, temperature, driver = [part.strip() for part in out.splitlines()[0].split(",")]
+        total_gb, used_gb = float(total) / 1024, float(used) / 1024
+    except (OSError, subprocess.SubprocessError, IndexError, ValueError):
+        return Check("Graphics card", FAIL, "no NVIDIA graphics card found by the driver",
+                     "Install the NVIDIA driver; the engine needs an NVIDIA card")
+    detail = f"{name}, {used_gb:.1f} of {total_gb:.1f} GB in use, {temperature} °C, power limit {power} W, driver {driver}"
+    if total_gb < 6.0:
+        return Check("Graphics card", WARN, detail + "; under 6 GB may not hold the voice model as well", "")
+    return Check("Graphics card", OK, detail)
+
+
 def _power_limit():
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=power.limit", "--format=csv,noheader"],

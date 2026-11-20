@@ -877,6 +877,20 @@ Zain asked for the web app to look like a finished product, with animation, befo
 
 **Checked.** No page scrolls sideways at 375 pixels; no errors in the browser console; 65 web tests (3 new, for the meters) and the engine's capability test.
 
+### 20 November 2026: the web app, second round: System and Benchmarks, and the studio laid out
+
+The last two steps of the round approved the same day.
+
+**Built.**
+- **System** (`/studio/system`; `server/system.py`, `GET /api/system`, `POST /api/system/camera`): the preflight checks run by the engine, grouped (this computer, models and app, meeting devices, your enrolment, network), side by side so they take about 2 s, with a verdict that draws itself in the colour of the worst finding, and for each problem what to do, a command with a button that copies it. The graphics card is read from the driver (`preflight.gpu_smi_check`), never from PyTorch, which may still be loading on another thread; the virtual camera is tried through the engine's own device (`VirtualCamera.probe`), and when it is on it is not opened a second time. "Test camera" opens the chosen camera for two seconds through the engine's own feed and counts the pictures it sends; it is refused while a session or the Enrolment camera has it.
+- **Benchmarks** (`/studio/benchmarks`; `GET /api/benchmarks`): every saved benchmark, named after the change it judged ("Baseline", "TensorRT", "Even motion" and so on); the latest against the first, with the change in per cent (frame rate up 131%, render time down 62%); one chart per figure across the nine runs on the same eight clips, with the target as a dashed line, drawn in when first seen, and each run shown on pointing or with the arrow keys, with a table for screen readers; the call measurement of 23 October, no meeting, Google Meet and Zoom, with the spread of each figure and what the other side of the call saw; and every run in a table. The run on Zain's own recording is marked, since two clips are not comparable with eight.
+- The sidebar's "Coming next" with three screens marked "Soon" is gone: Benchmarks and System are under "Insight", the Test Lab is dropped, and the panel that marks where you are glides from one link to the next.
+- **Enrolment**: a four-step progress bar above the screen, verify, poses, picture, go live, from what the engine has stored; the line fills, the current step pulses, and once all is in place "Go live" leads to the Live Studio.
+- **Live Studio**: four labelled sections under the monitors, meeting output, performance, pipeline, this session. The eight feature switches left the strip under the video for a "Pipeline" panel of tiles, each with what it does; a tile that is on is lit.
+- The identity fallback's own description says it resumes by itself.
+
+**Checked.** 4 server tests (every run oldest first with its label and the call measurement; the System screen through the engine's own devices, its virtual camera opened and let go; a camera tested only while nothing else has it) and 3 web tests (round axis steps, the enrolment steps). No page scrolls sideways at 375 pixels, and the browser console stays clean on every screen. 456 engine and server tests and 68 web tests pass.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

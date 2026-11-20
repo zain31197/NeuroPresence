@@ -1,4 +1,4 @@
-import { ArrowLeft, ChartNoAxesColumn, FlaskConical, Lock, MonitorPlay, Server, UserRound, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, ChartNoAxesColumn, Lock, MonitorPlay, Server, UserRound, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Logo } from '../components/Logo'
@@ -12,13 +12,44 @@ const SCREENS: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/studio', label: 'Live Studio', icon: MonitorPlay },
 ]
 
-// Screens that are designed but not built yet. They are listed so the shape of
-// the app is visible, and they cannot be opened until they exist.
-const NEXT: { label: string; icon: LucideIcon }[] = [
-  { label: 'Test Lab', icon: FlaskConical },
-  { label: 'Benchmarks', icon: ChartNoAxesColumn },
-  { label: 'System', icon: Server },
+// How the system measures up, and whether this computer is ready for it.
+const INSIGHT: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: '/studio/benchmarks', label: 'Benchmarks', icon: ChartNoAxesColumn },
+  { to: '/studio/system', label: 'System', icon: Server },
 ]
+
+function SideLink({ to, label, icon: Icon, badge }: { to: string; label: string; icon: LucideIcon; badge?: string | null }) {
+  return (
+    <NavLink
+      to={to}
+      end
+      className={({ isActive }) =>
+        cn(
+          'group relative flex h-9 items-center gap-2.5 rounded-control px-2.5 text-[13.5px] font-medium transition-[background-color,color,box-shadow] duration-200 ease-out-soft',
+          isActive ? 'text-ink-950' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-950',
+        )
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {/* The place you are in: a soft panel and an ultramarine bar that glide from one link to the next. */}
+          {isActive && (
+            <motion.span
+              layoutId="nav-active"
+              className="absolute inset-0 rounded-control bg-ink-100/80 shadow-[inset_0_0_0_1px_rgb(11_13_18/0.04)]"
+              transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+            >
+              <span className="absolute top-2 bottom-2 -left-3 w-[3px] rounded-r-full bg-accent-500" />
+            </motion.span>
+          )}
+          <Icon className="relative size-4 transition-transform duration-200 group-hover:scale-110" strokeWidth={2} />
+          <span className="relative">{label}</span>
+          {badge && <span className="label-caps relative ml-auto rounded-chip bg-accent-50 px-1.5 py-0.5 text-accent-700">{badge}</span>}
+        </>
+      )}
+    </NavLink>
+  )
+}
 
 const ENGINE: Record<Connection, { label: string; dot: string }> = {
   open: { label: 'Engine connected', dot: 'bg-good' },
@@ -54,37 +85,18 @@ export function AppShell() {
         <nav className="flex-1 overflow-y-auto px-3 pt-2" aria-label="Studio">
           <p className="label-caps px-2.5 pb-2 text-ink-400">Studio</p>
           <ul className="grid gap-0.5">
-            {SCREENS.map(({ to, label, icon: Icon }) => (
-              <li key={to}>
-                <NavLink
-                  to={to}
-                  end
-                  className={({ isActive }) =>
-                    cn(
-                      'group relative flex h-9 items-center gap-2.5 rounded-control px-2.5 text-[13.5px] font-medium transition-[background-color,color,box-shadow] duration-200 ease-out-soft',
-                      // The place you are in carries a short ultramarine bar at its left edge.
-                      'before:absolute before:top-2 before:bottom-2 before:-left-3 before:w-[3px] before:rounded-r-full before:bg-accent-500 before:transition-[opacity,transform] before:duration-300',
-                      isActive
-                        ? 'bg-ink-100/80 text-ink-950 shadow-[inset_0_0_0_1px_rgb(11_13_18/0.04)] before:opacity-100'
-                        : 'text-ink-600 before:scale-y-0 before:opacity-0 hover:bg-ink-50 hover:text-ink-950',
-                    )
-                  }
-                >
-                  <Icon className="size-4 transition-transform duration-200 group-hover:scale-110" strokeWidth={2} />
-                  {label}
-                  {to === startHere && <span className="label-caps ml-auto rounded-chip bg-accent-50 px-1.5 py-0.5 text-accent-700">Start here</span>}
-                </NavLink>
+            {SCREENS.map((screen) => (
+              <li key={screen.to}>
+                <SideLink {...screen} badge={screen.to === startHere ? 'Start here' : null} />
               </li>
             ))}
           </ul>
 
-          <p className="label-caps px-2.5 pt-6 pb-2 text-ink-400">Coming next</p>
+          <p className="label-caps px-2.5 pt-6 pb-2 text-ink-400">Insight</p>
           <ul className="grid gap-0.5">
-            {NEXT.map(({ label, icon: Icon }) => (
-              <li key={label} className="flex h-9 items-center gap-2.5 px-2.5 text-[13.5px] text-ink-400" aria-disabled="true">
-                <Icon className="size-4" strokeWidth={2} />
-                {label}
-                <span className="label-caps ml-auto rounded-chip border border-line px-1.5 py-0.5 text-[9.5px] text-ink-400">Soon</span>
+            {INSIGHT.map((screen) => (
+              <li key={screen.to}>
+                <SideLink {...screen} />
               </li>
             ))}
           </ul>
@@ -112,15 +124,15 @@ export function AppShell() {
             <EngineStatus connection={connection} />
           </div>
           {/* Without the sidebar, the screens are reached from here. */}
-          <nav className="flex gap-1 px-3 pb-2" aria-label="Studio">
-            {SCREENS.map(({ to, label, icon: Icon }) => (
+          <nav className="flex gap-1 overflow-x-auto px-3 pb-2" aria-label="Studio">
+            {[...SCREENS, ...INSIGHT].map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 end
                 className={({ isActive }) =>
                   cn(
-                    'flex h-8 items-center gap-2 rounded-control px-2.5 text-[13px] font-medium transition-colors',
+                    'flex h-8 shrink-0 items-center gap-2 rounded-control px-2.5 text-[13px] font-medium transition-colors',
                     isActive ? 'bg-ink-100 text-ink-950' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-950',
                   )
                 }

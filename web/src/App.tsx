@@ -4,9 +4,11 @@ import { AppShell } from './app/AppShell'
 import { ToastProvider } from './components/ui/Toast'
 import { TooltipProvider } from './components/ui/Tooltip'
 import { StudioProvider } from './lib/studio'
+import { Benchmarks } from './screens/benchmarks/Benchmarks'
 import { Enrolment } from './screens/enrolment/Enrolment'
 import { Landing } from './screens/landing/Landing'
 import { LiveStudio } from './screens/studio/LiveStudio'
+import { System } from './screens/system/System'
 
 /** Shown if a screen fails to draw, so a fault never leaves a blank page. */
 function Crash() {
@@ -54,6 +56,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <LiveStudio /> },
       { path: 'enrolment', element: <Enrolment /> },
+      { path: 'benchmarks', element: <Benchmarks /> },
+      { path: 'system', element: <System /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

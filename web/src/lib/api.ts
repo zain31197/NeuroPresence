@@ -324,6 +324,67 @@ export interface Benchmark {
   targets: Partial<Targets>
 }
 
+/** One saved benchmark run, named after the change it was made to judge (see server/benchmarks.py). */
+export interface BenchmarkRun extends Benchmark {
+  label: string
+  code?: { neuropresence?: string; liveportrait?: string }
+}
+
+/** A figure measured once a second during a call phase: its median and spread. */
+export interface CallFigure {
+  median: number
+  p5: number
+  p95: number
+  min: number
+  max: number
+}
+
+export type CallFigureKey = 'fps' | 'delay_ms' | 'render_ms' | 'identity' | 'gpu_util_pct' | 'gpu_memory_mb' | 'cpu_engine_pct' | 'voice_delay_ms'
+
+/** One phase of a call measurement (scripts/measure_call.py): no meeting, Google Meet, or Zoom. */
+export interface CallPhase {
+  key: string
+  title: string
+  measured_at: string | null
+  seconds: number | null
+  figures: Partial<Record<CallFigureKey, CallFigure>>
+  /** What the person on the other side of the call saw and heard. */
+  answers: Record<string, boolean> | null
+}
+
+export interface CallMeasurement {
+  file: string
+  date: string
+  machine: { os?: string; gpu?: string; cpu_cores?: number; python?: string }
+  seconds_per_phase: number | null
+  phases: CallPhase[]
+}
+
+export interface Benchmarks {
+  runs: BenchmarkRun[]
+  calls: CallMeasurement | null
+}
+
+export type CheckLevel = 'ok' | 'warn' | 'fail'
+
+/** One preflight check, as the System screen shows it (neuropresence/preflight.py, server/system.py). */
+export interface SystemCheck {
+  name: string
+  level: CheckLevel
+  detail: string
+  /** What to do about it, when it is not ok. */
+  fix: string
+}
+
+export interface SystemReport {
+  groups: { key: string; title: string; checks: SystemCheck[] }[]
+  ready: boolean
+  failed: number
+  warned: number
+  checked_at: string
+  took_ms: number
+}
+
 /** The numbers the enrolment checks compare against. */
 export interface EnrolmentLimits {
   max_picture_px: number
@@ -399,6 +460,10 @@ export const api = {
   status: () => request<Status>('/api/status'),
   capabilities: () => request<{ stages: PipelineStage[]; enrolment?: PipelineStage; modes?: PipelineStage[] }>('/api/capabilities'),
   latestBenchmark: () => request<Benchmark>('/api/benchmarks/latest'),
+  benchmarks: () => request<Benchmarks>('/api/benchmarks'),
+  system: (internet = true) => request<SystemReport>(`/api/system?internet=${internet}`),
+  /** Opens the camera for two seconds and counts the pictures it sends. Refused while a session or the Enrolment camera has it. */
+  testCamera: (input: string) => request<SystemCheck>('/api/system/camera', { method: 'POST', ...json({ input }) }),
 
   enrolmentGuide: () => request<EnrolmentGuide>('/api/enrolment/guide'),
   startPreview: (input: string) => request<Status>('/api/enrolment/preview/start', { method: 'POST', ...json({ input }) }),

@@ -477,6 +477,47 @@ def test_latest_benchmark(parts):
     assert latest["clips"] == 8
 
 
+def test_every_benchmark_oldest_first_and_the_call_measurement(parts):
+    client, results = parts["client"], parts["tmp"] / "results"
+    assert client.get("/api/benchmarks").json() == {"runs": [], "calls": None}
+    results.mkdir()
+    (results / "benchmark_tensorrt_windows_rtx5050.json").write_text(json.dumps({"date": "2026-10-08T05:00:00", "summary": {"fps": 16.2, "pairs": 8}}))
+    (results / "benchmark_baseline_windows_rtx5050.json").write_text(json.dumps({"date": "2026-10-06T10:00:00", "summary": {"fps": 7.5, "pairs": 8}}))
+    (results / "call_measurements_windows_rtx5050.json").write_text(json.dumps({
+        "date": "2026-10-23T02:08:27", "seconds_per_phase": 120,
+        "phases": {"meet": {"title": "Google Meet", "summary": {"running_seconds": 120, "fps": {"median": 20.2}, "seconds": 120},
+                            "answers": {"picture_seen": True}}}}))
+    reply = client.get("/api/benchmarks").json()
+    assert [(run["label"], run["summary"]["fps"]) for run in reply["runs"]] == [("Baseline", 7.5), ("TensorRT", 16.2)]
+    meet = reply["calls"]["phases"][0]
+    assert meet["title"] == "Google Meet" and meet["figures"] == {"fps": {"median": 20.2}} and meet["answers"] == {"picture_seen": True}
+
+
+def test_the_system_screen_runs_the_checks_through_the_engines_own_devices(parts, monkeypatch):
+    from neuropresence.preflight import OK, Check
+
+    monkeypatch.setattr("neuropresence.preflight.gpu_smi_check", lambda: Check("Graphics card", OK, "Test GPU, 8.0 GB"))
+    monkeypatch.setattr("neuropresence.preflight.power_check", lambda: Check("Power", OK, "plugged in"))
+    report = parts["client"].get("/api/system", params={"internet": "false"}).json()
+    assert [group["key"] for group in report["groups"]] == ["computer", "models", "meeting", "you"]  # no network check asked for
+    checks = {check["name"]: check for group in report["groups"] for check in group["checks"]}
+    assert checks["Graphics card"]["detail"] == "Test GPU, 8.0 GB"
+    assert checks["Virtual camera"]["level"] == "ok" and "ready" in checks["Virtual camera"]["detail"]
+    assert parts["cameras"][0].closed  # opened through the engine's own device, for a moment, and let go
+    assert checks["Engine"]["detail"].startswith("not loaded yet")
+    assert checks["Enrolment"]["level"] == "warn"  # nobody is enrolled in this test's data folder
+    assert report["failed"] == sum(c["level"] == "fail" for c in checks.values()) and report["ready"] == (report["failed"] == 0)
+
+
+def test_a_camera_is_tested_only_while_nothing_else_has_it(parts):
+    client = parts["client"]
+    result = client.post("/api/system/camera", json={"input": "camera:0"}).json()
+    assert result["name"] == "Camera 0" and "pictures a second" in result["detail"] and parts["feeds"][-1].closed
+    start(parts)
+    reply = client.post("/api/system/camera", json={"input": "camera:0"})
+    assert reply.status_code == 409 and "Stop the session first" in reply.json()["detail"]
+
+
 # --------------------------------------------------------------- enrolment
 
 

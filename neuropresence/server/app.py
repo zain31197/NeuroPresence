@@ -32,6 +32,10 @@ class StartRequest(BaseModel):
     input: str = "camera:0"
 
 
+class CameraTest(BaseModel):
+    input: str = "camera:0"
+
+
 class FeaturePatch(BaseModel):
     enabled: bool
 
@@ -90,6 +94,21 @@ def create_app(runtime=None, web_dist=WEB_DIST):
     @app.get("/api/capabilities")
     def capabilities():
         return {"enrolment": ENROLMENT, "stages": STAGES, "modes": MODES}
+
+    @app.get("/api/benchmarks")
+    def benchmarks():
+        """Every saved benchmark and the newest call measurement, for the Benchmarks screen."""
+        return runtime.benchmarks()
+
+    @app.get("/api/system")
+    def system(internet: bool = True):
+        """Is this computer ready for a session: the preflight checks, run by the engine."""
+        return runtime.system(internet=internet)
+
+    @app.post("/api/system/camera")
+    def system_camera(body: CameraTest):
+        """Open a camera for two seconds and count the pictures it sends."""
+        return attempt(lambda: runtime.test_camera(body.input))
 
     @app.get("/api/benchmarks/latest")
     def benchmark():

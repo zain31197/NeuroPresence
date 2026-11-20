@@ -18,11 +18,12 @@ from ..enrolment import POSE_KEYS, Check, EnrolmentStore, make_candidate, prepar
 from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
 from ..identity import SAME_PERSON_CSIM, GuardState, IdentityGuard
 from ..targets import TARGETS
-from .benchmarks import latest_benchmark
+from .benchmarks import all_benchmarks, call_measurements, latest_benchmark
 from .features import FeatureSet
 from .guide import enrolment_guide
 from .preview import EnrolmentPreview
 from .session import LiveSession, SessionError, SessionState
+from .system import camera_test, system_report
 from .virtual_camera import VirtualCamera, open_device
 from .virtual_microphone import VirtualMicrophone, list_devices, open_streams
 
@@ -971,6 +972,21 @@ class Runtime:
 
     def latest_benchmark(self):
         return latest_benchmark(self._results_dir)
+
+    def benchmarks(self):
+        """Every saved benchmark, oldest first, and the newest measurement beside meeting applications."""
+        return {"runs": all_benchmarks(self._results_dir), "calls": call_measurements(self._results_dir)}
+
+    def test_camera(self, input_id):
+        """Open a camera for a moment and say how many pictures a second it sends (system.py)."""
+        entry = self._input(input_id)
+        if entry["kind"] != "camera":
+            raise SessionError("Only a camera can be tested.")
+        return camera_test(self, self._source_of(entry))
+
+    def system(self, internet=True):
+        """The preflight checks, run by the engine (system.py)."""
+        return system_report(self, internet=internet)
 
     def enrolment_guide(self):
         """The limits the enrolment checks apply, and the study they were set from if it has been run."""
