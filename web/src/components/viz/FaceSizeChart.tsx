@@ -169,7 +169,10 @@ export function FaceSizeChart({ pictures, referencePx, minPx, goodPx, yours, hei
         )}
       </figcaption>
 
-      <table className="sr-only">
+      {/* For screen readers. Hidden by its wrapper: a table does not shrink to the 1 px that sr-only sets, and
+          on a phone it made the whole Enrolment screen scroll sideways (found 20 November 2026). */}
+      <div className="sr-only">
+      <table>
         <caption>Detail in the output face by face height in the enrolled picture</caption>
         <thead>
           <tr>
@@ -188,6 +191,7 @@ export function FaceSizeChart({ pictures, referencePx, minPx, goodPx, yours, hei
           ))}
         </tbody>
       </table>
+      </div>
     </figure>
   )
 }
