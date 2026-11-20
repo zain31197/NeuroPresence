@@ -27,6 +27,7 @@ import { useStudio } from '../../lib/studio'
 import { Checklist } from './Checklist'
 import { Evidence } from './Evidence'
 import { PoseCapture } from './PoseCapture'
+import { Progress } from './Progress'
 import { isAsking } from '../../components/liveness'
 import { Guidance, Stage, type Mode } from './Stage'
 
@@ -185,6 +186,7 @@ export function Enrolment() {
     return (
       <main className="mx-auto max-w-[1520px] px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
         {heading}
+        <Progress face={face} record={record} />
         {engineDown}
         {sessionActive && (
           <Notice
@@ -320,6 +322,7 @@ export function Enrolment() {
   return (
     <main className="mx-auto max-w-[1520px] px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
       {heading}
+      <Progress face={face} record={record} />
       {engineDown}
       {sessionActive && (
         <Notice
