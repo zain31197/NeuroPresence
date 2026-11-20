@@ -75,7 +75,7 @@ export interface ConsentPrompt {
 export interface IdentityGuard {
   /** The "Identity fallback" switch. */
   enabled: boolean
-  /** 'anchoring': a fresh neutral pose was taken. 'fallback': the still picture is shown until the person resumes. */
+  /** 'anchoring': a fresh neutral pose was taken. 'fallback': the still picture is shown until it resumes. */
   state: 'steady' | 'dipping' | 'anchoring' | 'fallback'
   /** How long the still picture has been shown, in seconds. Null unless the state is 'fallback'. */
   seconds: number | null
@@ -83,6 +83,11 @@ export interface IdentityGuard {
   mean: number | null
   /** Below this mean the output no longer counts as matching the picture. */
   low: number
+  /** Seconds until the still picture resumes by itself at the earliest (once the person is at rest), or null
+   * when nothing is on hold or the person chose to stay. Older engines do not send it. */
+  resumes_in?: number | null
+  /** The person chose to stay on the still picture: it waits for Resume. */
+  staying?: boolean
 }
 
 /** 'identity' is the extra check an uploaded picture gets: does it show the verified face?
@@ -425,6 +430,8 @@ export const api = {
   resetNeutral: () => request<{ ok: boolean }>('/api/session/neutral', { method: 'POST' }),
   /** Go live again after the identity monitor put the still picture up. A fresh neutral pose is taken. */
   resumeSession: () => request<Status>('/api/session/resume', { method: 'POST' }),
+  /** Keep the still picture after an identity fallback, instead of resuming by itself. */
+  staySession: () => request<Status>('/api/session/stay', { method: 'POST' }),
   setVirtualCamera: (on: boolean) => request<VirtualCamera>('/api/virtual-camera', { method: 'POST', ...json({ on }) }),
   changeVirtualMicrophone: (change: { on?: boolean; microphone?: string; offset_ms?: number }) =>
     request<VirtualMicrophone>('/api/virtual-microphone', { method: 'PATCH', ...json(change) }),

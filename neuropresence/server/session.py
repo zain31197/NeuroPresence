@@ -15,7 +15,7 @@ from ..capture import TrackStatus
 from ..capture.crop import square_face_crop
 from ..consent import liveness
 from ..consent.disclosure import mark
-from ..pipeline import Pipeline
+from ..pipeline import Pipeline, at_rest
 from ..targets import TARGETS
 from .metrics import MetricsWindow
 from .pacing import MotionClock
@@ -176,6 +176,9 @@ class LiveSession:
         self._slow_camera_told = False
         self._anchor = threading.Event()  # a fresh neutral pose has been asked for
         self._figures_at = None  # when the figures were last written to the log, and the virtual camera's counts then
+        # Since when the person at the camera has been at rest (facing it, mouth closed, eyes open), or None. The
+        # identity monitor resumes after a fallback by itself once they have been (runtime.py, IdentityMonitor).
+        self.resting_since = None
 
     @property
     def active(self):
@@ -202,6 +205,7 @@ class LiveSession:
             self._stop.clear()
             self._metrics = MetricsWindow()
             self._pair = self._tracking = self._started_at = self._figures_at = None
+            self.resting_since = None
             self.run += 1
             self.identity_hold = self.delay_hold = self.consent_hold = False
             self._consent = None
@@ -535,6 +539,8 @@ class LiveSession:
                 status = result.status
             pair_id += 1
             track = result.track
+            # Tracked even while the still picture is shown, so the identity monitor can tell when to resume.
+            self.resting_since = (self.resting_since or finished) if track.ok and at_rest(track) else None
             tracking = {"status": result.status.value, "pose_deg": None, "mouth_open": None}
             if track.ok:
                 tracking["pose_deg"] = [round(float(angle), 1) for angle in track.pose_deg]

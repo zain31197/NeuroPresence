@@ -12,6 +12,7 @@ from dataclasses import replace
 
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
 from ..consent import LivenessChallenge
+from ..consent.attempts import Attempts
 from ..consent.check import WATCH_SECONDS, ConsentCheck, ConsentWatch
 from ..enrolment import POSE_KEYS, Check, EnrolmentStore, make_candidate, prepare
 from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
@@ -54,6 +55,17 @@ class EventLog:
             return [event for event in self._events if event["id"] > last_id]
 
 
+# After an identity fallback the still picture stayed until the person pressed Resume in the Live Studio
+# (until 20 November 2026). In a meeting they look at the meeting, not at the Live Studio, so they did not know.
+# Now it resumes by itself, with a fresh neutral pose, once the person has been at rest for a moment: the cure
+# the guard tries first. If the output still does not match, the guard falls back again, and each automatic try
+# waits twice as long as the one before, so the picture cannot flicker between the two. "Stay on the still
+# picture" in the Live Studio stops it until the person resumes.
+AUTO_RESUME_SECONDS = 5.0  # the still picture is shown at least this long before the first automatic try
+AUTO_RESUME_LONGEST = 60.0
+REST_TO_RESUME_SECONDS = 1.0  # at rest this long: facing the camera, mouth closed, eyes open
+
+
 class IdentityMonitor:
     """Scores the live output against the picture it is made from, twice a second, and acts on it.
 
@@ -61,7 +73,8 @@ class IdentityMonitor:
     50 ms, and scoring four times a second left the frame rate and the delay where they were
     (results/delay_study.json). What a low score leads to is decided by the guard (identity/guard.py):
     nothing for a short dip, a fresh neutral pose for a lasting one, and the still picture if that
-    does not help. The still picture then stays until the person resumes.
+    does not help. The still picture then stays until the person resumes, or it resumes by itself once
+    the person is at rest (AUTO_RESUME_SECONDS).
 
     The same thread keeps the consent watch (consent/check.py): once a second the face in the camera
     picture is compared with the signatures registered for the user, and while it is someone else's
@@ -80,6 +93,8 @@ class IdentityMonitor:
         self._watching = None  # the session and the picture the readings of the guard belong to
         self.watch = ConsentWatch()
         self._next_watch = 0.0
+        self._auto_tries = 0  # automatic resumes since the output last matched
+        self.staying = False  # the person chose to stay on the still picture: no automatic resume
 
     def ensure_started(self):
         if self._thread is None:
@@ -103,6 +118,9 @@ class IdentityMonitor:
                 "seconds": round(time.perf_counter() - guard.since, 1) if guard.state is GuardState.FALLBACK else None,
                 "mean": None if guard.mean is None else round(guard.mean, 3),
                 "low": guard.low,
+                # When the still picture resumes by itself, at the earliest, and whether the person chose to stay.
+                "resumes_in": self._resumes_in(),
+                "staying": self.staying,
             }
             # The consent watch: how alike the camera face last was to the registered one.
             state["consent"] = {"held": self.watch.held,
@@ -115,10 +133,50 @@ class IdentityMonitor:
         with self._guard_lock:
             if not session.identity_hold:
                 raise SessionError("The output is not on hold.")
-            self.guard.resume(time.perf_counter())
-            session.request_anchor()
-            session.hold_for_identity(False)
+            self._auto_tries, self.staying = 0, False
+            self._resume(session)
         self._rt.events.add("info", "Reenactment resumed with a fresh neutral pose.")
+
+    def stay(self):
+        """The person chose the still picture: it is not resumed by itself until they resume."""
+        with self._guard_lock:
+            if not self._rt.session.identity_hold:
+                raise SessionError("The output is not on hold.")
+            self.staying = True
+        self._rt.events.add("info", "Staying on the still picture until you resume.")
+
+    def _resume(self, session):
+        """Call with the guard lock held."""
+        self.guard.resume(time.perf_counter())
+        session.request_anchor()
+        session.hold_for_identity(False)
+
+    def _auto_wait(self):
+        return min(AUTO_RESUME_SECONDS * 2 ** self._auto_tries, AUTO_RESUME_LONGEST)
+
+    def _resumes_in(self):
+        """Seconds until the earliest automatic resume, or None when none is coming. Call with the guard lock held."""
+        if self.guard.state is not GuardState.FALLBACK or self.staying or self.guard.since is None:
+            return None
+        return round(max(0.0, self.guard.since + self._auto_wait() - time.perf_counter()), 1)
+
+    def _resume_by_itself(self, session):
+        """After a fallback: once the wait is over and the person is at rest, resume with a fresh neutral pose."""
+        with self._guard_lock:
+            if (not session.identity_hold or self.staying or self.guard.state is not GuardState.FALLBACK
+                    or session.consent_hold or session.state is not SessionState.RUNNING):
+                return
+            now = time.perf_counter()
+            if now - self.guard.since < self._auto_wait():
+                return
+            if not session.voice:  # with the camera off there is no face to be at rest; the wait is enough
+                since = session.resting_since
+                if since is None or now - since < REST_TO_RESUME_SECONDS:
+                    return
+            self._auto_tries += 1
+            self._resume(session)
+        self._rt.events.add("info", "Reenactment resumed by itself with a fresh neutral pose, since you were seen "
+                                    "at rest. If the output still does not match, the still picture comes back.")
 
     def _set(self, **state):
         with self._lock:
@@ -134,6 +192,7 @@ class IdentityMonitor:
             if changed or (not enabled and (self.guard.state is not GuardState.STEADY or session.identity_hold)):
                 self.guard.reset()
                 session.hold_for_identity(False)
+                self._auto_tries, self.staying = 0, False
             if changed:
                 self.watch.reset()
                 self._next_watch = 0.0  # a new session is looked at straight away
@@ -183,6 +242,8 @@ class IdentityMonitor:
                 session.request_anchor()
             elif action == "fallback":
                 session.hold_for_identity(True)
+            elif action == "recovered":
+                self._auto_tries = 0  # the output matches again: the next fallback waits the shortest time
         if action == "anchor" and reason == "changed":
             events.add("info", f"The match has stepped down since the last neutral pose (identity {mean:.2f}). "
                                "Taking the neutral pose again.")
@@ -191,7 +252,7 @@ class IdentityMonitor:
                                   "seconds). Taking a fresh neutral pose.")
         elif action == "fallback":
             events.add("warning", f"The output does not match your picture (identity {mean:.2f}). Showing the still "
-                                  "picture until you resume.")
+                                  "picture; it resumes by itself once you sit facing the camera, mouth closed.")
         elif action == "recovered":
             events.add("info", f"Identity match is back ({mean:.2f}).")
 
@@ -205,6 +266,8 @@ class IdentityMonitor:
         while not self._stop.wait(self._interval):
             session = self._rt.session
             guarding = self._follow(session)
+            if guarding:
+                self._resume_by_itself(session)
             pair = session.latest_pair()
             try:
                 self._watch_camera(session, scorer, pair)
@@ -333,6 +396,7 @@ class Runtime:
 
         self.features = FeatureSet()
         self.events = EventLog()
+        self.attempts = Attempts()  # consent checks that did not pass, so that they cannot be repeated endlessly
         self.session = LiveSession(self)
         self.preview = EnrolmentPreview(self)
         self.identity = IdentityMonitor(self)
@@ -418,12 +482,21 @@ class Runtime:
         signatures = self.face_signatures()
         if not signatures:
             raise SessionError("Verify your face with the camera first. A session starts only for the verified face.")
-        return ConsentCheck(LivenessChallenge(), signatures, self._face_scorer().similarity), self._face_scorer()
+        self._refuse_too_soon()
+        return (ConsentCheck(LivenessChallenge(), signatures, self._face_scorer().similarity, attempts=self.attempts),
+                self._face_scorer())
 
     def verification_check(self):
         """The check a face is verified with: the same prompt, and the face has to stay the same face
         from its first frame to the picture that is taken."""
-        return ConsentCheck(LivenessChallenge(), None, self._face_scorer().similarity), self._face_scorer()
+        self._refuse_too_soon()
+        return ConsentCheck(LivenessChallenge(), None, self._face_scorer().similarity, attempts=self.attempts), self._face_scorer()
+
+    def _refuse_too_soon(self):
+        """After several checks that did not pass, the next one waits (consent/attempts.py)."""
+        refusal = self.attempts.refusal()
+        if refusal:
+            raise SessionError(refusal)
 
     def _face_scorer(self):
         try:
@@ -439,6 +512,10 @@ class Runtime:
     def resume_reenactment(self):
         """Go live again after the identity monitor put the still picture up."""
         self.identity.resume()
+
+    def stay_on_still_picture(self):
+        """Keep the still picture after an identity fallback: no automatic resume until the person resumes."""
+        self.identity.stay()
 
     # ---------------------------------------------------------- enrolment
 
@@ -771,6 +848,8 @@ class Runtime:
             raise SessionError("Verify your face with the camera first. A session starts only for the verified face.")
         if self.session.active:
             raise SessionError("A session is already running.")
+        if uses_enrolment:
+            self._refuse_too_soon()  # said at once, not after the camera has been opened
         self.preview.stop()  # the camera can only be open in one place
         self.session.start(self._source_of(entry), entry["label"], uses_enrolment, voice=entry["kind"] == "voice")
         self.identity.ensure_started()
@@ -881,6 +960,7 @@ class Runtime:
                 "preview": self.preview.snapshot(),
             },
             "identity": self.identity.snapshot(),
+            "consent_attempts": self.attempts.snapshot(),
             "features": self.features.as_list(),
             "virtual_camera": self.virtual_camera.snapshot(),
             "virtual_microphone": self.virtual_microphone.snapshot(),

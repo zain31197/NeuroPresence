@@ -153,7 +153,7 @@ export function MetricTiles({ benchmark }: { benchmark: Benchmark | null }) {
 
       <Figure
         label="Identity match"
-        about="How closely the output face matches the enrolled picture (cosine similarity of ArcFace embeddings), checked twice a second. A face that never moved would score 1.0. If the mean of the last three seconds falls below 0.75, a fresh neutral pose is taken, and if that does not help the still picture is shown until you resume."
+        about="How closely the output face matches the enrolled picture (cosine similarity of ArcFace embeddings), checked twice a second. A face that never moved would score 1.0. If the mean of the last three seconds falls below 0.75, a fresh neutral pose is taken, and if that does not help the still picture is shown until you sit at rest again, or resume."
         value={identity.csim}
         digits={2}
         unit="CSIM"

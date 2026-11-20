@@ -200,6 +200,12 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         attempt(runtime.resume_reenactment)
         return runtime.status()
 
+    @app.post("/api/session/stay")
+    def stay():
+        """Keep the still picture after an identity fallback, rather than resuming by itself."""
+        attempt(runtime.stay_on_still_picture)
+        return runtime.status()
+
     # --------------------------------------------------------------- features
 
     @app.patch("/api/features/{key}")

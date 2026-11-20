@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { IdentityGuard } from '../../../lib/api'
-import { guardNote, promptSecondsLeft, PROMPT_SECONDS } from '../holds'
+import { guardNote, identityHoldText } from '../holds'
 
 const guard = (patch: Partial<IdentityGuard>): IdentityGuard => ({ enabled: true, state: 'steady', seconds: null, mean: 0.9, low: 0.75, ...patch })
 
@@ -25,24 +25,24 @@ describe('guardNote', () => {
   })
 })
 
-describe('promptSecondsLeft', () => {
-  it('counts down from the moment the still picture went up', () => {
-    expect(promptSecondsLeft(0, false)).toBe(PROMPT_SECONDS)
-    expect(promptSecondsLeft(1.2, false)).toBe(4)
-    expect(promptSecondsLeft(4.9, false)).toBe(1)
+describe('identityHoldText', () => {
+  it('says the still picture resumes by itself, and from when', () => {
+    const text = identityHoldText(guard({ state: 'fallback', seconds: 1, resumes_in: 3.2, staying: false }))
+    expect(text).toContain('resumes by itself with a fresh neutral pose once you sit facing the camera, mouth closed')
+    expect(text).toContain('in 4 s at the earliest')
   })
 
-  it('stops asking when the time is up', () => {
-    expect(promptSecondsLeft(5, false)).toBe(0)
-    expect(promptSecondsLeft(60, false)).toBe(0)
+  it('leaves the time out once the wait is over and only the rest is missing', () => {
+    const text = identityHoldText(guard({ state: 'fallback', seconds: 9, resumes_in: 0, staying: false }))
+    expect(text).toMatch(/mouth closed\.$/)
   })
 
-  it('stops asking as soon as the person chooses to stay', () => {
-    expect(promptSecondsLeft(1, true)).toBe(0)
+  it('says it stays when the person chose to stay', () => {
+    expect(identityHoldText(guard({ state: 'fallback', resumes_in: null, staying: true }))).toContain('until you resume')
   })
 
-  it('does not ask when nothing is on hold', () => {
-    expect(promptSecondsLeft(null, false)).toBe(0)
-    expect(promptSecondsLeft(undefined, false)).toBe(0)
+  it('still says what to do for an engine that does not resume by itself', () => {
+    expect(identityHoldText(guard({ state: 'fallback' }))).toContain('Resume with a fresh neutral pose')
+    expect(identityHoldText(undefined)).toContain('Resume with a fresh neutral pose')
   })
 })

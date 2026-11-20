@@ -1032,7 +1032,7 @@ def test_a_lasting_identity_drop_takes_a_fresh_neutral_pose_and_then_shows_the_s
     assert wait_for(lambda: engine.resets > resets)  # the neutral pose was taken again
     assert wait_for(lambda: status(parts)["session"]["holds"]["identity"], seconds=4.0)
     assert status(parts)["identity"]["guard"]["state"] == "fallback"
-    assert any("Showing the still picture until you resume" in message for message in events(parts))
+    assert any("it resumes by itself once you sit facing the camera" in message for message in events(parts))
     # The session goes on, tracking the face, with the enrolled picture as its output.
     assert wait_for(lambda: level(runtime.session.latest_pair().output) == pytest.approx(level(FRAME)))
     pair = runtime.session.latest_pair()
@@ -1065,6 +1065,83 @@ def test_resume_is_refused_when_nothing_is_on_hold(parts):
     start(parts)
     reply = parts["client"].post("/api/session/resume")
     assert reply.status_code == 409 and "not on hold" in reply.json()["detail"]
+    reply = parts["client"].post("/api/session/stay")
+    assert reply.status_code == 409 and "not on hold" in reply.json()["detail"]
+
+
+def fall_back(parts, monkeypatch, wait=0.3, jaw=0.0):
+    """Start a session and let the identity guard put the still picture up, with short automatic waits.
+    `jaw` is how open the mouth is from then on: 0.0 at rest, 0.8 talking."""
+    monkeypatch.setattr("neuropresence.server.runtime.AUTO_RESUME_SECONDS", wait)
+    monkeypatch.setattr("neuropresence.server.runtime.REST_TO_RESUME_SECONDS", 0.05)
+    start(parts)
+    parts["tracker"].jaw = jaw
+    runtime, scorer, client = watch_identity_quickly(parts)
+    assert wait_for(lambda: status(parts)["identity"]["csim"] == 0.9, seconds=4.0)
+    scorer.alike = 0.6
+    assert wait_for(lambda: status(parts)["session"]["holds"]["identity"], seconds=6.0)
+    return runtime, scorer, client
+
+
+def test_after_a_fallback_the_picture_resumes_by_itself_once_the_person_is_at_rest(parts, monkeypatch):
+    """In a meeting the person looks at the meeting, not at the Live Studio, and would never see a Resume button."""
+    tracker = parts["tracker"]
+    runtime, scorer, _ = fall_back(parts, monkeypatch, jaw=0.8)  # talking: not at rest, so nothing resumes
+    assert status(parts)["identity"]["guard"]["resumes_in"] is not None
+    scorer.alike = 0.9
+    time.sleep(0.8)
+    assert status(parts)["session"]["holds"]["identity"] is True
+    tracker.jaw = 0.0  # facing the camera, mouth closed
+    assert wait_for(lambda: any("resumed by itself" in message for message in events(parts)), seconds=4.0)
+    assert wait_for(lambda: runtime.session.latest_pair().live is True)
+    assert wait_for(lambda: any("Identity match is back" in message for message in events(parts)), seconds=4.0)
+    assert status(parts)["identity"]["guard"]["state"] == "steady"
+    assert status(parts)["identity"]["guard"]["resumes_in"] is None
+
+
+def test_an_automatic_resume_that_does_not_help_waits_longer_the_next_time(parts, monkeypatch):
+    runtime, scorer, _ = fall_back(parts, monkeypatch, wait=0.3)  # and the output stays wrong
+    assert wait_for(lambda: any("resumed by itself" in message for message in events(parts)), seconds=4.0)
+    assert wait_for(lambda: runtime.identity._auto_tries == 1 and status(parts)["session"]["holds"]["identity"], seconds=6.0)
+    assert runtime.identity._auto_wait() == pytest.approx(0.6)  # twice the first wait
+    assert status(parts)["identity"]["guard"]["state"] == "fallback"
+
+
+def test_staying_on_the_still_picture_stops_the_automatic_resume_until_the_person_resumes(parts, monkeypatch):
+    runtime, scorer, client = fall_back(parts, monkeypatch, wait=0.5)
+    assert client.post("/api/session/stay").status_code == 200
+    guard = status(parts)["identity"]["guard"]
+    assert guard["staying"] is True and guard["resumes_in"] is None
+    assert "Staying on the still picture until you resume." in events(parts)
+    scorer.alike = 0.9
+    time.sleep(1.0)
+    assert status(parts)["session"]["holds"]["identity"] is True
+    assert not any("resumed by itself" in message for message in events(parts))
+    assert client.post("/api/session/resume").status_code == 200
+    assert wait_for(lambda: runtime.session.latest_pair().live is True)
+    assert status(parts)["identity"]["guard"]["staying"] is False
+
+
+def test_checks_that_do_not_pass_again_and_again_make_the_next_one_wait(parts, monkeypatch):
+    """A recording passes the prompt about one attempt in seven: it may not simply be tried again and again."""
+    enrol(parts)
+    ask_for(monkeypatch, "turn_right", "open_mouth", seconds=0.2)
+    client, runtime = parts["client"], parts["runtime"]
+    for tries in range(1, 4):  # a photograph held up three times: refused each time, nothing to wait for yet
+        assert client.post("/api/session/start", json={"input": "camera:0"}).status_code == 200
+        assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+        assert status(parts)["consent_attempts"]["failures"] == tries
+    reply = client.post("/api/session/start", json={"input": "camera:0"})
+    assert reply.status_code == 409
+    assert reply.json()["detail"].startswith("3 checks in a row did not pass.")
+    assert "can start in 1 min" in reply.json()["detail"] or "can start in 59 s" in reply.json()["detail"]
+    assert status(parts)["consent_attempts"]["wait_seconds"] > 0
+    assert parts["client"].post("/api/enrolment/take").status_code == 409  # verifying a face waits as well
+    # The minute passes. The person themselves answers the prompt, and the count starts afresh.
+    runtime.attempts._failures = [at - 61.0 for at in runtime.attempts._failures]
+    ask_for(monkeypatch)
+    start(parts)
+    assert status(parts)["consent_attempts"]["failures"] == 0
 
 
 def test_identity_fallback_can_be_switched_off(parts):

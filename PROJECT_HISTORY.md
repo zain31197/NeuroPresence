@@ -849,6 +849,20 @@ The committee set the FYP-1 final evaluations for 9 and 10 December 2026. Zain s
 
 **Still to check.** The live server keeps the voice model while sessions come and go, which is different from the warm-up, but the hang above was not explained: on the laptop, a camera session, then a voice session, then a camera session again, and a stop, must be tried before the demonstration.
 
+### 20 November 2026: repeated attempts limited, and a fallback that ends by itself
+
+Two items the mid report and the open items carried, taken up as the demonstration nears.
+
+**Repeated attempts at the consent check.** The mid report promised that repeated attempts would be limited, because a recording made on purpose passes the prompt about one attempt in seven, and attempts were unlimited. Built: `neuropresence/consent/attempts.py`. Three checks that do not pass cost nothing, so a missed action, a look away, or a photograph held up during the demonstration does not lock anyone out; after that every further one makes the next check wait, one minute, then two, four and so on up to fifteen minutes, and a check that passes forgets them all, as does an hour without one. It counts every check that ends refused: at the start of a camera or voice session, while a face is verified in Enrolment, and a picture taken after a passed prompt that turns out to be someone else. A session start is refused at once with the wait in words ("3 checks in a row did not pass. So that a photograph or a recording cannot simply be tried again and again, the next check can start in 1 min."), before the camera is opened; the status carries the count and the wait. Worked out for a recording that passes one attempt in seven: the expected time to get through goes from under two minutes to about a quarter of an hour. It slows such an attempt; it does not stop it, and the counts are in memory, so a restart of the engine clears them.
+
+**The still picture after an identity fallback.** It stayed until the person pressed Resume in the Live Studio. In a meeting the person looks at the meeting, so nothing told them. Now it resumes by itself, with a fresh neutral pose, once the still picture has been up at least 5 s and the person has been at rest (facing the camera, mouth closed, eyes open) for 1 s: the session keeps tracking the face while the still picture is shown and says since when it has been at rest (`session.py`, `resting_since`). In the camera-off voice mode there is no face to be at rest, so the wait alone decides. If the output still does not match, the guard falls back again, and each automatic try waits twice as long as the one before, up to a minute, so the picture cannot flicker between the two; the count starts afresh once the output matches. The Live Studio says when it resumes at the earliest; "Resume now" resumes at once, and "Stay on the still picture" (`POST /api/session/stay`) stops the automatic resume until the person resumes. Before, that button only hid the prompt in the browser.
+
+**Checked.** 7 new tests: the limit's free checks, its doubling and ceiling, that a pass or an hour forgets, that a check tells the count how it ended; through the server, three refused starts and a fourth refused at once with the wait, Enrolment refused too, and a pass after the wait clearing the count; the picture not resumed while the person talks and resumed once they are at rest; a second automatic try waiting twice as long; Stay holding the still picture until Resume. 453 engine and server tests and 62 web tests pass.
+
+**Found on the way.** The web tests failed in all nine files with "Cannot read properties of undefined (reading 'config')" when run from a shell whose working directory began with a lower case `c:`. Run from `C:` they all pass: Vite loaded the test library twice under two spellings of the same path. Nothing in the code; run the web tests from a path that starts with `C:`.
+
+**Not done.** Neither has been tried by a person: the limit with real refusals at the camera, the automatic resume in a real call.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -918,14 +932,14 @@ The committee set the FYP-1 final evaluations for 9 and 10 December 2026. Zain s
 ## Open items
 
 - No person has passed the liveness prompt at a real camera. The one trial so far ended on a missed action, which is why an action now has five seconds and a second go. Whether 35 degrees and an open mouth of 0.60 suit real faces, and how often a real user is refused, all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
-- A recording made on purpose passes the prompt about one attempt in seven, and attempts are not limited. A live reenactment fed in as the camera passes like a person.
+- A recording made on purpose passes the prompt about one attempt in seven. Since 20 November 2026 repeated attempts are limited (three free, then waits doubling from a minute), which slows such a recording from under two minutes to about a quarter of an hour but does not stop it. A live reenactment fed in as the camera passes like a person.
 - How much a face narrows as it turns separates a tilted photograph from a head in the sample material. It needs real heads turned to 35 degrees and beyond before it can be made a rule.
 - Someone else sitting down during a session drives the picture for two to three seconds before the still picture goes up.
 - The mark is small when a meeting application shows the picture small. In Meet's main tile (598 pixels high) it was about 30 pixels high and readable; in a small grid tile it would be under 10. Not yet looked at in a grid of several people.
 - The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
 - A covered mouth is caught in only about half the runs, because its scores sit on the level, and until the guard acts the mouth is drawn smeared.
 - A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. The step-down rule repairs the one case seen (a covered mouth); others may exist.
-- After an identity fallback the still picture stays until the person resumes, and the prompt is in the Live Studio only. Once the output goes to a meeting through the virtual camera, the person may not be looking at the Live Studio.
+- Settled on 20 November 2026: after an identity fallback the picture now resumes by itself once the person is at rest. Not yet watched in a real call.
 - The delay watchdog has been tried against an artificial GPU load, not against a meeting application.
 - The pipeline has been run on one team member's face only, and never on Kubuntu.
 - The benchmark uses studio sample clips. It has to be repeated on the team's own webcam recordings.

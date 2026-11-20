@@ -3,9 +3,6 @@
 import type { Tone } from '../../components/ui/Pill'
 import type { IdentityGuard } from '../../lib/api'
 
-/** How long the prompt offers a choice. After that the still picture simply stays. */
-export const PROMPT_SECONDS = 5
-
 export interface GuardNote {
   text: string
   tone: Tone
@@ -28,10 +25,14 @@ export function guardNote(guard: IdentityGuard | null | undefined): GuardNote | 
 }
 
 /**
- * Whole seconds left in which the prompt still asks what to do, counted from how long the still
- * picture has been shown. Zero once the time is up or the person chose to stay.
+ * What the notice says while the identity monitor shows the still picture. The engine resumes by itself
+ * once the person sits at rest, unless they chose to stay (see runtime.py, IdentityMonitor).
  */
-export function promptSecondsLeft(shownFor: number | null | undefined, chosenToStay: boolean): number {
-  if (chosenToStay || shownFor === null || shownFor === undefined) return 0
-  return Math.max(0, Math.ceil(PROMPT_SECONDS - shownFor))
+export function identityHoldText(guard: IdentityGuard | null | undefined): string {
+  const start = 'The output stopped matching your enrolled picture, so your still picture is shown.'
+  if (guard?.staying) return `${start} It stays on the still picture until you resume.`
+  const left = guard?.resumes_in
+  if (left === null || left === undefined) return `${start} Resume with a fresh neutral pose when you are ready.`
+  const when = left > 0.5 ? `, in ${Math.ceil(left)} s at the earliest` : ''
+  return `${start} It resumes by itself with a fresh neutral pose once you sit facing the camera, mouth closed${when}.`
 }

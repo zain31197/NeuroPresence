@@ -6,12 +6,12 @@ import { Notice } from '../../components/ui/Notice'
 import { Pill } from '../../components/ui/Pill'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
-import { api, ApiError, type Benchmark, type Session } from '../../lib/api'
+import { api, ApiError, type Benchmark, type IdentityGuard, type Session } from '../../lib/api'
 import { clock } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
 import { EnrolledPicture } from './EnrolledPicture'
 import { EventsPanel } from './EventsPanel'
-import { promptSecondsLeft } from './holds'
+import { identityHoldText } from './holds'
 import { LatencyBreakdown } from './LatencyBreakdown'
 import { MetricTiles } from './MetricTiles'
 import { Monitors } from './Monitors'
@@ -45,33 +45,30 @@ function SessionPill({ session }: { session: Session }) {
 }
 
 /**
- * The identity monitor has put the still picture up. For a few seconds this asks what to do;
- * with no answer the still picture simply stays, and the way back is one button.
+ * The identity monitor has put the still picture up. It resumes by itself once the person sits at rest,
+ * so that someone looking at their meeting rather than at this screen gets the live picture back. One
+ * button resumes now, the other keeps the still picture until Resume.
  */
-function IdentityHold({ shownFor, busy, onResume }: { shownFor: number | null; busy: boolean; onResume: () => void }) {
-  const [staying, setStaying] = useState(false)
-  const left = promptSecondsLeft(shownFor, staying)
+function IdentityHold({ guard, busy, onResume, onStay }: { guard: IdentityGuard | null; busy: boolean; onResume: () => void; onStay: () => void }) {
   return (
     <Notice
       className="mt-5"
       tone="critical"
-      title={left > 0 ? 'The output stopped matching your picture' : 'Showing your still picture'}
+      title="Showing your still picture"
       action={
         <div className="flex flex-wrap items-center gap-2">
-          {left > 0 && (
-            <Button size="sm" onClick={() => setStaying(true)}>
+          {!guard?.staying && (
+            <Button size="sm" busy={busy} onClick={onStay}>
               Stay on the still picture
             </Button>
           )}
           <Button size="sm" variant="primary" icon={<RotateCcw className="size-3.5" />} busy={busy} onClick={onResume}>
-            Resume reenactment
+            Resume now
           </Button>
         </div>
       }
     >
-      {left > 0
-        ? `Your still picture is shown in its place. Resume with a fresh neutral pose, or it stays on the still picture in ${left} s.`
-        : 'The output stopped matching your enrolled picture, and a fresh neutral pose did not bring it back. It stays on the still picture until you resume.'}
+      {identityHoldText(guard)}
     </Notice>
   )
 }
@@ -206,7 +203,12 @@ export function LiveStudio() {
         </Notice>
       )}
       {heldForIdentity && (
-        <IdentityHold shownFor={status?.identity.guard?.seconds ?? null} busy={pending} onResume={() => act(api.resumeSession)} />
+        <IdentityHold
+          guard={status?.identity.guard ?? null}
+          busy={pending}
+          onResume={() => act(api.resumeSession)}
+          onStay={() => act(api.staySession)}
+        />
       )}
       {heldForDelay && (
         <Notice className="mt-5" title="The picture is arriving late">
