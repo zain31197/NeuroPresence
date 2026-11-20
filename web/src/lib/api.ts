@@ -397,7 +397,7 @@ export const STOP_PREVIEW_PATH = '/api/enrolment/preview/stop'
 
 export const api = {
   status: () => request<Status>('/api/status'),
-  capabilities: () => request<{ stages: PipelineStage[]; enrolment?: PipelineStage }>('/api/capabilities'),
+  capabilities: () => request<{ stages: PipelineStage[]; enrolment?: PipelineStage; modes?: PipelineStage[] }>('/api/capabilities'),
   latestBenchmark: () => request<Benchmark>('/api/benchmarks/latest'),
 
   enrolmentGuide: () => request<EnrolmentGuide>('/api/enrolment/guide'),

@@ -1,3 +1,4 @@
+import { MotionConfig } from 'motion/react'
 import { createBrowserRouter, Navigate, RouterProvider, useRouteError } from 'react-router-dom'
 import { AppShell } from './app/AppShell'
 import { ToastProvider } from './components/ui/Toast'
@@ -60,8 +61,11 @@ const router = createBrowserRouter([
 
 export function App() {
   return (
-    <TooltipProvider delayDuration={250}>
-      <RouterProvider router={router} />
-    </TooltipProvider>
+    // People who ask their system for less motion get every animation's final state at once.
+    <MotionConfig reducedMotion="user">
+      <TooltipProvider delayDuration={250}>
+        <RouterProvider router={router} />
+      </TooltipProvider>
+    </MotionConfig>
   )
 }

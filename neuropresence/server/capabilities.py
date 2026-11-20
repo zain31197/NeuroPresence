@@ -45,7 +45,7 @@ STAGES = [
         "summary": "Checks that the output still looks like the enrolled person.",
         "status": "working",
         "note": "Similarity is measured twice a second. A lasting drop takes a fresh neutral pose, and if that does "
-                "not help the still picture is shown until you resume.",
+                "not help the still picture is shown until you sit at rest again, when it resumes by itself.",
     },
     {
         "key": "consent",
@@ -53,8 +53,9 @@ STAGES = [
         "summary": "Animates only the enrolled user's own face and marks the output as synthetic.",
         "status": "working",
         "note": "Before a face is verified and before every camera session, two actions chosen at random are asked "
-                "for, and the face is matched all the way through. During the session the camera face is compared "
-                "once a second. Every output frame carries the label \"AI reenacted\".",
+                "for, and the face is matched all the way through; after three that do not pass, the next has to wait. "
+                "During the session the camera face is compared once a second. Every output frame carries the label "
+                "\"AI reenacted\".",
     },
     {
         "key": "virtual_camera",
@@ -65,5 +66,27 @@ STAGES = [
                 "its fallbacks, and a plain card at any other time. A virtual microphone holds the voice back by as "
                 "long as the picture takes, so lips and words arrive together. Needs OBS Virtual Camera and "
                 "VB-Audio Virtual Cable on Windows, or v4l2loopback and a PipeWire null sink on Linux.",
+    },
+]
+
+# What drives the picture. Both run through the same stages from reenactment on: the identity check, the mark
+# and the virtual camera apply to each.
+MODES = [
+    {
+        "key": "camera",
+        "name": "Camera on",
+        "summary": "Your face at the camera drives your picture: head pose, lips, eyes and expression, as you move.",
+        "status": "working",
+        "note": "About 20 to 22 frames a second and 95 ms from camera to picture on the RTX 5050, measured during calls "
+                "in Google Meet and Zoom.",
+    },
+    {
+        "key": "voice",
+        "name": "Camera off",
+        "summary": "Your voice drives your picture: a speech to motion model turns what you say into lips, head and "
+                   "blinks, and the meeting hears you in step with it.",
+        "status": "working",
+        "note": "Starts with the same check at the camera, then the camera is closed. The picture runs about 0.8 s "
+                "behind the voice, and the voice for the meeting is held back by as much.",
     },
 ]

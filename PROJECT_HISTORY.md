@@ -863,6 +863,20 @@ Two items the mid report and the open items carried, taken up as the demonstrati
 
 **Not done.** Neither has been tried by a person: the limit with real refusals at the camera, the automatic resume in a real call.
 
+### 20 November 2026: the web app, first round of a finished look
+
+Zain asked for the web app to look like a finished product, with animation, before the demonstration. Approved as four steps; this is the first two, the shared motion and the landing page.
+
+**Found first**, from screenshots of every screen at 1440 and 390 pixels on a test server: the sidebar promised three screens as "Soon"; nothing moved; the landing page drew its hero as a line drawing, did not mention the camera-off voice mode or that the output reaches Google Meet and Zoom, and had no word on Ditto among the models it is built on; the engine's own description of the identity stage still said the still picture stays "until you resume". And on a phone the Enrolment screen scrolled sideways, 540 pixels wide on a 375 pixel screen: the table that gives screen readers the face size chart did not shrink to the one pixel that hides it, because a table does not.
+
+**Built.**
+- Motion (`web/src/components/motion.tsx`, the `motion` library, a Support component): one easing and three durations for the whole app; sections that rise into place as they are scrolled to, with their items one after another; figures that count up the first time they are seen; screens that arrive with a short rise. People who ask their system for less motion get every final state at once.
+- The landing page: a frosted bar once the page moves; the hero as the product, a Live Studio window with the camera face driving the picture, a band of light where the tracker reads, frames travelling across, the "AI reenacted" mark where the engine puts it, and the latest benchmark counting up; a strip naming Google Meet and Zoom; "Two ways to drive it", camera on and camera off, read from the engine; the six stages as one chain with a pulse passing along it; the results with a meter for each figure against its target; Ditto among the foundations. Every figure is still read from the engine or a saved result.
+- The engine reports the two modes (`server/capabilities.py`, `MODES`), and the identity and consent notes say what they do now.
+- The Enrolment screen no longer scrolls sideways on a phone (`FaceSizeChart.tsx`).
+
+**Checked.** No page scrolls sideways at 375 pixels; no errors in the browser console; 65 web tests (3 new, for the meters) and the engine's capability test.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

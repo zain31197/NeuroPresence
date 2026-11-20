@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Benchmark } from '../../../lib/api'
-import { resultRows } from '../results'
+import { meterPlace, resultRows } from '../results'
 
 // The baseline measured on 6 October 2026, as scripts/benchmark.py saved it.
 const baseline: Benchmark = {
@@ -58,5 +58,27 @@ describe('resultRows', () => {
   it('treats a lead as lag too', () => {
     const early = { ...baseline, summary: { ...baseline.summary, lag_frames: -1.2 } }
     expect(verdicts(early)['Lag']).toBe(false)
+  })
+})
+
+describe('meterPlace', () => {
+  it('puts the target at the same place on every meter of its kind', () => {
+    expect(meterPlace({ goal: 24, better: 'up' }, 12).target).toBeCloseTo(0.8)
+    expect(meterPlace({ goal: 0.8, better: 'up' }, 0.9).target).toBeCloseTo(0.8)
+    expect(meterPlace({ goal: 150, better: 'down' }, 60).target).toBeCloseTo(0.625)
+  })
+
+  it('fills in proportion and stops at the end of the scale', () => {
+    expect(meterPlace({ goal: 24, better: 'up' }, 15).fill).toBeCloseTo(0.5)
+    expect(meterPlace({ goal: 42, better: 'down' }, 500).fill).toBe(1)
+    expect(meterPlace({ goal: 0.5, better: 'down' }, -0.2).fill).toBeCloseTo(0.25) // a lead counts like a lag
+  })
+
+  it('agrees with the verdict: a met target is on its side of the mark', () => {
+    for (const row of resultRows(baseline)) {
+      const value = row.value as number
+      const { fill, target } = meterPlace(row, value)
+      expect(row.met(value)).toBe(row.better === 'up' ? fill >= target : fill <= target)
+    }
   })
 })

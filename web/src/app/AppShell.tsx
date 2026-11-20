@@ -1,6 +1,8 @@
 import { ArrowLeft, ChartNoAxesColumn, FlaskConical, Lock, MonitorPlay, Server, UserRound, type LucideIcon } from 'lucide-react'
+import { motion } from 'motion/react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Logo } from '../components/Logo'
+import { DURATION, EASE_OUT } from '../components/motion'
 import { cn } from '../lib/cn'
 import { useStudio, type Connection } from '../lib/studio'
 
@@ -129,10 +131,15 @@ export function AppShell() {
             ))}
           </nav>
         </header>
-        {/* Each screen arrives with a short rise, so moving between them does not snap. */}
-        <div key={pathname} className="animate-enter">
+        {/* Each screen arrives with a short rise and a soft focus, so moving between them does not snap. */}
+        <motion.div
+          key={pathname}
+          initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: DURATION.base + 0.08, ease: EASE_OUT }}
+        >
           <Outlet />
-        </div>
+        </motion.div>
       </div>
     </div>
   )

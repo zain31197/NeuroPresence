@@ -1,35 +1,43 @@
-import { ArrowRight, Fingerprint, Lock, Tag } from 'lucide-react'
+import { ArrowRight, CalendarClock, Cpu, Fingerprint, HeartPulse, Lock, Tag, Video, Webcam } from 'lucide-react'
+import { motion, useMotionValueEvent, useScroll } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Logo } from '../../components/Logo'
+import { CountUp, EASE_OUT, Reveal, Stagger, StaggerItem, WordsIn } from '../../components/motion'
 import { Pill, type Tone } from '../../components/ui/Pill'
 import { api, type Benchmark, type PipelineStage } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { longDate } from '../../lib/format'
 import { HeroVisual } from './HeroVisual'
-import { resultRows } from './results'
+import { Modes } from './Modes'
+import { PipelineFlow } from './PipelineFlow'
+import { meterPlace, resultRows, type Row } from './results'
 
 const linkButton =
-  'inline-flex select-none items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap transition-[background-color,transform] duration-150 active:scale-[0.98]'
+  'group inline-flex select-none items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap transition-[background-color,transform,box-shadow] duration-200 active:scale-[0.98]'
 const primaryLink = cn(
   linkButton,
-  'bg-ink-950 text-white hover:bg-ink-800 [box-shadow:inset_0_1px_0_rgb(255_255_255/0.14),0_1px_2px_rgb(11_13_18/0.2)]',
+  'bg-ink-950 text-white hover:bg-ink-800 [box-shadow:inset_0_1px_0_rgb(255_255_255/0.14),0_1px_2px_rgb(11_13_18/0.2)] hover:[box-shadow:inset_0_1px_0_rgb(255_255_255/0.14),0_10px_24px_-10px_rgb(11_13_18/0.55)]',
 )
 const secondaryLink = cn(linkButton, 'border border-line-strong bg-surface text-ink-900 shadow-control hover:bg-ink-50')
+// The arrow of a call to action moves on a little when the button is pointed at.
+const nudge = 'transition-transform duration-200 group-hover:translate-x-0.5'
 
 export function Landing() {
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null)
   const [stages, setStages] = useState<PipelineStage[] | null>(null)
   const [enrolment, setEnrolment] = useState<PipelineStage | null>(null)
+  const [modes, setModes] = useState<PipelineStage[] | null>(null)
 
   useEffect(() => {
     document.title = 'NeuroPresence'
-    // Both are optional: the page reads fine without the engine, it just shows less.
+    // All optional: the page reads fine without the engine, it just shows less.
     api.latestBenchmark().then(setBenchmark, () => setBenchmark(null))
     api.capabilities().then(
       (reply) => {
         setStages(reply.stages)
         setEnrolment(reply.enrolment ?? null)
+        setModes(reply.modes ?? null)
       },
       () => setStages(null),
     )
@@ -40,7 +48,9 @@ export function Landing() {
       <Header />
       <main>
         <Hero benchmark={benchmark} />
+        <WorksWith />
         <Why />
+        <DrivenBy modes={modes} />
         <HowItWorks stages={stages} enrolment={enrolment} />
         <Results benchmark={benchmark} />
         <Safeguards stages={stages} />
@@ -60,39 +70,53 @@ function Shell({ className, children }: { className?: string; children: ReactNod
 
 function SectionHeading({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
   return (
-    <div className="grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:items-end">
+    <Reveal className="grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:items-end">
       <div>
-        <p className="label-caps text-accent-700">{eyebrow}</p>
-        <h2 className="display mt-3 text-[clamp(28px,3.6vw,42px)] leading-[1.08] font-semibold">{title}</h2>
+        <p className="label-caps inline-flex items-center gap-2 text-accent-700">
+          <span className="h-px w-5 bg-accent-500" aria-hidden="true" />
+          {eyebrow}
+        </p>
+        <h2 className="display mt-3 text-[clamp(28px,3.6vw,44px)] leading-[1.06] font-semibold">{title}</h2>
       </div>
       {children && <p className="max-w-[52ch] text-[16px] leading-relaxed text-ink-600">{children}</p>}
-    </div>
+    </Reveal>
   )
 }
 
 /* ------------------------------------------------------------------ header */
 
 function Header() {
+  // Clear over the hero; once the page moves, a frosted bar with a hairline, so the links stay readable.
+  const { scrollY } = useScroll()
+  const [scrolled, setScrolled] = useState(false)
+  useMotionValueEvent(scrollY, 'change', (y) => setScrolled(y > 12))
+
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-surface/85 backdrop-blur-md">
+    <header
+      className={cn(
+        'sticky top-0 z-40 border-b transition-[background-color,border-color,box-shadow] duration-300',
+        scrolled ? 'border-line/80 bg-surface/80 shadow-[0_8px_24px_-18px_rgb(11_13_18/0.25)] backdrop-blur-xl' : 'border-transparent bg-transparent',
+      )}
+    >
       <Shell className="flex h-16 items-center justify-between gap-6">
         <Link to="/" aria-label="NeuroPresence home">
           <Logo />
         </Link>
-        <nav className="hidden items-center gap-7 text-[14px] font-medium text-ink-600 md:flex" aria-label="Sections">
-          <a href="#how" className="hover:text-ink-950">
-            How it works
-          </a>
-          <a href="#results" className="hover:text-ink-950">
-            Results
-          </a>
-          <a href="#safeguards" className="hover:text-ink-950">
-            Safeguards
-          </a>
+        <nav className="hidden items-center gap-1 text-[14px] font-medium text-ink-600 md:flex" aria-label="Sections">
+          {[
+            ['#modes', 'Modes'],
+            ['#how', 'How it works'],
+            ['#results', 'Results'],
+            ['#safeguards', 'Safeguards'],
+          ].map(([href, label]) => (
+            <a key={href} href={href} className="rounded-control px-3 py-1.5 transition-colors hover:bg-ink-50 hover:text-ink-950">
+              {label}
+            </a>
+          ))}
         </nav>
         <Link to="/studio" className={cn(primaryLink, 'h-9 px-3.5 text-[13.5px]')}>
           Open the studio
-          <ArrowRight className="size-3.5" />
+          <ArrowRight className={cn('size-3.5', nudge)} />
         </Link>
       </Shell>
     </header>
@@ -103,40 +127,121 @@ function Header() {
 
 function Hero({ benchmark }: { benchmark: Benchmark | null }) {
   return (
-    <section className="relative overflow-hidden border-b border-line">
-      {/* A field of fine dots, fading out: the page's only texture. */}
+    <section className="relative -mt-16 overflow-hidden border-b border-line pt-16">
+      <Aurora />
+      {/* A field of fine dots, fading out. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 [background-image:radial-gradient(var(--color-ink-200)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_70%_75%_at_72%_40%,black,transparent)]"
       />
-      <Shell className="relative grid items-center gap-x-14 gap-y-12 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)] lg:py-24">
-        <div className="animate-rise">
-          <p className="inline-flex items-center gap-2 rounded-full border border-line bg-surface py-1 pr-3 pl-1.5 text-[12.5px] font-medium text-ink-700 shadow-control">
-            <span className="grid size-5 place-items-center rounded-full bg-ink-100 text-ink-700">
-              <Lock className="size-3" />
+      <Shell className="relative grid items-center gap-x-14 gap-y-16 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)] lg:py-24">
+        <div>
+          <motion.a
+            href="#modes"
+            className="group inline-flex items-center gap-2 rounded-full border border-line bg-surface/90 py-1 pr-3 pl-1 text-[12.5px] font-medium text-ink-700 shadow-control backdrop-blur transition-colors hover:border-accent-200"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: EASE_OUT }}
+          >
+            <span className="rounded-full bg-accent-500 px-2 py-0.5 text-[11px] font-semibold text-white">New</span>
+            Camera off? Your voice drives your picture
+            <ArrowRight className={cn('size-3 text-ink-400', nudge)} />
+          </motion.a>
+          <h1 className="display mt-6 text-[clamp(38px,5.4vw,68px)] leading-[1.02] font-semibold">
+            <WordsIn text="One good picture of you," delay={0.1} />{' '}
+            <span className="bg-[linear-gradient(100deg,var(--color-accent-600),var(--color-accent-400)_55%,var(--color-ink-950))] bg-clip-text text-transparent">
+              <WordsIn text="driven live by your own face." delay={0.3} />
             </span>
-            Research prototype. Runs on your own computer.
-          </p>
-          <h1 className="display mt-6 text-[clamp(38px,5.4vw,66px)] leading-[1.02] font-semibold">
-            One good picture of you, driven live by your own face.
           </h1>
-          <p className="mt-6 max-w-[50ch] text-[17px] leading-relaxed text-ink-600">
-            NeuroPresence animates a single enrolled picture of you with your live head pose, lip movement and expressions. It
-            runs on your own GPU, and nothing leaves your computer.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <motion.p
+            className="mt-6 max-w-[50ch] text-[17px] leading-relaxed text-ink-600"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.55 }}
+          >
+            NeuroPresence animates a single enrolled picture of you with your live head pose, lip movement and expressions, and sends
+            it to your meeting as an ordinary camera. It runs on your own GPU, and nothing leaves your computer.
+          </motion.p>
+          <motion.div
+            className="mt-8 flex flex-wrap items-center gap-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.68 }}
+          >
             <Link to="/studio" className={cn(primaryLink, 'h-12 px-5 text-[15px]')}>
               Open the studio
-              <ArrowRight className="size-4" />
+              <ArrowRight className={cn('size-4', nudge)} />
             </Link>
             <a href="#how" className={cn(secondaryLink, 'h-12 px-5 text-[15px]')}>
               See how it works
             </a>
-          </div>
+          </motion.div>
+          <motion.ul
+            className="mt-9 flex flex-wrap gap-x-6 gap-y-2.5 text-[13.5px] text-ink-600"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.85 }}
+          >
+            {[
+              [Cpu, 'Runs on your own GPU'],
+              [Lock, 'Nothing leaves your computer'],
+              [Fingerprint, 'Your own face only'],
+            ].map(([Icon, text]) => {
+              const I = Icon as typeof Cpu
+              return (
+                <li key={text as string} className="inline-flex items-center gap-2">
+                  <I className="size-4 text-accent-600" strokeWidth={1.9} />
+                  {text as string}
+                </li>
+              )
+            })}
+          </motion.ul>
         </div>
-        <div className="animate-rise [animation-delay:120ms]">
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.9, ease: EASE_OUT, delay: 0.2 }}
+        >
           <HeroVisual benchmark={benchmark} />
-        </div>
+        </motion.div>
+      </Shell>
+    </section>
+  )
+}
+
+/** Two slow lights drifting behind the hero. */
+function Aurora() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      <motion.div
+        className="absolute -top-40 right-[-8%] size-[620px] rounded-full bg-[radial-gradient(circle,rgb(80_98_240/0.20),transparent_65%)] blur-2xl"
+        animate={{ x: [0, -60, 0], y: [0, 40, 0], scale: [1, 1.08, 1] }}
+        transition={{ duration: 18, ease: 'easeInOut', repeat: Infinity }}
+      />
+      <motion.div
+        className="absolute top-[30%] left-[-12%] size-[520px] rounded-full bg-[radial-gradient(circle,rgb(90_235_120/0.12),transparent_65%)] blur-2xl"
+        animate={{ x: [0, 70, 0], y: [0, -30, 0] }}
+        transition={{ duration: 22, ease: 'easeInOut', repeat: Infinity }}
+      />
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------- works with */
+
+function WorksWith() {
+  return (
+    <section className="border-b border-line bg-canvas/60 py-8">
+      <Shell className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-center">
+        <p className="label-caps text-ink-400">Shows up as a camera in</p>
+        <Stagger className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3" gap={0.08}>
+          {['Google Meet', 'Zoom', 'any app that picks a camera'].map((name, index) => (
+            <StaggerItem key={name} className="inline-flex items-center gap-2 text-[16px] font-semibold text-ink-700">
+              <Video className="size-4 text-ink-400" strokeWidth={1.9} />
+              <span className={index === 2 ? 'font-medium text-ink-500' : 'display'}>{name}</span>
+            </StaggerItem>
+          ))}
+        </Stagger>
       </Shell>
     </section>
   )
@@ -146,14 +251,17 @@ function Hero({ benchmark }: { benchmark: Benchmark | null }) {
 
 const REASONS = [
   {
+    icon: Webcam,
     title: 'A bad angle',
     text: 'A laptop on a low table films you from below. Your enrolled picture is framed properly, once, and stays that way.',
   },
   {
+    icon: HeartPulse,
     title: 'A rough day',
     text: 'Unwell, tired or recovering. You are present and taking part; the picture people see is the one you chose.',
   },
   {
+    icon: CalendarClock,
     title: 'Back-to-back calls',
     text: 'By the sixth call the light has changed and so have you. Your picture has not.',
   },
@@ -161,24 +269,45 @@ const REASONS = [
 
 function Why() {
   return (
-    <section className="border-b border-line py-20 lg:py-24">
+    <section className="border-b border-line py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="What it is for" title="For the calls where the camera works against you.">
           A virtual background changes what is behind you. It does nothing about how you are framed, lit or feeling. NeuroPresence
           recomposes you, and only you.
         </SectionHeading>
-        <div className="mt-12 grid gap-px overflow-hidden rounded-card border border-line bg-line md:grid-cols-3">
-          {REASONS.map((reason) => (
-            <div key={reason.title} className="bg-surface p-7">
-              <h3 className="text-[17px] font-semibold">{reason.title}</h3>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-600">{reason.text}</p>
-            </div>
+        <Stagger className="mt-12 grid gap-4 md:grid-cols-3">
+          {REASONS.map(({ icon: Icon, title, text }) => (
+            <StaggerItem
+              key={title}
+              className="group rounded-card border border-line bg-surface p-7 shadow-card transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift"
+            >
+              <span className="grid size-10 place-items-center rounded-[12px] bg-accent-50 text-accent-700 transition-colors duration-300 group-hover:bg-accent-500 group-hover:text-white">
+                <Icon className="size-5" strokeWidth={1.8} />
+              </span>
+              <h3 className="mt-5 text-[17px] font-semibold">{title}</h3>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-600">{text}</p>
+            </StaggerItem>
           ))}
-        </div>
-        <p className="mt-6 max-w-[78ch] text-[14.5px] leading-relaxed text-ink-600">
-          <span className="font-semibold text-ink-950">What it is not for:</span> appearing present when you are not. Your live face
-          drives every frame. When it leaves the camera, the output stops moving and shows your enrolled picture, still.
-        </p>
+        </Stagger>
+        <Reveal className="mt-6 max-w-[78ch] text-[14.5px] leading-relaxed text-ink-600">
+          <span className="font-semibold text-ink-950">What it is not for:</span> appearing present when you are not. Your live face, or
+          your live voice, drives every frame. When neither is there, the output stops moving and shows your enrolled picture, still.
+        </Reveal>
+      </Shell>
+    </section>
+  )
+}
+
+/* --------------------------------------------------------------- driven by */
+
+function DrivenBy({ modes }: { modes: PipelineStage[] | null }) {
+  return (
+    <section id="modes" className="scroll-mt-16 border-b border-line bg-canvas py-20 lg:py-28">
+      <Shell>
+        <SectionHeading eyebrow="Two ways to drive it" title="Your face when the camera is on. Your voice when it is off.">
+          Both start with the same check at the camera, both carry the same mark, and both reach the meeting the same way.
+        </SectionHeading>
+        <Modes modes={modes} />
       </Shell>
     </section>
   )
@@ -209,23 +338,30 @@ const ENROLMENT_OUTLINE =
 function HowItWorks({ stages, enrolment }: { stages: PipelineStage[] | null; enrolment: PipelineStage | null }) {
   const list = stages ?? STAGE_OUTLINE.map((stage) => ({ ...stage, status: null, note: null }))
   return (
-    <section id="how" className="scroll-mt-16 border-b border-line bg-canvas py-20 lg:py-24">
+    <section id="how" className="scroll-mt-16 border-b border-line py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="How it works" title="Six stages, from the camera to the call.">
           You enrol one picture, once. After that, each camera frame goes through the chain before the next one starts. What is
           built and what is still to come is reported by the engine itself, so this page cannot claim more than the code does.
         </SectionHeading>
-        <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-card border border-line bg-surface px-6 py-5 shadow-card">
+        <Reveal className="mt-12">
+          <PipelineFlow stages={list} />
+        </Reveal>
+        <Reveal className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-card border border-line bg-surface px-6 py-5 shadow-card">
           <p className="label-caps w-full text-ink-400 sm:w-[132px]">Once, before the first call</p>
           <div className="min-w-0 flex-1 basis-[300px]">
             <h3 className="text-[17px] font-semibold">Enrolment</h3>
             <p className="mt-1 max-w-[70ch] text-[14.5px] leading-relaxed text-ink-600">{enrolment?.summary ?? ENROLMENT_OUTLINE}</p>
           </div>
           {enrolment && <Pill tone={STATUS[enrolment.status].tone}>{STATUS[enrolment.status].label}</Pill>}
-        </div>
-        <ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        </Reveal>
+        <Stagger as="ol" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((stage, index) => (
-            <li key={stage.key} className="flex flex-col rounded-card border border-line bg-surface p-6 shadow-card">
+            <StaggerItem
+              as="li"
+              key={stage.key}
+              className="flex flex-col rounded-card border border-line bg-surface p-6 shadow-card transition-shadow duration-300 hover:shadow-lift"
+            >
               <div className="flex items-center justify-between gap-3">
                 <span className="grid size-8 place-items-center rounded-full bg-ink-950 font-mono text-[12.5px] font-medium text-white tabular-nums">
                   {index + 1}
@@ -235,9 +371,9 @@ function HowItWorks({ stages, enrolment }: { stages: PipelineStage[] | null; enr
               <h3 className="mt-5 text-[17px] font-semibold">{stage.name}</h3>
               <p className="mt-1.5 text-[14.5px] leading-relaxed text-ink-600">{stage.summary}</p>
               {stage.note && <p className="mt-3 border-t border-line pt-3 text-[13px] leading-snug text-ink-500">{stage.note}</p>}
-            </li>
+            </StaggerItem>
           ))}
-        </ol>
+        </Stagger>
       </Shell>
     </section>
   )
@@ -250,7 +386,7 @@ function Results({ benchmark }: { benchmark: Benchmark | null }) {
   const met = rows.filter((row) => row.met(row.value as number)).length
 
   return (
-    <section id="results" className="scroll-mt-16 border-b border-line py-20 lg:py-24">
+    <section id="results" className="scroll-mt-16 border-b border-line bg-canvas py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="Results" title="Measured, not promised.">
           Every figure below is read from the latest benchmark saved on this computer and set beside the target the project
@@ -258,7 +394,7 @@ function Results({ benchmark }: { benchmark: Benchmark | null }) {
         </SectionHeading>
 
         {benchmark && rows.length > 0 ? (
-          <div className="mt-12 overflow-hidden rounded-card border border-line bg-surface shadow-card">
+          <Reveal className="mt-12 overflow-hidden rounded-card border border-line bg-surface shadow-card">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-line bg-ink-50/60 px-6 py-3.5">
               <p className="text-[14px] font-semibold text-ink-950">
                 {met} of {rows.length} on target
@@ -269,48 +405,65 @@ function Results({ benchmark }: { benchmark: Benchmark | null }) {
                   .join('  ·  ')}
               </p>
             </div>
-            <ul>
-              {rows.map((row) => {
-                const ok = row.met(row.value as number)
-                return (
-                  <li
-                    key={row.name}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 border-t border-line px-6 py-4 first:border-t-0 md:grid-cols-[minmax(0,1.5fr)_7.5rem_10rem_7rem]"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[15px] font-medium text-ink-950">{row.name}</p>
-                      <p className="mt-0.5 truncate text-[13px] text-ink-500">{row.about}</p>
-                    </div>
-                    <p className="display text-right text-[20px] font-semibold text-ink-950 tabular-nums md:text-left">
-                      {row.format(row.value as number)}
-                    </p>
-                    <p className="font-mono text-[12.5px] text-ink-500">
-                      <span className="md:hidden">Target </span>
-                      {row.target}
-                    </p>
-                    <div className="justify-self-end">
-                      <Pill tone={ok ? 'good' : 'serious'}>{ok ? 'On target' : 'Off target'}</Pill>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
+            <Stagger as="ul" gap={0.05}>
+              {rows.map((row) => (
+                <ResultRow key={row.name} row={row} />
+              ))}
+            </Stagger>
+          </Reveal>
         ) : (
-          <div className="mt-12 rounded-card border border-dashed border-line-strong bg-ink-50 p-8">
+          <Reveal className="mt-12 rounded-card border border-dashed border-line-strong bg-surface p-8">
             <p className="text-[15px] font-medium text-ink-950">No benchmark has been run on this computer yet.</p>
             <p className="mt-1.5 text-[14px] text-ink-600">
-              Run <code className="rounded-[5px] bg-surface px-1.5 py-0.5 font-mono text-[12.5px] shadow-control">python scripts/benchmark.py</code>{' '}
+              Run <code className="rounded-[5px] bg-ink-50 px-1.5 py-0.5 font-mono text-[12.5px] shadow-control">python scripts/benchmark.py</code>{' '}
               and reload this page to see the measured figures here.
             </p>
-          </div>
+          </Reveal>
         )}
-        <p className="mt-5 max-w-[86ch] text-[13.5px] leading-relaxed text-ink-500">
-          The benchmark drives the pipeline with recorded sample clips, so it can be repeated exactly. Flicker and head jitter are
-          ratios against the same measurement on the real video, where 1× means as steady as real video.
-        </p>
+        <Reveal className="mt-5 max-w-[86ch] text-[13.5px] leading-relaxed text-ink-500">
+          The benchmark drives the pipeline with recorded sample clips, one stage after another, so it can be repeated exactly. A
+          live session tracks the next frame while it draws this one, and runs faster. Flicker and head jitter are ratios against
+          the same measurement on the real video, where 1× means as steady as real video.
+        </Reveal>
       </Shell>
     </section>
+  )
+}
+
+function ResultRow({ row }: { row: Row }) {
+  const value = row.value as number
+  const ok = row.met(value)
+  const { fill, target } = meterPlace(row, value)
+  return (
+    <StaggerItem
+      as="li"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-2 border-t border-line px-6 py-4 first:border-t-0 md:grid-cols-[minmax(0,1.3fr)_7.5rem_minmax(0,1fr)_7rem]"
+    >
+      <div className="min-w-0">
+        <p className="text-[15px] font-medium text-ink-950">{row.name}</p>
+        <p className="mt-0.5 truncate text-[13px] text-ink-500">{row.about}</p>
+      </div>
+      <p className="display text-right text-[20px] font-semibold text-ink-950 md:text-left">
+        <CountUp value={value} format={row.format} />
+      </p>
+      {/* The figure against its target: the mark is the target, the bar is the figure. */}
+      <div className="col-span-2 md:col-span-1">
+        <div className="relative h-2 overflow-hidden rounded-full bg-ink-100" role="img" aria-label={`${row.format(value)} against a target of ${row.target}`}>
+          <motion.div
+            className={cn('h-full origin-left rounded-full', ok ? 'bg-good' : 'bg-serious')}
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: fill }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.1, ease: EASE_OUT, delay: 0.15 }}
+          />
+          <span className="absolute inset-y-0 w-[2px] bg-ink-950" style={{ left: `calc(${target * 100}% - 1px)` }} />
+        </div>
+        <p className="mt-1.5 font-mono text-[11.5px] text-ink-500">Target {row.target}</p>
+      </div>
+      <div className="col-span-2 justify-self-start md:col-span-1 md:justify-self-end">
+        <Pill tone={ok ? 'good' : 'serious'}>{ok ? 'On target' : 'Off target'}</Pill>
+      </div>
+    </StaggerItem>
   )
 }
 
@@ -333,7 +486,7 @@ function Safeguards({ stages }: { stages: PipelineStage[] | null }) {
       icon: Tag,
       title: 'Always labelled',
       text: built
-        ? 'Every output frame carries a visible synthetic-media mark, so the people you are talking to know what they are seeing.'
+        ? 'Every output frame carries a visible "AI reenacted" mark, so the people you are talking to know what they are seeing.'
         : 'Every output frame will carry a visible synthetic-media mark, so the people you are talking to know what they are seeing.',
       status: consent,
     },
@@ -345,26 +498,29 @@ function Safeguards({ stages }: { stages: PipelineStage[] | null }) {
     },
   ]
   return (
-    <section id="safeguards" className="scroll-mt-16 border-b border-line bg-canvas py-20 lg:py-24">
+    <section id="safeguards" className="scroll-mt-16 border-b border-line py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="Safeguards" title="Designed to be used on yourself, and to say what it is.">
           Face reenactment can be misused to impersonate someone. The answer here is in the design, not in a policy: the system is
           restricted to its user's own likeness and discloses itself.
         </SectionHeading>
-        <div className="mt-12 grid gap-4 md:grid-cols-3">
+        <Stagger className="mt-12 grid gap-4 md:grid-cols-3">
           {items.map(({ icon: Icon, title, text, status }) => (
-            <div key={title} className="flex flex-col rounded-card border border-line bg-surface p-6 shadow-card">
+            <StaggerItem
+              key={title}
+              className="group flex flex-col rounded-card border border-line bg-surface p-6 shadow-card transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift"
+            >
               <div className="flex items-center justify-between gap-3">
-                <span className="grid size-10 place-items-center rounded-[12px] bg-ink-100 text-ink-900">
+                <span className="grid size-10 place-items-center rounded-[12px] bg-ink-950 text-white transition-transform duration-300 group-hover:scale-105">
                   <Icon className="size-5" strokeWidth={1.75} />
                 </span>
                 {status && <Pill tone={STATUS[status].tone}>{STATUS[status].label}</Pill>}
               </div>
               <h3 className="mt-5 text-[17px] font-semibold">{title}</h3>
               <p className="mt-1.5 text-[14.5px] leading-relaxed text-ink-600">{text}</p>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </Shell>
     </section>
   )
@@ -374,32 +530,32 @@ function Safeguards({ stages }: { stages: PipelineStage[] | null }) {
 
 const FOUNDATIONS = [
   { name: 'LivePortrait', role: 'Reenactment core', source: 'Guo et al., 2024' },
+  { name: 'Ditto', role: 'Speech to motion, camera off', source: 'Ant Group, 2025' },
   { name: 'MediaPipe', role: 'Face tracking', source: 'Google' },
   { name: 'ArcFace', role: 'Identity embedding', source: 'InsightFace' },
-  { name: 'RAFT', role: 'Optical flow, for evaluation', source: 'Teed and Deng, 2020' },
 ]
 
 function Foundations() {
   return (
-    <section className="border-b border-line py-20 lg:py-24">
+    <section className="border-b border-line bg-canvas py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="Foundations" title="Built on open research.">
-          The networks are other people's published work. This project's own contribution is around them: making the pipeline
-          fast enough on a consumer GPU, measuring it honestly, and the safeguards.
+          The networks are other people's published work. This project's own contribution is around them: a live pipeline fast
+          enough on a consumer GPU, the safeguards, the meeting output, and honest measurement.
         </SectionHeading>
-        <dl className="mt-12 grid gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+        <Stagger as="dl" className="mt-12 grid gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
           {FOUNDATIONS.map((item) => (
-            <div key={item.name} className="bg-surface p-6">
+            <StaggerItem key={item.name} className="bg-surface p-6 transition-colors duration-300 hover:bg-ink-50/60">
               <dt className="display text-[20px] font-semibold text-ink-950">{item.name}</dt>
               <dd className="mt-1.5 text-[14px] text-ink-700">{item.role}</dd>
               <dd className="mt-3 font-mono text-[11.5px] text-ink-500">{item.source}</dd>
-            </div>
+            </StaggerItem>
           ))}
-        </dl>
-        <p className="mt-5 max-w-[86ch] text-[13.5px] leading-relaxed text-ink-500">
+        </Stagger>
+        <Reveal className="mt-5 max-w-[86ch] text-[13.5px] leading-relaxed text-ink-500">
           Several of these components are released for research or non-commercial use only, so NeuroPresence is a research
           prototype and is not licensed for commercial deployment.
-        </p>
+        </Reveal>
       </Shell>
     </section>
   )
@@ -409,20 +565,32 @@ function Foundations() {
 
 function Closing() {
   return (
-    <section className="py-20 lg:py-24">
+    <section className="py-20 lg:py-28">
       <Shell>
-        <div className="flex flex-wrap items-center justify-between gap-x-10 gap-y-6 rounded-[26px] bg-ink-950 px-8 py-10 sm:px-12 sm:py-12">
-          <div>
-            <h2 className="display text-[clamp(26px,3.2vw,36px)] leading-tight font-semibold text-white">See it run.</h2>
-            <p className="mt-2 max-w-[46ch] text-[16px] leading-relaxed text-ink-300">
-              Open the studio, enrol your picture, and watch every stage respond to your face.
-            </p>
+        <Reveal className="relative isolate overflow-hidden rounded-[28px] bg-ink-950 px-8 py-12 sm:px-14 sm:py-16">
+          <motion.div
+            aria-hidden="true"
+            className="absolute -top-32 -right-24 -z-10 size-[460px] rounded-full bg-[radial-gradient(circle,rgb(80_98_240/0.55),transparent_65%)] blur-2xl"
+            animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
+            transition={{ duration: 14, ease: 'easeInOut', repeat: Infinity }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 [background-image:radial-gradient(rgb(255_255_255/0.08)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(90deg,transparent,black)]"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-x-10 gap-y-8">
+            <div>
+              <h2 className="display text-[clamp(28px,3.6vw,44px)] leading-tight font-semibold text-white">See it run.</h2>
+              <p className="mt-3 max-w-[46ch] text-[16px] leading-relaxed text-ink-300">
+                Open the studio, enrol your picture, and watch every stage respond to your face.
+              </p>
+            </div>
+            <Link to="/studio" className={cn(linkButton, 'h-12 bg-white px-5 text-[15px] text-ink-950 hover:bg-ink-100')}>
+              Open the studio
+              <ArrowRight className={cn('size-4', nudge)} />
+            </Link>
           </div>
-          <Link to="/studio" className={cn(linkButton, 'h-12 bg-white px-5 text-[15px] text-ink-950 hover:bg-ink-100')}>
-            Open the studio
-            <ArrowRight className="size-4" />
-          </Link>
-        </div>
+        </Reveal>
       </Shell>
     </section>
   )
@@ -459,7 +627,7 @@ function Footer() {
             <br />
             Sana Ullah Farooqi
           </p>
-          <p className="mt-3 text-[13.5px] text-ink-500">Supervised by Muhammad Aamir Gulzar</p>
+          <p className="mt-3 text-[13.5px] text-ink-500">Supervised by Mr. Muhammad Aamir Gulzar</p>
         </div>
       </Shell>
     </footer>

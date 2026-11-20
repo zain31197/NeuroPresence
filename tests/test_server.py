@@ -429,6 +429,8 @@ def test_capabilities_list_the_six_stages(parts):
                                           "virtual_camera"]
     assert {s["status"] for s in stages} <= {"working", "partial", "planned"}
     assert reply["enrolment"]["key"] == "enrolment" and reply["enrolment"]["status"] == "working"
+    assert [m["key"] for m in reply["modes"]] == ["camera", "voice"]
+    assert {m["status"] for m in reply["modes"]} <= {"working", "partial", "planned"}
 
 
 def test_the_enrolment_guide_gives_the_limits_and_the_study_behind_them(parts):
