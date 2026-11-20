@@ -224,6 +224,7 @@ class EnrolmentPreview:
             best, check = request["best"], request.get("check")
             if best is not None and check is not None and not check.same_face(
                     request["scorer"].embed(best.image, best.landmarks)):
+                check.refuse_after(THE_FACE_CHANGED)  # counts as a check that did not pass (consent/attempts.py)
                 self._settle(None, NotGoodEnough(THE_FACE_CHANGED))  # not the face that answered the prompt
             elif best is not None:
                 self._settle(best, None)

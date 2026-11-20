@@ -37,8 +37,9 @@ class ConsentCheck:
     being verified for the first time, the first face seen is the one all later ones have to match.
     """
 
-    def __init__(self, challenge, signatures=None, similarity=None, limit=SAME_PERSON_CSIM):
+    def __init__(self, challenge, signatures=None, similarity=None, limit=SAME_PERSON_CSIM, attempts=None):
         self.challenge = challenge
+        self.attempts = attempts  # the count of checks that did not pass (attempts.py), told how this one ends
         self.registered = bool(signatures)
         self.signatures = list(signatures or [])
         self._similarity = similarity or (lambda a, b: float(a @ b))
@@ -96,6 +97,8 @@ class ConsentCheck:
         self.matches += 1
         if self._passed_at is not None and at >= self._passed_at and self.matches >= MIN_MATCHES:
             self.passed = True
+            if self.attempts is not None:
+                self.attempts.passed()
 
     def same_face(self, signature):
         """Is this the face the check was made on? For a picture taken after it has passed."""
@@ -104,6 +107,14 @@ class ConsentCheck:
 
     def _refuse(self, failure, reason):
         self.passed, self.failure, self.reason = False, failure, reason
+        if self.attempts is not None:
+            self.attempts.failed()
+
+    def refuse_after(self, reason):
+        """Refuse a check that had passed: what followed it showed it was not the same person."""
+        self.passed, self.failure, self.reason = False, "identity", reason
+        if self.attempts is not None:
+            self.attempts.failed()
 
     def snapshot(self, at):
         """How the check stands, for the app to show."""

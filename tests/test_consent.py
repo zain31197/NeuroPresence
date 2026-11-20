@@ -245,3 +245,66 @@ def test_a_new_picture_gets_its_own_marked_still():
     second = pipeline.step(np.zeros((480, 640, 3), np.uint8), at=0.1).output
     assert first.shape == (720, 1280, 3) and second.shape == (360, 640, 3)
     assert is_marked(first) and is_marked(second) and second[:100].mean() == 90
+
+
+# ---------------------------------------------------------- repeated attempts
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_three_checks_that_do_not_pass_are_free_and_each_one_after_doubles_the_wait():
+    from neuropresence.consent.attempts import Attempts
+
+    clock = Clock()
+    attempts = Attempts(clock=clock)
+    for _ in range(2):
+        attempts.failed()
+    assert attempts.wait_seconds() == 0.0 and attempts.refusal() is None
+    attempts.failed()
+    assert attempts.wait_seconds() == pytest.approx(60.0)
+    assert attempts.refusal() == ("3 checks in a row did not pass. So that a photograph or a recording cannot simply be "
+                                  "tried again and again, the next check can start in 1 min.")
+    clock.now += 60.0
+    assert attempts.wait_seconds() == 0.0  # the minute is over: one more try
+    attempts.failed()
+    assert attempts.wait_seconds() == pytest.approx(120.0)
+    clock.now += 30.0
+    assert "can start in 1 min 30 s" in attempts.refusal()
+    for _ in range(10):
+        attempts.failed()
+    assert attempts.wait_seconds() == pytest.approx(900.0)  # never more than a quarter of an hour
+
+
+def test_a_check_that_passes_or_an_hour_without_one_forgets_the_failures():
+    from neuropresence.consent.attempts import Attempts
+
+    clock = Clock()
+    attempts = Attempts(clock=clock)
+    for _ in range(4):
+        attempts.failed()
+    attempts.passed()
+    assert attempts.wait_seconds() == 0.0 and attempts.snapshot()["failures"] == 0
+    for _ in range(4):
+        attempts.failed()
+    clock.now += 3600.0
+    assert attempts.wait_seconds() == 0.0 and attempts.snapshot() == {"failures": 0, "free": 3, "wait_seconds": 0.0}
+
+
+def test_the_check_tells_the_count_how_it_ended():
+    from neuropresence.consent.attempts import Attempts
+
+    attempts = Attempts(clock=Clock())
+    refused = ConsentCheck(LivenessChallenge(("turn_left", "blink"), waits=(0.0, 0.0)), [USER], attempts=attempts)
+    play(refused, ANSWER, who=STRANGER)
+    assert refused.passed is False and attempts.snapshot()["failures"] == 1
+    swapped = ConsentCheck(LivenessChallenge(("turn_left", "blink"), waits=(0.0, 0.0)), None, attempts=attempts)
+    play(swapped, ANSWER)
+    assert swapped.passed is True and attempts.snapshot()["failures"] == 0  # a pass forgets
+    swapped.refuse_after(limits.THE_FACE_CHANGED)  # but the picture taken after it showed someone else
+    assert swapped.passed is False and attempts.snapshot()["failures"] == 1
