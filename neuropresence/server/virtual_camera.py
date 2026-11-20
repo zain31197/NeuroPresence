@@ -123,6 +123,19 @@ class VirtualCamera:
         return {"on": self.on, "device": self.device, "reason": self.reason, "showing": self.showing if self.on else "nothing",
                 "size": list(self.size), "fps": self.fps}
 
+    def probe(self):
+        """Can the device be opened? Returns the name meeting applications list it under. When the camera is on it
+        is not opened a second time: it is in use, by this. Raises RuntimeError, with what to do, when it cannot."""
+        with self._lock:
+            if self.on:
+                return self.device
+            device = self._opener(self.size[0], self.size[1], self.fps)
+            name = getattr(device, "device", None)
+            closer = getattr(device, "close", None)
+            if closer is not None:
+                closer()
+            return name
+
     def _start(self):
         try:
             device = self._opener(self.size[0], self.size[1], self.fps)
