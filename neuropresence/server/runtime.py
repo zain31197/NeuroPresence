@@ -11,8 +11,9 @@ import cv2
 from dataclasses import replace
 
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
+from ..database import Database
 from ..consent import LivenessChallenge
-from ..consent.attempts import Attempts
+from ..consent.attempts import FORGET_SECONDS, Attempts
 from ..consent.check import WATCH_SECONDS, ConsentCheck, ConsentWatch
 from ..enrolment import POSE_KEYS, Check, EnrolmentStore, make_candidate, prepare
 from ..enrolment.checks import MIN_FACE_HEIGHT_PX, TARGET_FACE_HEIGHT_SHARE
@@ -37,19 +38,23 @@ RESULTS_DIR = ROOT / "results"
 
 
 class EventLog:
-    """The last few things that happened, for the app's event list."""
+    """The last few things that happened, for the app's event list. `sink`, if given, is handed every event
+    as well: the database keeps them past a restart."""
 
-    def __init__(self, limit=200):
+    def __init__(self, limit=200, sink=None):
         self._events = deque(maxlen=limit)
         self._lock = threading.Lock()
         self.last_id = 0
+        self.sink = sink
 
     def add(self, level, message):
         with self._lock:
             self.last_id += 1
             event = {"id": self.last_id, "at": time.time(), "level": level, "message": message}
             self._events.append(event)
-            return event
+        if self.sink is not None:
+            self.sink(event)
+        return event
 
     def since(self, last_id=0):
         with self._lock:
@@ -395,9 +400,14 @@ class Runtime:
         self.candidate = None  # a checked picture waiting to be confirmed or discarded
         self._candidate_id = 0
 
+        # What happened, kept on this computer (database.py): sessions, events, checks, enrolment changes, settings.
+        self.db = Database(Path(data_dir) / "neuropresence.db")
         self.features = FeatureSet()
-        self.events = EventLog()
-        self.attempts = Attempts()  # consent checks that did not pass, so that they cannot be repeated endlessly
+        self.features.restore({key.removeprefix("feature."): on for key, on in self.db.settings("feature.").items()})
+        self.features.on_change = lambda key, enabled: self.db.set_setting(f"feature.{key}", enabled)
+        self.events = EventLog(sink=self._keep_event)
+        # Consent checks that did not pass, so that they cannot be repeated endlessly; read back after a restart.
+        self.attempts = Attempts(failures=self.db.failures_since_last_pass(FORGET_SECONDS))
         self.session = LiveSession(self)
         self.preview = EnrolmentPreview(self)
         self.identity = IdentityMonitor(self)
@@ -484,14 +494,28 @@ class Runtime:
         if not signatures:
             raise SessionError("Verify your face with the camera first. A session starts only for the verified face.")
         self._refuse_too_soon()
-        return (ConsentCheck(LivenessChallenge(), signatures, self._face_scorer().similarity, attempts=self.attempts),
+        return (ConsentCheck(LivenessChallenge(), signatures, self._face_scorer().similarity, attempts=self.attempts,
+                             on_done=lambda check: self._keep_check("session", check)),
                 self._face_scorer())
 
     def verification_check(self):
         """The check a face is verified with: the same prompt, and the face has to stay the same face
         from its first frame to the picture that is taken."""
         self._refuse_too_soon()
-        return ConsentCheck(LivenessChallenge(), None, self._face_scorer().similarity, attempts=self.attempts), self._face_scorer()
+        return (ConsentCheck(LivenessChallenge(), None, self._face_scorer().similarity, attempts=self.attempts,
+                             on_done=lambda check: self._keep_check("verify", check)),
+                self._face_scorer())
+
+    def _keep_check(self, purpose, check):
+        """How a consent check ended, kept in the database (the Security screen, and the retry count after a restart)."""
+        session_id = self.session.record_id if purpose == "session" else None
+        self.db.add_consent_check(purpose, check.passed, check.failure, check.reason,
+                                  None if check.lowest is None else round(float(check.lowest), 3), session_id)
+
+    def _keep_event(self, event):
+        session = getattr(self, "session", None)
+        session_id = session.record_id if session is not None and session.active else None
+        self.db.add_event(event["level"], event["message"], session_id=session_id, at=event["at"])
 
     def _refuse_too_soon(self):
         """After several checks that did not pass, the next one waits (consent/attempts.py)."""
@@ -725,12 +749,14 @@ class Runtime:
                                "Check that the identity model is installed: python scripts/download_models.py.")
         self.face = self.store.save_identity(signature, candidate.summary()["checks"])
         self.events.add("info", "Face verified from the camera. Only its signature was kept.")
+        self.db.add_enrolment("face_verified")
         # A meeting picture enrolled earlier has to be of this face too.
         enrolment = self.enrolment
         if enrolment is not None and enrolment.signature is not None:
             if self.scorer().similarity(signature, enrolment.signature) < SAME_PERSON_CSIM:
                 self._drop_picture()
                 self.events.add("warning", "The meeting picture does not match the newly verified face and was removed.")
+                self.db.add_enrolment("picture_removed", "It did not match the newly verified face.")
 
     def _register_pose(self, candidate):
         """A pose capture (turned to one side, or tilted up/down) that passed its checks:
@@ -747,6 +773,7 @@ class Runtime:
             if self._engine is not None:
                 self._apply_pose_calibration(self._engine)
         self.events.add("info", f"{pose.capitalize()} pose registered.")
+        self.db.add_enrolment("pose_registered", pose)
 
     def _enrol_picture(self, candidate):
         """An uploaded picture that passed every check, the face match among them, becomes the meeting picture."""
@@ -761,6 +788,7 @@ class Runtime:
         else:
             self._enrol(candidate)
         self.events.add("info", "Meeting picture enrolled. Its face matches the verified face.")
+        self.db.add_enrolment("picture_enrolled")
 
     def _enrol(self, candidate):
         with self.engine_lock:
@@ -789,6 +817,7 @@ class Runtime:
             raise SessionError("Stop the live session first.")
         self._drop_picture()
         self.events.add("info", "Meeting picture removed.")
+        self.db.add_enrolment("picture_removed")
 
     def forget_face(self):
         """Remove everything kept about the user: the face signature and the meeting picture."""
@@ -799,6 +828,7 @@ class Runtime:
         self.face = None
         self.candidate = None
         self.events.add("info", "Face signature and meeting picture removed.")
+        self.db.add_enrolment("face_forgotten")
 
     def _drop_picture(self):
         with self.engine_lock:
@@ -930,6 +960,45 @@ class Runtime:
         self.session.stop()
         self.preview.stop()
         self.identity.stop()
+        self.db.close()
+
+    # ------------------------------------------------------------- history
+
+    def history(self, limit=100):
+        """Past sessions, newest first, with the totals of the last seven days and of all time."""
+        week = time.time() - 7 * 24 * 3600
+        return {"sessions": self.db.sessions(limit), "totals": self.db.totals(since=week)}
+
+    def session_record(self, session_id):
+        found = self.db.session(session_id)
+        if found is None:
+            raise KeyError(session_id)
+        return found
+
+    def clear_history(self):
+        self.db.clear_sessions()
+
+    def security(self, limit=200):
+        """Every consent check and change to the enrolment, newest first, and where the retry limit stands."""
+        return {"timeline": self.db.security(limit), "attempts": self.attempts.snapshot()}
+
+    def clear_security(self):
+        self.db.clear_security()
+
+    # The app's own choices that are remembered, and what each may hold.
+    PREFERENCES = {"input": str}
+
+    def preferences(self):
+        return {key.removeprefix("ui."): value for key, value in self.db.settings("ui.").items()
+                if key.removeprefix("ui.") in self.PREFERENCES}
+
+    def set_preferences(self, changes):
+        for key, value in changes.items():
+            kind = self.PREFERENCES.get(key)
+            if kind is None or not isinstance(value, kind):
+                raise SessionError(f"Unknown preference: {key}")
+            self.db.set_setting(f"ui.{key}", value)
+        return self.preferences()
 
     # ------------------------------------------------------------- status
 

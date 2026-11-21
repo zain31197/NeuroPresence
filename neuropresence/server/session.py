@@ -36,6 +36,8 @@ CAMERA_QUIET_SECONDS = 1.0
 # 2026 showed 9 new pictures a second where the engine draws about 21, and nothing said where the rest were lost:
 # the drawing, the virtual camera, or the meeting application. With these lines the log tells.
 FIGURES_EVERY_SECONDS = 30.0
+# How often a running session's figures are kept in the database, for the charts of a past session.
+KEEP_FIGURES_SECONDS = 2.0
 
 STATUS_EVENTS = {
     TrackStatus.NO_FACE: ("warning", "No face in view. Showing the enrolled picture."),
@@ -176,6 +178,9 @@ class LiveSession:
         self._slow_camera_told = False
         self._anchor = threading.Event()  # a fresh neutral pose has been asked for
         self._figures_at = None  # when the figures were last written to the log, and the virtual camera's counts then
+        self.record_id = None  # this session's row in the database (database.py: sessions)
+        self._kept_at = None  # when its figures were last kept there
+        self._used_camera = self._used_voice = False  # whether the meeting was sent the picture, and the voice
         # Since when the person at the camera has been at rest (facing it, mouth closed, eyes open), or None. The
         # identity monitor resumes after a fallback by itself once they have been (runtime.py, IdentityMonitor).
         self.resting_since = None
@@ -215,6 +220,10 @@ class LiveSession:
             self._anchor.clear()
             self.uses_enrolment = uses_enrolment
             self.voice = voice
+            self._kept_at, self._used_camera, self._used_voice = None, False, False
+            database = getattr(self._rt, "db", None)
+            kind = "voice" if voice else "camera" if uses_enrolment else "sample"
+            self.record_id = database.start_session(kind, label) if database is not None else None
             opening = "Opening the camera" if isinstance(source, int) else "Opening the clip"
             self.state, self.message, self.input_label = SessionState.STARTING, opening, label
             self._thread = threading.Thread(target=self._run, args=(source,), name="live-session", daemon=True)
@@ -342,9 +351,34 @@ class LiveSession:
             self.message = message
 
     def _finish(self, state, message):
+        refused = state is SessionState.ERROR and (self._consent or {}).get("stage") == "refused"
         with self._lock:
             self.state, self.message = state, message
             self._pair = self._tracking = None
+        database = getattr(self._rt, "db", None)
+        if database is not None and self.record_id is not None:
+            outcome = "refused" if refused else "error" if state is SessionState.ERROR else "stopped"
+            database.end_session(self.record_id, outcome, message, frames=self._metrics.total_frames,
+                                 virtual_camera=self._used_camera, voice_in_step=self._used_voice)
+
+    def _keep_figures(self, now):
+        """Every few seconds, the session's figures into the database, for its charts later."""
+        database = getattr(self._rt, "db", None)
+        if database is None or self.record_id is None or (self._kept_at is not None and now - self._kept_at < KEEP_FIGURES_SECONDS):
+            return
+        self._kept_at = now
+        camera, voice = getattr(self._rt, "virtual_camera", None), getattr(self._rt, "virtual_microphone", None)
+        self._used_camera |= bool(camera is not None and camera.on)
+        self._used_voice |= bool(voice is not None and voice.on)
+        m = self._metrics.summary(now)
+        if m["fps"] is None:
+            return
+        identity = None
+        monitor = getattr(self._rt, "identity", None)
+        if monitor is not None:
+            identity = monitor.snapshot().get("csim")
+        database.add_figures(self.record_id, fps=m["fps"], delay_ms=m["end_to_end_ms"], render_ms=m["render_ms"],
+                             identity=identity, live_share=m["live_share"])
 
     def _check_consent(self, feed, tracker, engine):
         """Before anything is animated: is a living person at the camera, and is it the person the
@@ -439,6 +473,7 @@ class LiveSession:
                 # From the speech being heard to its frame drawn: what the voice is held back by.
                 self._metrics.add(finished, timing, (finished - got.heard) * 1000, live, got.skipped)
                 self._log_figures(finished)
+                self._keep_figures(finished)
                 pair_id += 1
                 with self._lock:
                     self._pair = FramePair(pair_id, camera, output, live, TrackStatus.OK.value, None)
@@ -527,6 +562,7 @@ class LiveSession:
             delay_ms = (finished - shown) * 1000
             self._metrics.add(finished, result.timing_ms, delay_ms, result.live, dropped)
             self._log_figures(finished)
+            self._keep_figures(finished)
             self._watch_delay(delay_ms, finished, drawn="render" in result.timing_ms)
             if "render" in result.timing_ms:
                 turn = finished - drawing

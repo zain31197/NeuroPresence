@@ -95,6 +95,44 @@ def create_app(runtime=None, web_dist=WEB_DIST):
     def capabilities():
         return {"enrolment": ENROLMENT, "stages": STAGES, "modes": MODES, "live": LIVE}
 
+    @app.get("/api/history")
+    def history(limit: int = 100):
+        """Past sessions, newest first, with totals (database.py)."""
+        return runtime.history(limit=max(1, min(limit, 1000)))
+
+    @app.get("/api/history/{session_id}")
+    def history_session(session_id: int):
+        """One past session: its figures over time, its events and its consent check."""
+        try:
+            return runtime.session_record(session_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="No such session.") from None
+
+    @app.delete("/api/history")
+    def clear_history():
+        """Forget the session history. A running session is kept."""
+        runtime.clear_history()
+        return runtime.history()
+
+    @app.get("/api/security")
+    def security(limit: int = 200):
+        """Every consent check and change to the enrolment, newest first, and the retry limit."""
+        return runtime.security(limit=max(1, min(limit, 1000)))
+
+    @app.delete("/api/security")
+    def clear_security():
+        runtime.clear_security()
+        return runtime.security()
+
+    @app.get("/api/preferences")
+    def preferences():
+        """The app's own choices it remembers, such as the input last used."""
+        return runtime.preferences()
+
+    @app.patch("/api/preferences")
+    def set_preferences(changes: dict):
+        return attempt(lambda: runtime.set_preferences(changes))
+
     @app.get("/api/benchmarks")
     def benchmarks():
         """Every saved benchmark and the newest call measurement, for the Benchmarks screen."""

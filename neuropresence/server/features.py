@@ -80,6 +80,14 @@ class FeatureSet:
     def __init__(self, features=DEFAULTS):
         self._features = {feature.key: replace(feature) for feature in features}
         self._lock = threading.Lock()
+        self.on_change = None  # called with (key, enabled) after a switch is changed: the database keeps it
+
+    def restore(self, saved):
+        """Set the switches to what was kept, {key: enabled}; unknown keys are ignored."""
+        with self._lock:
+            for key, enabled in saved.items():
+                if key in self._features and isinstance(enabled, bool):
+                    self._features[key].enabled = enabled
 
     def enabled(self, key):
         with self._lock:
@@ -89,7 +97,10 @@ class FeatureSet:
         """Turn one feature on or off. Raises KeyError for an unknown key."""
         with self._lock:
             self._features[key].enabled = bool(enabled)
-            return asdict(self._features[key])
+            changed = asdict(self._features[key])
+        if self.on_change is not None:
+            self.on_change(key, bool(enabled))
+        return changed
 
     def as_list(self):
         with self._lock:

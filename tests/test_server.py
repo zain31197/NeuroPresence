@@ -959,6 +959,65 @@ def test_the_enrolment_survives_a_restart(parts):
     assert again["engines"][0].neutral_faces == []  # the neutral pose is not stored: a session takes it from the camera
 
 
+# ---------------------------------------------------------------- database
+
+
+def test_a_session_is_kept_in_the_history_with_its_figures_and_how_it_ended(parts, monkeypatch):
+    monkeypatch.setattr("neuropresence.server.session.KEEP_FIGURES_SECONDS", 0.05)
+    client = parts["client"]
+    assert client.get("/api/history").json()["sessions"] == []
+    start(parts)
+    assert wait_for(lambda: client.get("/api/history").json()["sessions"][0]["outcome"] == "running")
+    time.sleep(0.4)
+    client.post("/api/session/stop")
+    history = client.get("/api/history").json()
+    session = history["sessions"][0]
+    assert session["kind"] == "camera" and session["input_label"] == "Camera 0" and session["outcome"] == "stopped"
+    assert session["frames"] > 0 and session["fps"] is not None
+    assert history["totals"]["all"]["sessions"] == 1
+    detail = client.get(f"/api/history/{session['id']}").json()
+    assert len(detail["figures"]) >= 2 and all(f["fps"] is not None for f in detail["figures"])
+    assert "Session started on Camera 0." in [e["message"] for e in detail["events"]]
+    assert detail["checks"] and detail["checks"][0]["passed"] == 1  # the check it started with
+    assert client.get("/api/history/9999").status_code == 404
+    assert client.delete("/api/history").json()["sessions"] == []
+
+
+def test_a_refused_check_is_kept_as_such_in_the_history_and_the_security_log(parts, monkeypatch):
+    enrol(parts)
+    ask_for(monkeypatch, "turn_right", "open_mouth", seconds=0.2)
+    client = parts["client"]
+    client.post("/api/session/start", json={"input": "camera:0"})  # a photograph: the right face, doing nothing
+    assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+    assert wait_for(lambda: client.get("/api/history").json()["sessions"][0]["outcome"] == "refused")
+    timeline = client.get("/api/security").json()["timeline"]
+    refused = next(item for item in timeline if item["kind"] == "check" and item["purpose"] == "session")
+    assert refused["passed"] is False and refused["failure"] == "late" and "turn" in refused["reason"]
+    actions = [item["action"] for item in timeline if item["kind"] == "enrolment"]
+    assert "face_verified" in actions and "picture_enrolled" in actions and "pose_registered" in actions
+
+
+def test_switches_choices_and_the_retry_count_survive_a_restart(parts, monkeypatch):
+    enrol(parts)
+    client = parts["client"]
+    client.patch("/api/features/steady_crop", json={"enabled": False})
+    assert client.patch("/api/preferences", json={"input": "camera:1"}).json() == {"input": "camera:1"}
+    assert client.patch("/api/preferences", json={"colour": "red"}).status_code == 409  # only known choices are kept
+    ask_for(monkeypatch, "turn_right", "open_mouth", seconds=0.2)
+    for _ in range(3):  # three refused checks: the next one has to wait
+        client.post("/api/session/start", json={"input": "camera:0"})
+        assert wait_for(lambda: status(parts)["session"]["state"] == "error")
+    parts["runtime"].db.flush()
+    again = {"feeds": [], "sources": [], "engines": [], "gpu_reads": [], "tracker": FakeTracker()}
+    restarted = make_runtime(parts["tmp"], again)
+    try:
+        assert restarted.features.enabled("steady_crop") is False
+        assert restarted.preferences() == {"input": "camera:1"}
+        assert restarted.attempts.snapshot()["failures"] == 3 and restarted.attempts.wait_seconds() > 0  # a restart does not clear it
+    finally:
+        restarted.db.close()
+
+
 # ----------------------------------------------------------------- session
 
 
