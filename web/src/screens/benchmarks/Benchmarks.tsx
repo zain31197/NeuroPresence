@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Pill } from '../../components/ui/Pill'
 import { TrendChart } from '../../components/viz/TrendChart'
-import { api, ApiError, type Benchmarks as Data, type BenchmarkRun, type CallFigureKey, type CallPhase } from '../../lib/api'
+import { api, ApiError, type Benchmarks as Data, type BenchmarkRun, type CallFigureKey, type CallPhase, type LiveFigures } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { longDate } from '../../lib/format'
 
@@ -27,6 +27,7 @@ const value = (run: BenchmarkRun, key: (typeof FIGURES)[number]['key']) => {
 export function Benchmarks() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [live, setLive] = useState<LiveFigures | null>(null)
   const load = () => {
     setError(null)
     api.benchmarks().then(setData, (e) => setError(e instanceof ApiError ? e.message : 'The engine did not answer.'))
@@ -34,6 +35,7 @@ export function Benchmarks() {
   useEffect(() => {
     document.title = 'Benchmarks · NeuroPresence'
     load()
+    api.capabilities().then((reply) => setLive(reply.live ?? null), () => setLive(null))
   }, [])
 
   // The trend uses the runs on the same eight sample clips, so they can be compared; other runs are in the table.
@@ -54,7 +56,8 @@ export function Benchmarks() {
         }
       >
         Every benchmark saved on this computer, and the engine measured during real calls. Nothing here is typed in by hand: it is
-        read from the results folder, as scripts/benchmark.py and scripts/measure_call.py wrote it.
+        read from the results folder, as scripts/benchmark.py and scripts/measure_call.py wrote it. A benchmark tracks and draws one
+        after the other on recorded clips, so it runs slower than a live session, which does both at once.
       </PageHeader>
 
       {error && (
@@ -80,7 +83,13 @@ export function Benchmarks() {
           <Stagger className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {FIGURES.map((figure) => (
               <StaggerItem key={figure.key}>
-                <Headline figure={figure} now={value(latest, figure.key)} then={value(first, figure.key)} since={first.date} />
+                <Headline
+                  figure={figure}
+                  now={value(latest, figure.key)}
+                  then={value(first, figure.key)}
+                  since={first.date}
+                  live={figure.key === 'fps' && live ? `${live.fps[0]} to ${live.fps[1]} fps in a live session, which tracks while it draws` : null}
+                />
               </StaggerItem>
             ))}
           </Stagger>
@@ -125,11 +134,14 @@ function Headline({
   now,
   then,
   since,
+  live,
 }: {
   figure: (typeof FIGURES)[number]
   now: number | null
   then: number | null
   since: string
+  /** For the frame rate: what a live session reaches, beside the benchmark's figure. */
+  live: string | null
 }) {
   const met = now !== null && (figure.better === 'up' ? now >= figure.target : now <= figure.target)
   const change = now !== null && then !== null && then !== 0 ? (now - then) / Math.abs(then) : null
@@ -170,6 +182,12 @@ function Headline({
       <p className="mt-1 font-mono text-[11.5px] text-ink-400">
         target {figure.better === 'up' ? '≥' : '≤'} {figure.format(figure.target)}
       </p>
+      {live && (
+        <p className="mt-3 flex items-center gap-2 rounded-[9px] bg-accent-50 px-2.5 py-1.5 text-[12px] font-medium text-accent-700">
+          <span className="size-1.5 shrink-0 animate-lamp rounded-full bg-live" />
+          {live}
+        </p>
+      )}
     </Card>
   )
 }

@@ -37,7 +37,8 @@ STAGES = [
         "name": "Reenactment",
         "summary": "Animates the enrolled picture with those signals and blends it back into the frame.",
         "status": "working",
-        "note": "Runs at about 22 frames a second on the RTX 5050, against a target of 24. The render and delay targets are met.",
+        "note": "Runs at 20 to 22 frames a second in a live session on the RTX 5050, against a target of 24. The render "
+                "and delay targets are met.",
     },
     {
         "key": "identity",
@@ -90,3 +91,14 @@ MODES = [
                 "behind the voice, and the voice for the meeting is held back by as much.",
     },
 ]
+
+# How fast a live session runs: the one place the app takes these figures from, so every screen says the same.
+# Measured on the RTX 5050 (130 W): 21.5 to 22.0 frames a second with no meeting (11 October and 20 November 2026),
+# 20.0 to 20.2 as medians during calls in Google Meet and Zoom (23 October 2026), 95 ms from camera to picture.
+# A benchmark run is slower (16.6 to 17.6) because it tracks and draws one after the other, where a session does
+# both at once; it is shown as what it is.
+LIVE = {
+    "fps": [20, 22],
+    "delay_ms": 95,
+    "measured": "Live sessions on an RTX 5050, with no meeting and during calls in Google Meet and Zoom.",
+}

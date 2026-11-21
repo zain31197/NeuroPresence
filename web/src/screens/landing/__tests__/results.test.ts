@@ -82,3 +82,24 @@ describe('meterPlace', () => {
     }
   })
 })
+
+describe('resultRows with a live session', () => {
+  const live = { fps: [20, 22] as [number, number], delay_ms: 95, measured: 'Live sessions.' }
+
+  it('shows the live frame rate and names the benchmark figure beside it', () => {
+    const row = resultRows(baseline, live)[0]
+    expect(row.name).toBe('Frame rate')
+    expect(row.format(row.value as number)).toBe('20–22 fps')
+    expect(row.about).toBe('Live session; the benchmark, tracking then drawing, ran 7.5')
+  })
+
+  it('still judges it against the target: 22 is short of 24', () => {
+    const row = resultRows(baseline, live)[0]
+    expect(row.met(row.value as number)).toBe(false)
+  })
+
+  it('leaves every other row as the benchmark measured it', () => {
+    const plain = resultRows(baseline).slice(1).map((r) => [r.name, r.value])
+    expect(resultRows(baseline, live).slice(1).map((r) => [r.name, r.value])).toEqual(plain)
+  })
+})

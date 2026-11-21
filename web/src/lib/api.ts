@@ -324,6 +324,20 @@ export interface Benchmark {
   targets: Partial<Targets>
 }
 
+/** How fast a live session runs, as the engine states it (server/capabilities.py: LIVE). */
+export interface LiveFigures {
+  fps: [number, number]
+  delay_ms: number
+  measured: string
+}
+
+export interface Capabilities {
+  stages: PipelineStage[]
+  enrolment?: PipelineStage
+  modes?: PipelineStage[]
+  live?: LiveFigures
+}
+
 /** One saved benchmark run, named after the change it was made to judge (see server/benchmarks.py). */
 export interface BenchmarkRun extends Benchmark {
   label: string
@@ -458,7 +472,7 @@ export const STOP_PREVIEW_PATH = '/api/enrolment/preview/stop'
 
 export const api = {
   status: () => request<Status>('/api/status'),
-  capabilities: () => request<{ stages: PipelineStage[]; enrolment?: PipelineStage; modes?: PipelineStage[] }>('/api/capabilities'),
+  capabilities: () => request<Capabilities>('/api/capabilities'),
   latestBenchmark: () => request<Benchmark>('/api/benchmarks/latest'),
   benchmarks: () => request<Benchmarks>('/api/benchmarks'),
   system: (internet = true) => request<SystemReport>(`/api/system?internet=${internet}`),

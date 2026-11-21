@@ -430,6 +430,7 @@ def test_capabilities_list_the_six_stages(parts):
     assert {s["status"] for s in stages} <= {"working", "partial", "planned"}
     assert reply["enrolment"]["key"] == "enrolment" and reply["enrolment"]["status"] == "working"
     assert [m["key"] for m in reply["modes"]] == ["camera", "voice"]
+    assert reply["live"]["fps"] == [20, 22] and reply["live"]["delay_ms"] == 95
     assert {m["status"] for m in reply["modes"]} <= {"working", "partial", "planned"}
 
 

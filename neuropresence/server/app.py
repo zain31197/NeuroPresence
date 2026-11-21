@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .capabilities import ENROLMENT, MODES, STAGES
+from .capabilities import ENROLMENT, LIVE, MODES, STAGES
 from .preview import NotGoodEnough
 from .runtime import Runtime
 from .session import SessionError
@@ -93,7 +93,7 @@ def create_app(runtime=None, web_dist=WEB_DIST):
 
     @app.get("/api/capabilities")
     def capabilities():
-        return {"enrolment": ENROLMENT, "stages": STAGES, "modes": MODES}
+        return {"enrolment": ENROLMENT, "stages": STAGES, "modes": MODES, "live": LIVE}
 
     @app.get("/api/benchmarks")
     def benchmarks():
