@@ -19,7 +19,7 @@ folder without it is an unfinished save and is treated as empty.
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import cv2
@@ -30,6 +30,26 @@ from .checks import POSE_KEYS
 PICTURE, NEUTRAL, SIGNATURE, RECORD = "picture.png", "neutral.png", "signature.npy", "record.json"
 IDENTITY, IDENTITY_RECORD = "identity.npy", "identity.json"
 POSES_RECORD = "poses.json"  # which poses are registered and what each measured, beside their own pose_<key>.npy
+ID_FORMAT = "%Y%m%dT%H%M%S%f"  # an id is the time it was made, to the microsecond
+
+
+def _clock():
+    return datetime.now()
+
+
+def _after(previous):
+    """The time for a new id: now, or a microsecond after the id it replaces if the clock has not moved past it.
+
+    An id must change with every save: the web app fetches the picture again only when it does. The clock can
+    tick far more coarsely than a microsecond (on Windows with Python 3.12, about once a millisecond or slower),
+    so two saves close together could otherwise get the same id. Found by the tests on a fresh copy, 21 November 2026.
+    """
+    now = _clock()
+    try:
+        last = datetime.strptime(previous, ID_FORMAT) if previous else None
+    except ValueError:
+        last = None
+    return last + timedelta(microseconds=1) if last is not None and now <= last else now
 
 
 @dataclass
@@ -115,11 +135,11 @@ class EnrolmentStore:
 
     def save(self, picture, neutral_face, signature, origin, checks, match=None):
         """Replace the stored meeting picture with a new one and return it."""
+        now = _after(self._stored_id(RECORD))
         self.remove()
         self.folder.mkdir(parents=True, exist_ok=True)
-        now = datetime.now()
         enrolment = Enrolment(
-            id=now.strftime("%Y%m%dT%H%M%S%f"),
+            id=now.strftime(ID_FORMAT),
             enrolled_at=now.isoformat(timespec="seconds"),
             origin=origin,
             checks=checks,
@@ -136,6 +156,13 @@ class EnrolmentStore:
                   "match": match}
         self._write_json(RECORD, record)
         return enrolment
+
+    def _stored_id(self, name):
+        """The id in a stored record, or None if there is none."""
+        try:
+            return json.loads((self.folder / name).read_text())["id"]
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
 
     def remove(self):
         """Delete the stored meeting picture. The record goes first, so a half-removed folder reads as empty."""
@@ -164,9 +191,9 @@ class EnrolmentStore:
     def save_identity(self, signature, checks):
         """Replace the stored face signature and return it. Any registered poses are
         for this face specifically, so a newly verified face starts with none."""
+        now = _after(self._stored_id(IDENTITY_RECORD))
         self._unlink(POSES_RECORD, *(self._pose_file(pose) for pose in POSE_KEYS))
-        now = datetime.now()
-        return self._write_identity(FaceIdentity(now.strftime("%Y%m%dT%H%M%S%f"), now.isoformat(timespec="seconds"),
+        return self._write_identity(FaceIdentity(now.strftime(ID_FORMAT), now.isoformat(timespec="seconds"),
                                                  checks, np.asarray(signature, dtype=np.float32)))
 
     def remove_identity(self):

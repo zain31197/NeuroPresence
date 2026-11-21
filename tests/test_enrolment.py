@@ -427,6 +427,21 @@ def test_store_round_trip(tmp_path):
                                 "match": None}
 
 
+def test_a_new_id_differs_from_the_one_it_replaces_even_when_the_clock_has_not_moved(tmp_path, monkeypatch):
+    from datetime import datetime
+
+    from neuropresence.enrolment import store as store_module
+
+    frozen = datetime(2026, 11, 21, 14, 0, 0, 123456)
+    monkeypatch.setattr(store_module, "_clock", lambda: frozen)
+    store = EnrolmentStore(tmp_path)
+    first, second = enrol(store, value=90), enrol(store, value=180)
+    assert first.id == "20261121T140000123456" and second.id == "20261121T140000123457"
+    face = store.save_identity(np.ones(512, dtype=np.float32), [])
+    again = store.save_identity(np.ones(512, dtype=np.float32), [])
+    assert face.id != again.id
+
+
 def test_store_keeps_one_enrolment_and_replaces_it(tmp_path):
     store = EnrolmentStore(tmp_path)
     first = enrol(store, value=90)
