@@ -895,7 +895,7 @@ The last two steps of the round approved the same day.
 
 **Asked by Zain.** Take the "Built on open research" section off the landing page; say everywhere that the frame rate is 20 to 22; and more live animation, more modern, a finished product.
 
-**The frame rate.** A live session runs at 20 to 22 frames a second on the RTX 5050: 21.5 to 22.0 with no meeting (11 October, 20 November), 20.0 to 20.2 as medians during calls in Google Meet and Zoom (23 October), 95 ms from camera to picture. The landing page had shown the latest benchmark, 16.6, because a benchmark tracks and draws one after the other on recorded clips while a session does both at once. Now the engine states the live figures in one place (`server/capabilities.py`, `LIVE`, served with the capabilities), and the hero, a new band of figures, the Results note, the stage note and the Benchmarks screen all read them from there. The benchmark's own figures are left as they were measured and labelled as the benchmark: changing a measured result would make it false.
+**The frame rate.** A live session runs at 20 to 22 frames a second on the RTX 5050: 21.5 to 22.0 with no meeting (11 October, 20 November), 20.0 to 20.2 as medians during calls in Google Meet and Zoom (23 October), 95 ms from camera to picture. The landing page had shown the latest benchmark, 16.6, because a benchmark tracks and draws one after the other on recorded clips while a session does both at once. Now the engine states the live figures in one place (`server/capabilities.py`, `LIVE`, served with the capabilities), and the hero, a new band of figures, the Results note, the stage note and the Benchmarks screen all read them from there. The benchmark's own figures are left as they were measured and labelled as the benchmark: changing a measured result would make it false. Asked once more by Zain, the results table on the landing page now gives the frame rate as the live session's, 20 to 22, with the benchmark's 16.6 named in the same row; it is still marked off target, since 22 is short of the 24 the project committed to.
 
 **The landing page.**
 - "Built on open research" removed, as asked. The components stay credited in the README, and they belong on Form 13 and in the report's tool table.
@@ -908,6 +908,14 @@ The last two steps of the round approved the same day.
 - In the studio, a band of light travels along the top of every screen while a session runs.
 
 **Found on the way.** The gauge's needle did not show: a group turned in SVG lost its pivot. It is drawn by moving its tip instead. On a phone the landing page was 398 pixels wide on a 375 pixel screen: the liveness tile's picture and prompt had fixed widths; they shrink now. Every screen was checked at 375 pixels again.
+
+### 21 November 2026: the launch video on the landing page
+
+Zain made a 60 second launch video in Remotion from a brief written for it (`poster/video/NeuroPresence_Video_Brief.md`, git ignored with the poster: the story, the storyboard, the website's colours, fonts and motion, the claims allowed and not, and the four poster photos and fresh screenshots of the app), and asked for it on the website. Looked through before it went up: its figures end on what was measured (20 to 22 frames a second, 95 ms, 0.96 identity during calls), the photos carry "Concept illustration" and the reenacted pictures their mark.
+
+**Built.** A "See it in a minute" section after the meeting strip (`web/src/screens/landing/Film.tsx`): the video in the frame with the moving edge of light, its end card as the still picture (logo, "Be present, on your terms.", the team, the supervisor and F26-182), a "Watch the tour" control in the card's empty corner, and the whole picture to click; it plays only when asked, with sound and the browser's controls. "Watch the video" replaces the hero's second button, and "Video" is the first link of the bar. The file is `web/public/media/neuropresence-launch.mp4` (written with its index at the front, so it starts at once); like every video it is kept out of git, so a fresh copy of the project has no video and the section then does not show at all. The still frame is committed.
+
+**Checked.** The engine serves the file in parts (206, so the video can be wound on and back); in a browser it played from the click, 1920 x 1080 with sound; with the file taken away the section was gone; no page scrolls sideways at 375 pixels. 71 web tests pass.
 
 ## Decisions and their reasons
 

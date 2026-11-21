@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, AudioLines, CalendarClock, Cast, Cpu, Fingerprint, Gauge, HeartPulse, Lock, ScanFace, ShieldCheck, Sparkles, Tag, Timer, Video, Webcam } from 'lucide-react'
+import { Activity, ArrowRight, AudioLines, CalendarClock, Cast, Cpu, Fingerprint, Gauge, HeartPulse, Lock, Play, ScanFace, ShieldCheck, Sparkles, Tag, Timer, Video, Webcam } from 'lucide-react'
 import { motion, useMotionValueEvent, useScroll } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -10,6 +10,7 @@ import { api, type Benchmark, type CallMeasurement, type LiveFigures, type Pipel
 import { cn } from '../../lib/cn'
 import { longDate } from '../../lib/format'
 import { Bento } from './Bento'
+import { Film } from './Film'
 import { HeroVisual } from './HeroVisual'
 import { Modes } from './Modes'
 import { PipelineFlow } from './PipelineFlow'
@@ -61,6 +62,7 @@ export function Landing() {
       <main>
         <Hero live={live} identity={identity} />
         <WorksWith />
+        <Watch />
         <Figures live={live} identity={identity} calls={calls} />
         <Why />
         <DrivenBy modes={modes} />
@@ -117,6 +119,7 @@ function Header() {
         </Link>
         <nav className="hidden items-center gap-1 text-[14px] font-medium text-ink-600 md:flex" aria-label="Sections">
           {[
+            ['#video', 'Video'],
             ['#modes', 'Modes'],
             ['#how', 'How it works'],
             ['#results', 'Results'],
@@ -212,8 +215,9 @@ function Hero({ live, identity }: { live: LiveFigures | null; identity: number |
               Open the studio
               <ArrowRight className={cn('size-4', nudge)} />
             </Link>
-            <a href="#how" className={cn(secondaryLink, 'h-12 px-5 text-[15px]')}>
-              See how it works
+            <a href="#video" className={cn(secondaryLink, 'h-12 px-5 text-[15px]')}>
+              <Play className="size-4 fill-current text-accent-600" strokeWidth={0} />
+              Watch the video
             </a>
           </motion.div>
           <motion.ul
@@ -306,6 +310,25 @@ function WorksWith() {
         ))}
       </Marquee>
     </section>
+  )
+}
+
+/* ------------------------------------------------------------------- video */
+
+function Watch() {
+  return (
+    <Film>
+      {(video) => (
+        <section id="video" className="scroll-mt-16 border-b border-line bg-canvas py-20 lg:py-24">
+          <Shell>
+            <SectionHeading eyebrow="See it in a minute" title="The whole idea in sixty seconds.">
+              The problem, the four steps from your face to your meeting, the safeguards and the measured figures, in one minute.
+            </SectionHeading>
+            <div className="mx-auto mt-12 max-w-[1040px]">{video}</div>
+          </Shell>
+        </section>
+      )}
+    </Film>
   )
 }
 
