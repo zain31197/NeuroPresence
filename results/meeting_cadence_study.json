@@ -1,0 +1,168 @@
+{
+  "date": "2026-11-21T20:59:40",
+  "machine": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "gpu": "NVIDIA GeForce RTX 5050"
+  },
+  "clip": "d6",
+  "seconds_watched": 40.0,
+  "starting_moments_per_case": 60,
+  "runs": [
+    {
+      "drawn": {
+        "paced_to": null,
+        "frames": 902,
+        "fps": 22.54,
+        "gap_ms_mean": 44.37,
+        "gap_ms_sd": 1.09,
+        "gap_ms_max": 53.4,
+        "delay_ms_median": 84.6,
+        "delay_ms_p95": 87.0,
+        "status_ms_median": 1.24,
+        "status_ms_max": 2.6
+      },
+      "cases": [
+        {
+          "case": "Today: 30 Hz clock, camera at 30",
+          "new_frames_per_second": 22.385,
+          "never_shown": 0.006,
+          "hold_ms_mean": 44.651,
+          "hold_ms_sd": 15.95,
+          "holds_half_again_longer": 0.336,
+          "step_error_ms_sd": 15.758,
+          "late_ms_mean": 31.629
+        },
+        {
+          "case": "Sent as finished, camera at 30",
+          "new_frames_per_second": 22.537,
+          "never_shown": 0.0,
+          "hold_ms_mean": 44.37,
+          "hold_ms_sd": 15.687,
+          "holds_half_again_longer": 0.331,
+          "step_error_ms_sd": 15.663,
+          "late_ms_mean": 16.65
+        },
+        {
+          "case": "Sent as finished, camera at 20",
+          "new_frames_per_second": 19.999,
+          "never_shown": 0.113,
+          "hold_ms_mean": 50.012,
+          "hold_ms_sd": 0.307,
+          "holds_half_again_longer": 0.0,
+          "step_error_ms_sd": 14.715,
+          "late_ms_mean": 22.22
+        },
+        {
+          "case": "Sent as finished, camera at 22",
+          "new_frames_per_second": 21.928,
+          "never_shown": 0.027,
+          "hold_ms_mean": 45.598,
+          "hold_ms_sd": 2.245,
+          "holds_half_again_longer": 0.003,
+          "step_error_ms_sd": 7.286,
+          "late_ms_mean": 22.061
+        },
+        {
+          "case": "Linux reader: 30 Hz clock",
+          "new_frames_per_second": 22.537,
+          "never_shown": 0.0,
+          "hold_ms_mean": 44.335,
+          "hold_ms_sd": 15.642,
+          "holds_half_again_longer": 0.33,
+          "step_error_ms_sd": 15.533,
+          "late_ms_mean": 16.21
+        },
+        {
+          "case": "Linux reader: sent as finished",
+          "new_frames_per_second": 22.562,
+          "never_shown": 0.0,
+          "hold_ms_mean": 44.371,
+          "hold_ms_sd": 1.088,
+          "holds_half_again_longer": 0.0,
+          "step_error_ms_sd": 0.0,
+          "late_ms_mean": 0.0
+        }
+      ]
+    },
+    {
+      "drawn": {
+        "paced_to": 20.0,
+        "frames": 801,
+        "fps": 20.0,
+        "gap_ms_mean": 50.0,
+        "gap_ms_sd": 2.77,
+        "gap_ms_max": 84.1,
+        "delay_ms_median": 86.7,
+        "delay_ms_p95": 92.5,
+        "status_ms_median": 1.27,
+        "status_ms_max": 16.0
+      },
+      "cases": [
+        {
+          "case": "Today: 30 Hz clock, camera at 30",
+          "new_frames_per_second": 19.908,
+          "never_shown": 0.003,
+          "hold_ms_mean": 50.174,
+          "hold_ms_sd": 16.861,
+          "holds_half_again_longer": 0.141,
+          "step_error_ms_sd": 16.397,
+          "late_ms_mean": 31.424
+        },
+        {
+          "case": "Sent as finished, camera at 30",
+          "new_frames_per_second": 20.0,
+          "never_shown": 0.0,
+          "hold_ms_mean": 50.0,
+          "hold_ms_sd": 16.718,
+          "holds_half_again_longer": 0.499,
+          "step_error_ms_sd": 16.476,
+          "late_ms_mean": 17.016
+        },
+        {
+          "case": "Sent as finished, camera at 20",
+          "new_frames_per_second": 19.48,
+          "never_shown": 0.026,
+          "hold_ms_mean": 51.476,
+          "hold_ms_sd": 5.78,
+          "holds_half_again_longer": 0.03,
+          "step_error_ms_sd": 6.713,
+          "late_ms_mean": 24.551
+        },
+        {
+          "case": "Sent as finished, camera at 22",
+          "new_frames_per_second": 19.992,
+          "never_shown": 0.0,
+          "hold_ms_mean": 50.021,
+          "hold_ms_sd": 13.664,
+          "holds_half_again_longer": 0.1,
+          "step_error_ms_sd": 13.383,
+          "late_ms_mean": 22.737
+        },
+        {
+          "case": "Linux reader: 30 Hz clock",
+          "new_frames_per_second": 20.0,
+          "never_shown": 0.0,
+          "hold_ms_mean": 49.98,
+          "hold_ms_sd": 16.537,
+          "holds_half_again_longer": 0.499,
+          "step_error_ms_sd": 16.105,
+          "late_ms_mean": 16.893
+        },
+        {
+          "case": "Linux reader: sent as finished",
+          "new_frames_per_second": 20.025,
+          "never_shown": 0.0,
+          "hold_ms_mean": 49.999,
+          "hold_ms_sd": 2.77,
+          "holds_half_again_longer": 0.001,
+          "step_error_ms_sd": 0.0,
+          "late_ms_mean": 0.0
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "A live session through the server's own session code, with a sample clip in place of the camera; no browser attached, no virtual camera opened. Finish times are recorded; sending and picking up are replayed from them.",
+    "The pick up is modelled on OBS Virtual Camera's camera filter, which wakes at the rate the camera was opened with and takes the newest frame written. The 'Linux reader' cases take every frame written, as v4l2loopback hands them on. What the meeting application then does with the frames (its own encoding rate) is not modelled."
+  ]
+}
