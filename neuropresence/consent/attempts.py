@@ -11,8 +11,9 @@ long each time. A check that passes forgets them all, and so does an hour withou
 What it buys, worked out for a recording that passes one attempt in seven: without the limit the expected wait
 is seven attempts of about fifteen seconds each, under two minutes. With it, the first three attempts are free
 and the attempts after them wait 1, 2, 4 and 8 minutes, about a quarter of an hour in all. It slows such an
-attempt down; it does not stop it, and that limit is stated in the report. The counts are kept in memory: they
-start afresh when the engine is restarted, which someone at the computer can do.
+attempt down; it does not stop it, and that limit is stated in the report. Until 21 November 2026 the counts
+were kept in memory only and a restart of the engine cleared them; now they are read back from the database
+(the consent_checks table) when the engine starts.
 """
 
 import threading
@@ -27,10 +28,10 @@ FORGET_SECONDS = 3600.0  # failures older than this no longer count
 class Attempts:
     """Counts the consent checks that did not pass, and says how long the next one has to wait."""
 
-    def __init__(self, clock=time.monotonic):
+    def __init__(self, clock=time.time, failures=()):
         self._clock = clock
         self._lock = threading.Lock()
-        self._failures = []  # when each check that did not pass ended
+        self._failures = list(failures)  # when each check that did not pass ended, seconds since 1970
 
     def failed(self):
         with self._lock:

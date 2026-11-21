@@ -37,9 +37,10 @@ class ConsentCheck:
     being verified for the first time, the first face seen is the one all later ones have to match.
     """
 
-    def __init__(self, challenge, signatures=None, similarity=None, limit=SAME_PERSON_CSIM, attempts=None):
+    def __init__(self, challenge, signatures=None, similarity=None, limit=SAME_PERSON_CSIM, attempts=None, on_done=None):
         self.challenge = challenge
         self.attempts = attempts  # the count of checks that did not pass (attempts.py), told how this one ends
+        self.on_done = on_done  # called with the check when it has ended, passed or refused (the database keeps it)
         self.registered = bool(signatures)
         self.signatures = list(signatures or [])
         self._similarity = similarity or (lambda a, b: float(a @ b))
@@ -99,6 +100,7 @@ class ConsentCheck:
             self.passed = True
             if self.attempts is not None:
                 self.attempts.passed()
+            self._ended()
 
     def same_face(self, signature):
         """Is this the face the check was made on? For a picture taken after it has passed."""
@@ -109,12 +111,21 @@ class ConsentCheck:
         self.passed, self.failure, self.reason = False, failure, reason
         if self.attempts is not None:
             self.attempts.failed()
+        self._ended()
 
     def refuse_after(self, reason):
         """Refuse a check that had passed: what followed it showed it was not the same person."""
         self.passed, self.failure, self.reason = False, "identity", reason
         if self.attempts is not None:
             self.attempts.failed()
+        self._ended()
+
+    def _ended(self):
+        if self.on_done is not None:
+            try:
+                self.on_done(self)
+            except Exception:  # keeping a record must never decide the check
+                pass
 
     def snapshot(self, at):
         """How the check stands, for the app to show."""
