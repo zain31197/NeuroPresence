@@ -1,4 +1,4 @@
-import { Activity, Crosshair, Fingerprint, Gauge, Move3d, ScanFace, Sparkles, Timer, type LucideIcon } from 'lucide-react'
+import { Activity, Cast, Crosshair, Fingerprint, Gauge, Move3d, ScanFace, Sparkles, Timer, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { Switch } from '../../components/ui/Switch'
@@ -13,6 +13,7 @@ const ICONS: Record<string, LucideIcon> = {
   steady_crop: Crosshair,
   steady_keypoints: Activity,
   even_motion: Gauge,
+  even_delivery: Cast,
   natural_range: Move3d,
   identity_guard: Fingerprint,
   delay_watchdog: Timer,

@@ -46,6 +46,14 @@ DEFAULTS = (
         True,
     ),
     Feature(
+        "even_delivery",
+        "Even delivery",
+        "While the virtual camera is on, draw at its rate, 20 frames a second, so a meeting shows every frame once and "
+        "for the same time. Without this it gets them at about 22 a second on a camera read 20 times a second, and "
+        "skips one now and then.",
+        True,
+    ),
+    Feature(
         "natural_range",
         "Natural head range",
         "Keep the head within the range that looks right on a body that stays still. Small movements are followed "

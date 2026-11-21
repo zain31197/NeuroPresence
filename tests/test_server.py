@@ -1,6 +1,7 @@
 """The web server, run with stand-ins for the camera, the tracker and the engine."""
 
 import json
+import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -409,7 +410,7 @@ def test_status_when_nothing_has_happened(parts):
                                               "taking": False, "liveness": None}}
     assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
                                                                 "steady_keypoints": True, "even_motion": True,
-                                                                "natural_range": True,
+                                                                "even_delivery": True, "natural_range": True,
                                                                 "identity_guard": True, "delay_watchdog": True,
                                                                 "tracking_overlay": False}
     assert found["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
@@ -1780,7 +1781,7 @@ def picture_in(sent, like=FRAME):
 
 def test_the_virtual_camera_is_off_until_it_is_switched_on(parts):
     assert status(parts)["virtual_camera"] == {"on": False, "device": None, "reason": None, "showing": "nothing",
-                                               "size": [1280, 720], "fps": 30}
+                                               "size": [1280, 720], "fps": 20}
     reply = parts["client"].post("/api/virtual-camera", json={"on": True})
     assert reply.status_code == 200 and reply.json()["on"] is True and reply.json()["device"] == "Test Camera"
     assert any("Virtual camera turned on" in message for message in events(parts))
@@ -1823,6 +1824,68 @@ def test_a_face_that_does_nothing_never_reaches_the_meeting(parts, monkeypatch):
         time.sleep(0.02)
     assert status(parts)["session"]["state"] == "error" and seen and all(seen)
     assert np.array_equal(camera.newest, camera_card())
+
+
+def frame_gaps(session, count):
+    """The time between `count` frames as the session makes them, in seconds."""
+    seen, times = session.wait_for_frame(None, 1.0), []
+    while len(times) < count + 1:
+        made = session.wait_for_frame(seen, 1.0)
+        if made != seen:
+            seen = made
+            times.append(time.perf_counter())
+    return [b - a for a, b in zip(times, times[1:])]
+
+
+def test_while_the_meeting_is_sent_the_session_the_drawing_is_held_to_the_camera_rate(parts):
+    """So that the meeting picks every frame up once and for the same time (virtual_camera.py, Even delivery)."""
+    runtime, client = parts["runtime"], parts["client"]
+    start(parts)
+    assert runtime.output_pace() is None  # the virtual camera is off: drawn as fast as the card allows
+    assert statistics.median(frame_gaps(runtime.session, 10)) < 0.03
+    client.post("/api/virtual-camera", json={"on": True})
+    assert runtime.output_pace() == 20
+    gaps = frame_gaps(runtime.session, 12)
+    assert 0.045 < statistics.median(gaps) < 0.055 and max(gaps[1:]) < 0.08
+    client.patch("/api/features/even_delivery", json={"enabled": False})
+    assert runtime.output_pace() is None
+    assert statistics.median(frame_gaps(runtime.session, 10)) < 0.03
+    client.patch("/api/features/even_delivery", json={"enabled": True})
+    client.post("/api/virtual-camera", json={"on": False})
+    assert runtime.output_pace() is None
+
+
+def test_the_virtual_camera_sends_each_new_frame_of_the_session_as_soon_as_it_is_made(parts):
+    runtime, client = parts["runtime"], parts["client"]
+    client.post("/api/virtual-camera", json={"on": True})
+    camera = parts["cameras"][0]
+    start(parts)
+    assert wait_for(lambda: status(parts)["virtual_camera"]["showing"] == "session")
+    fresh, sent = runtime.virtual_camera.fresh, camera.sent
+    time.sleep(1.0)
+    made = runtime.virtual_camera.fresh - fresh
+    assert 17 <= made <= 22  # about 20 frames in a second, at the camera's rate
+    assert camera.sent - sent <= made + 1  # each sent once: nothing sent again in between
+
+
+def test_the_studio_stream_sends_each_frame_of_the_session_as_soon_as_it_is_made(parts):
+    """Not on a 10 ms look, which on Windows lasts a timer tick of 15.6 ms and left frames 0 to 17 ms late."""
+    runtime, client = parts["runtime"], parts["client"]
+    client.post("/api/virtual-camera", json={"on": True})  # the drawing held to 20 frames a second
+    start(parts)
+    with client.websocket_connect("/api/stream") as socket:
+        ids, gaps, last = [], [], None
+        while len(ids) < 16:
+            message = socket.receive()
+            if message.get("bytes"):
+                now = time.perf_counter()
+                ids.append(unpack_frame(message["bytes"])[0]["id"])
+                if last is not None:
+                    gaps.append(now - last)
+                last = now
+    assert len(set(ids)) == len(ids)  # no frame twice
+    assert sum(b - a for a, b in zip(ids, ids[1:])) <= len(ids) + 1  # and hardly any skipped
+    assert 0.045 < statistics.median(gaps[2:]) < 0.055  # they arrive at the rate they are made
 
 
 def test_a_sample_clip_is_not_sent_to_the_meeting(parts):
@@ -1898,8 +1961,8 @@ def test_the_voice_is_held_back_only_while_the_meeting_sees_the_user(parts):
     assert wait_for(lambda: runtime.session.delay_ms() is not None)
     assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms(), abs=5)
     parts["client"].post("/api/virtual-camera", json={"on": True})
-    # The virtual camera sends the newest frame at a steady rate: half a frame later, on average.
-    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms() + 500 / 30, abs=5)
+    # The meeting application picks frames up at the camera's rate: half an interval later, on average.
+    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms() + 500 / 20, abs=5)
 
 
 def test_the_virtual_microphone_is_let_go_when_the_engine_shuts_down(parts):

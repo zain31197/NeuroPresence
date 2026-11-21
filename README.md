@@ -1,5 +1,7 @@
 # NeuroPresence
 
+[![Tests](https://github.com/zain31197/NeuroPresence/actions/workflows/tests.yml/badge.svg)](https://github.com/zain31197/NeuroPresence/actions/workflows/tests.yml)
+
 Identity-preserving, latency-bounded neural face reenactment for consent-gated professional telepresence.
 
 Final Year Project, BS Data Science, FAST School of Computing (NUCES Islamabad), Fall 2026 – Spring 2027.
@@ -250,6 +252,8 @@ python -m pytest                               # engine and server tests
 cd web && npm test                             # front-end tests
 ```
 
+The same tests run on GitHub on every push and pull request (`.github/workflows/tests.yml`): the engine and server tests on a clean Linux machine and a clean Windows machine, and the web app's type check, tests and build. Those machines have no graphics card and no downloaded models, so the tests that need either skip themselves and say why; the rest must pass. That also checks that a fresh copy of the repository installs from `requirements.txt` alone.
+
 `live.py` shows the camera with metrics on the left and the reenacted output on the right. With no face or more than one face in view, the output switches to the static enrolled frame. Add `--camera clip.mp4` to drive it from a file, and `--record out.mp4` to save the preview.
 
 `reenact_video.py` animates the source image with the motion in the driving video, writes a side-by-side result, and prints per-stage latency, frame rate, and peak GPU memory.
@@ -408,7 +412,20 @@ The output can be offered to meeting applications as an ordinary camera (`neurop
 
 The frame sent is the one the Live Studio shows, so there is no path to a meeting that goes around the mark or the fallbacks. Nothing of the user is sent before the consent check has passed: if the enrolled picture were shown while idle, anyone at the computer could put it into a meeting without answering the prompt.
 
-The device is 1280 x 720 at 30 frames a second. An upright picture is set in the middle with bars beside it, and the newest frame is sent again until the next is drawn.
+The device is 1280 x 720 at 20 frames a second. An upright picture is set in the middle with bars beside it. Each frame is sent once, as soon as it is finished, and while the camera sends a camera session the drawing is held to 20 frames a second ("Even delivery" in the Live Studio), what the engine reaches during a call anyway.
+
+Why (21 November 2026, `python scripts/study_meeting_cadence.py`, `results/meeting_cadence_study.json`): the engine finishes its frames evenly, 45 ms apart to within 1 ms, but the camera was opened at 30 and fed on a clock of its own, and OBS Virtual Camera's filter picks frames up on yet another clock at the camera's rate. A meeting then held 37% of the frames half again as long as their neighbours, so a steady turn of the head arrived in short and long steps. Measured with the real engine on a sample clip and replayed through each way of sending:
+
+| What a meeting application gets | New frames a second | Frames held half again as long | Step error | Added delay |
+|---|---|---|---|---|
+| Before: drawn freely, sent on a 30 a second clock, camera at 30 | 22.4 | 34% | 15.8 ms | 31.6 ms |
+| Now: drawn at 20, each sent as finished, camera at 20 | 19.5 | 3.0% | 6.7 ms | 24.6 ms |
+| Linux (v4l2loopback hands on every frame), before | 22.5 | 33% | 15.5 ms | 16.2 ms |
+| Linux, now | 20.0 | 0.1% | 0.0 ms | 0.0 ms |
+
+The step error is, from one new frame shown to the next, the time it stayed up less the time between their being finished: the unevenness a viewer sees as judder. The figures are from the run kept in the results file; a first run the same evening gave 16.3 ms before and 2.0 ms now (0.8% held long), and the difference is one frame of the second run that came 84 ms after the one before. Held to 20 the picture is no later: 86.7 ms from camera to output, against 84.6 drawn freely. What the meeting application then does with the frames (its own encoding rate) is not modelled; a call is needed to see the whole of it.
+
+The Live Studio's own stream to the browser had the same kind of fault: it looked for a new frame every 10 ms, and on Windows such a wait lasts a tick of the system timer, so it looked every 16.7 ms and a frame left for the browser 0 to 17 ms after it was made. It is now woken by each frame as it is made.
 
 Meeting applications crop the camera picture to fill their tiles: a wide tile takes off the top and bottom, a narrow one (a phone held upright) the sides. In a Google Meet call on 18 October 2026 the main tile was 1.97 to 1 and cut the mark, then in the lower left corner, in half. So the mark now sits in the middle of the lower edge, which a crop from the sides never reaches, and the picture is kept within the middle 84% of the device's height, which a tile up to 2.1 to 1 leaves whole.
 

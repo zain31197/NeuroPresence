@@ -412,7 +412,8 @@ class Runtime:
         self.preview = EnrolmentPreview(self)
         self.identity = IdentityMonitor(self)
         # What a meeting application sees when it selects the virtual camera (virtual_camera.py).
-        self.virtual_camera = VirtualCamera(self.meeting_picture, opener=camera_opener)
+        # Each frame is sent as soon as it is finished (the camera waits on the session for it).
+        self.virtual_camera = VirtualCamera(self.meeting_picture, opener=camera_opener, wait=self.session.wait_for_frame)
         # The voice for meeting applications, held back to stay in step with that picture (virtual_microphone.py).
         self.virtual_microphone = VirtualMicrophone(self.picture_delay, devices=sound_devices, opener=sound_opener,
                                                     settings=Path(data_dir) / "virtual_microphone.json")
@@ -921,11 +922,33 @@ class Runtime:
         pair = session.latest_pair()
         return None if pair is None else pair.output
 
+    def wait_for_frame(self, seen, timeout):
+        """For the Live Studio's stream: while a session runs, wait until it has made a frame after number `seen`
+        (or `timeout` seconds), so each frame leaves for the browser as soon as it is made. Otherwise, for the
+        enrolment preview, a short while. Returns the newest number.
+
+        It used to look every 10 ms, and on Windows that wait lasts a tick of the system timer, 15.6 ms, so frames
+        left 0 to 17 ms after they were made (16.7 ms per look, measured on 21 November 2026)."""
+        if self.session.active:
+            return self.session.wait_for_frame(seen, timeout)
+        time.sleep(min(timeout, 0.01))
+        return seen
+
+    def output_pace(self):
+        """The rate a camera session's drawing is held to: the virtual camera's, while it is on and sends the session,
+        so that a meeting picks every frame up once and for the same time. None otherwise, to draw as fast as the
+        card allows (the Live Studio alone)."""
+        camera, session = self.virtual_camera, self.session
+        if camera.on and session.uses_enrolment and not session.voice and self.features.enabled("even_delivery"):
+            return camera.fps
+        return None
+
     def picture_delay(self):
         """How late the picture a meeting sees is, in ms, or None while that picture is not the user's.
 
-        The session's delay from camera to output, and, with the virtual camera on, half a frame of
-        its own on average: it sends the newest frame at a steady rate.
+        The session's delay from camera to output, and, with the virtual camera on, half of the camera's
+        interval on average: each frame is sent as it is finished, and the meeting application picks frames
+        up at the camera's rate (25 ms at 20 a second; 26.7 measured, results/meeting_cadence_study.json).
         """
         if self.meeting_picture() is None:
             return None

@@ -162,6 +162,11 @@ class LiveSession:
         self._tracking = None
         self._metrics = MetricsWindow()
         self._draw_seconds = 0.0  # a running average of how long one frame takes to draw
+        self._cycle_seconds = 0.0  # how long from one frame drawn to the next: the drawing, or the pace if longer
+        self._next_draw = None  # when the next frame is due while the drawing is paced
+        self.pace_fps = None  # a rate to hold the drawing to, set by a study or a test; otherwise the runtime says
+        self._made = 0  # how many frames have been made, so that a reader can wait for the next one
+        self._made_ready = threading.Condition()
         self.run = 0  # counts the sessions started, so a watcher can tell a new one from the last
         # Two reasons to show the still picture although a face is being tracked. The identity
         # monitor sets the first (see runtime.py); the session sets the second itself.
@@ -251,6 +256,43 @@ class LiveSession:
         return future.result(timeout=timeout)
 
     # ------------------------------------------------------------- reading
+
+    def wait_for_frame(self, seen, timeout):
+        """Wait until a frame after number `seen` has been made, or `timeout` seconds. Returns the newest number.
+        The virtual camera waits here, so that it sends each frame as soon as it is finished."""
+        with self._made_ready:
+            if self._made == seen:
+                self._made_ready.wait(timeout)
+            return self._made
+
+    def _frame_made(self):
+        with self._made_ready:
+            self._made += 1
+            self._made_ready.notify_all()
+
+    def _pace(self):
+        """The rate the drawing is held to now, or None to draw as fast as the card allows."""
+        if self.pace_fps is not None:
+            return self.pace_fps
+        pace = getattr(self._rt, "output_pace", None)
+        return pace() if pace is not None else None
+
+    def _wait_for_turn(self):
+        """While the drawing is paced, wait for the next frame's turn, so frames come at the camera's rate, each one
+        for the same time. A frame that comes late is drawn at once; after one more than a frame late the turns start
+        afresh rather than hurry to catch up."""
+        pace = self._pace()
+        if not pace:
+            self._next_draw, self._cycle_seconds = None, self._draw_seconds
+            return
+        interval = 1.0 / pace
+        now = time.perf_counter()
+        if self._next_draw is None or now - self._next_draw > interval:
+            self._next_draw = now
+        elif now < self._next_draw:
+            time.sleep(self._next_draw - now)  # precise to well under a millisecond on Windows since Python 3.11
+        self._next_draw += interval
+        self._cycle_seconds = max(self._draw_seconds, interval)
 
     def latest_pair(self):
         with self._lock:
@@ -406,6 +448,7 @@ class LiveSession:
             with self._lock:
                 self._pair = FramePair(self._pair_id, item.image, still, False, track.status.value,
                                        track.landmarks if track.ok else None)
+                self._frame_made()
                 self._consent = check.snapshot(item.captured_at)
         with self._lock:
             self._pair = None  # the frames of the check are not frames of the session
@@ -477,6 +520,7 @@ class LiveSession:
                 pair_id += 1
                 with self._lock:
                     self._pair = FramePair(pair_id, camera, output, live, TrackStatus.OK.value, None)
+                    self._frame_made()
                     self._tracking = {"status": TrackStatus.OK.value, "pose_deg": None, "mouth_open": round(float(got.voice), 3)}
         finally:
             drive.stop()
@@ -516,7 +560,7 @@ class LiveSession:
                     while not newest.wait_until_taken(0.2):
                         if self._stop.is_set() or tracking_over.is_set():
                             return
-                    time.sleep(max(0.0, self._draw_seconds - ahead - 0.004))
+                    time.sleep(max(0.0, self._cycle_seconds - ahead - 0.004))
             except Exception as err:  # handed to the drawing loop, which ends the session with it
                 newest.fail(err)
 
@@ -530,9 +574,12 @@ class LiveSession:
 
     def _draw(self, pipeline, newest, pair_id, status, held, neutrals):
         rt = self._rt
+        self._next_draw = None
         while not self._stop.is_set():
+            self._wait_for_turn()
             got = newest.take(timeout=0.5)
             if got is None:
+                self._next_draw = None
                 continue
             item, tracked, dropped, prepared = got
             drawing = time.perf_counter()
@@ -585,6 +632,7 @@ class LiveSession:
                 self._pair = FramePair(pair_id, item.image, result.output, result.live,
                                        result.status.value, track.landmarks if track.ok else None,
                                        crop_window=result.crop_window)
+                self._frame_made()
                 self._tracking = tracking
 
     def _log_figures(self, now):

@@ -296,7 +296,7 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         camera and output pairs in a live session, camera frames in the enrolment preview."""
         await socket.accept()
         loop = asyncio.get_running_loop()
-        last_frame, last_event, next_status = None, 0, 0.0
+        last_frame, last_event, next_status, seen = None, 0, 0.0, None
         try:
             while True:
                 now = loop.time()
@@ -318,7 +318,9 @@ def create_app(runtime=None, web_dist=WEB_DIST):
                     overlay = pair.kind == "live" and runtime.features.enabled("tracking_overlay")
                     await socket.send_bytes(await asyncio.to_thread(pack_frame, pair, overlay))
                 else:
-                    await asyncio.sleep(0.01)
+                    # Woken by the next frame as soon as it is made, and in time for the next status.
+                    wait = min(STATUS_INTERVAL_S, max(0.0, next_status - loop.time()))
+                    seen = await asyncio.to_thread(runtime.wait_for_frame, seen, wait)
         except (WebSocketDisconnect, RuntimeError):
             pass  # the browser tab closed
 

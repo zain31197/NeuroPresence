@@ -1,12 +1,14 @@
 """The virtual camera: what a meeting application is sent. No camera driver is used: the device is a stand-in."""
 
+import threading
 import time
 
 import cv2
 import numpy as np
 import pytest
 
-from neuropresence.server.virtual_camera import FPS, NOT_RUNNING, SAFE_HEIGHT_SHARE, SIZE, VirtualCamera, card, fit
+from neuropresence.server.virtual_camera import (FPS, KEEPALIVE_SECONDS, NOT_RUNNING, SAFE_HEIGHT_SHARE, SIZE,
+                                                  VirtualCamera, card, fit)
 
 
 class Device:
@@ -15,12 +17,13 @@ class Device:
     device = "Test Camera"
 
     def __init__(self, fail_after=None):
-        self.frames, self.closed, self.fail_after = [], False, fail_after
+        self.frames, self.times, self.closed, self.fail_after = [], [], False, fail_after
 
     def send(self, frame):
         if self.fail_after is not None and len(self.frames) >= self.fail_after:
             raise RuntimeError("the device was taken away")
         self.frames.append(frame.copy())
+        self.times.append(time.perf_counter())
 
     def close(self):
         self.closed = True
@@ -87,10 +90,10 @@ def test_the_card_shows_nothing_of_the_user():
 
 def test_it_is_off_until_switched_on_and_opens_the_device_at_one_size_and_rate():
     cam, device, opened = camera(lambda: None, fps=FPS)
-    assert cam.snapshot() == {"on": False, "device": None, "reason": None, "showing": "nothing", "size": [1280, 720], "fps": 30}
+    assert cam.snapshot() == {"on": False, "device": None, "reason": None, "showing": "nothing", "size": [1280, 720], "fps": 20}
     assert opened == [] and device.frames == []
     state = cam.switch(True)
-    assert opened == [(1280, 720, 30)]
+    assert opened == [(1280, 720, 20)]  # the rate the drawing is held to while it is on, so each frame is picked up once
     assert state["on"] is True and state["device"] == "Test Camera" and state["reason"] is None
     cam.switch(True)  # already on: the device is not opened twice
     assert len(opened) == 1
@@ -168,8 +171,8 @@ def test_fitting_is_done_once_for_a_frame_that_is_sent_again(monkeypatch):
 
 
 def test_it_counts_the_new_pictures_apart_from_the_frames_sent_again():
-    """A meeting gets 30 frames a second however fast the session draws; how many of them were new pictures
-    is what tells a smooth picture from a jerky one, so it is counted on its own."""
+    """On a clock of its own the camera sends at its rate however fast the session draws; how many of the frames
+    were new pictures is what tells a smooth picture from a jerky one, so it is counted on its own."""
     frames = [np.full((360, 640, 3), 10 * i, np.uint8) for i in range(4)]
     shown = {"i": 0}
     cam, device, _ = camera(lambda: frames[shown["i"]])
@@ -181,3 +184,56 @@ def test_it_counts_the_new_pictures_apart_from_the_frames_sent_again():
     assert wait_for(lambda: cam.sent >= 25)
     cam.close()
     assert cam.fresh == 4
+
+
+class Session:
+    """Stands in for the session: makes frames one at a time, and lets a reader wait for the next one."""
+
+    def __init__(self):
+        self.made, self.frame = 0, None
+        self._ready = threading.Condition()
+
+    def make(self, value):
+        with self._ready:
+            self.frame = np.full((360, 640, 3), value, np.uint8)
+            self.made += 1
+            self._ready.notify_all()
+        return time.perf_counter()
+
+    def wait(self, seen, timeout):
+        with self._ready:
+            if self.made == seen:
+                self._ready.wait(timeout)
+            return self.made
+
+
+def test_with_a_session_each_frame_is_sent_once_as_soon_as_it_is_finished():
+    """A second clock between the drawing and the meeting holds frames for one tick or two by turns, and drops a
+    frame when two are finished within one tick (scripts/study_meeting_cadence.py). Waiting on the session instead,
+    each frame goes out once, as it is finished."""
+    session, device = Session(), Device()
+    cam = VirtualCamera(lambda: session.frame, opener=lambda w, h, r: device, wait=session.wait)
+    cam.switch(True)
+    assert wait_for(lambda: len(device.frames) == 1)  # no session yet: the card, once
+    made = []
+    for value in (10, 20, 30, 40, 50, 60):
+        made.append(session.make(value))
+        time.sleep(0.05)
+    cam.close()
+    values = [int(middle(frame).min()) for frame in device.frames[1:-1]]  # between the first card and the last
+    assert values == [10, 20, 30, 40, 50, 60]  # every frame, once, in order: none dropped and none sent twice
+    late = [sent - finished for sent, finished in zip(device.times[1:-1], made)]
+    assert max(late) < 0.03  # sent as soon as it was finished, not on the camera's next tick
+    assert cam.fresh == 6
+
+
+def test_with_a_session_the_last_frame_is_sent_again_only_after_a_pause():
+    session, device = Session(), Device()
+    cam = VirtualCamera(lambda: session.frame, opener=lambda w, h, r: device, wait=session.wait)
+    cam.switch(True)
+    session.make(90)
+    assert wait_for(lambda: len(device.frames) >= 2)
+    time.sleep(2.5 * KEEPALIVE_SECONDS)
+    cam.close()
+    again = sum(1 for frame in device.frames[1:-1] if middle(frame).min() == 90)
+    assert 2 <= again <= 4  # sent, then again about every KEEPALIVE_SECONDS: a reader is not left waiting, nor flooded

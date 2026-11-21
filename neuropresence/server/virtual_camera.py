@@ -13,9 +13,21 @@ Nothing of the user is sent before the consent check has passed. Outside a runni
 the camera shows a plain card. If it showed the enrolled picture instead, anyone at the computer
 could put that picture into a meeting without answering the liveness prompt.
 
-The device has one size and one rate for as long as it is open, as a webcam has: 1280 x 720 at 30
-frames a second. An upright picture is set in the middle with bars beside it. The newest frame
-is sent again until the next is drawn, so the application gets an even feed.
+The device has one size and one rate for as long as it is open, as a webcam has: 1280 x 720 at 20
+frames a second. An upright picture is set in the middle with bars beside it.
+
+Why 20, and why each frame is sent as it is finished (21 November 2026, scripts/study_meeting_cadence.py,
+results/meeting_cadence_study.json). The engine finishes its frames evenly, 45 ms apart to within 1 ms. The
+camera used to be opened at 30 and fed by a clock of its own, 30 times a second, with the newest frame. OBS
+Virtual Camera's filter then picks frames up at the camera's rate on a clock of its own again. A frame drawn at
+22 a second and picked up at 30 stays up for one pick up or two by turns: a third of the frames a meeting got
+(34 and 37% in two runs) were held half again as long as their neighbours, so a steady turn of the head reached
+it in short and long steps (16 ms of step error), and each frame waited 32 ms on average after it was finished.
+Now 3.0 and 0.8% are held long, the step error is 6.7 and 2.0 ms, and the wait is 25 ms. Now each frame is sent once, as soon as it is
+finished, and the camera is opened at the rate the drawing is held to while it is on (session.py: the
+"even_delivery" switch): 20, what the engine reaches during a call in Meet and Zoom (20.0 to 20.2 measured on
+23 October). Each frame is then picked up once, for the same 50 ms. On Linux v4l2loopback hands each frame
+written to the reader, so there the frame sent as it is finished is the whole of it.
 
 Meeting applications crop the camera picture to fill their tiles. A wide tile takes off the top and
 bottom: Google Meet's main tile was 1.97 to 1 in a call on 18 October 2026, and cut the disclosure
@@ -34,7 +46,8 @@ import cv2
 import numpy as np
 
 SIZE = (1280, 720)  # width, height
-FPS = 30
+FPS = 20
+KEEPALIVE_SECONDS = 0.5  # with no new frame for this long, the last one is sent again
 SAFE_HEIGHT_SHARE = 0.84  # the picture stays within this much of the height: whole in a tile up to 2.1 to 1
 
 NOT_RUNNING = "NeuroPresence is not running"
@@ -89,10 +102,15 @@ def open_device(width, height, fps):
 
 class VirtualCamera:
     """Feeds the camera device from `picture`, a function that returns the frame to show now, or None
-    when nothing of the user may be shown. It is called FPS times a second on a thread of its own."""
+    when nothing of the user may be shown.
 
-    def __init__(self, picture, opener=open_device, size=SIZE, fps=FPS):
-        self._picture, self._opener = picture, opener
+    With `wait`, a function wait(seen, timeout) that returns as soon as a frame newer than number `seen` has been
+    made (or the timeout passes) and gives the newest number, every new frame is sent once, as soon as it is
+    finished, and the last one again only after KEEPALIVE_SECONDS without one. Without it, the newest frame is
+    sent FPS times a second on a clock of the camera's own."""
+
+    def __init__(self, picture, opener=open_device, size=SIZE, fps=FPS, wait=None):
+        self._picture, self._opener, self._wait = picture, opener, wait
         self.size, self.fps = size, fps
         self._card = card(size)
         self._lock = threading.Lock()
@@ -155,19 +173,29 @@ class VirtualCamera:
 
     def _run(self, device):
         due = time.perf_counter()
-        last, shown = None, None  # the frame last fitted, and what was sent for it
+        last, shown, sent_at, seen = None, None, None, None  # the frame last fitted, what was sent for it, when, and its number
         try:
             while not self._stop.is_set():
                 frame = self._picture()
                 if frame is None:
+                    new = shown is not self._card
                     shown, last, self.showing = self._card, None, "card"
                 else:
-                    if frame is not last:  # a frame is fitted once, however often it is sent again
+                    new = frame is not last
+                    if new:  # a frame is fitted once, however often it is sent again
                         shown, last = fit(frame, self.size), frame
                         self.fresh += 1
                     self.showing = "session"
-                device.send(shown)
-                self.sent += 1
+                now = time.perf_counter()
+                if self._wait is None or new or sent_at is None or now - sent_at >= KEEPALIVE_SECONDS:
+                    device.send(shown)
+                    self.sent += 1
+                    sent_at = now
+                if self._wait is not None:
+                    # Woken by the next frame as soon as it is finished; a frame made meanwhile is not missed,
+                    # since the wait is for any frame after the number already seen.
+                    seen = self._wait(seen, min(KEEPALIVE_SECONDS, 0.1))
+                    continue
                 due += 1.0 / self.fps
                 wait = due - time.perf_counter()
                 if wait > 0:

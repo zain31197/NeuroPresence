@@ -943,6 +943,40 @@ Only outcomes and figures are kept: no picture from the camera, no face signatur
 
 **Checked.** 13 new engine tests (10 for the database, 3 through the server: a session kept with its figures and how it ended, a refused check kept as such, switches, input and retry count surviving a restart); 469 engine and server tests pass. 7 new web tests for the history's words (durations, days, outcomes, thinning a long session's readings); 78 web tests pass. A recorded clip session on the test server landed in the history with real figures: 466 frames, 22.0 fps, 87 ms, identity 0.88. No page scrolls sideways at 375 pixels. The screenshots were taken from a test database in a scratch folder, not from the project's data.
 
+### 21 November 2026: the tests on every push
+
+**Why.** The final's "code quality and integration readiness" item (10 points on Form 4) asks for continuous integration and linting, and both were missing. It also answers "is it reproducible": a clean machine installs the project from `requirements.txt` alone and runs its tests.
+
+**Built.** `.github/workflows/tests.yml` runs on every push to main and every pull request, and can be started by hand:
+- the engine and server tests on a clean Linux machine (the Kubuntu side) and a clean Windows machine (the demo side), with Python 3.12. Those machines have no graphics card and none of the downloaded models, so PyTorch is installed in its CPU build, onnxruntime in place of onnxruntime-gpu, and TensorRT and Triton not at all, which is what the app itself falls back to without them. The tests that need a model or the GPU skip themselves and print why;
+- the web app's type check, tests and build, with Node 24.
+
+A badge at the top of the README shows the latest result.
+
+**Tried first on a fresh copy here**, without models and with the graphics card hidden: 454 passed, 14 skipped (models not downloaded, or no GPU), and one failed. That one was a real fault: an enrolment's id is the time it was made, to the microsecond, but Python 3.12's clock on Windows moves only about once a millisecond, so two saves close together got the same id. The test had passed on this computer by timing alone, and in use a repeated id would leave the browser showing the old picture, since the id is what makes it fetch the new one. A new id is now never equal to or earlier than the one it replaces, for the picture and for the face; a test freezes the clock to prove it.
+
+**Not yet.** Linting: the linters (ruff for the Python, oxlint for the web app) have to be downloaded, which needs Zain's go ahead. The first run on GitHub happens on the next push; Linux has not been run here, so that run is the first real check of the Kubuntu side.
+
+### 21 November 2026: a smoother picture in the meeting and in the studio
+
+**Asked by Zain.** Product improvement, with the focus on refinement and smoothness.
+
+**Found.** The engine finishes its frames evenly, 45 ms apart to within 1 ms (the even motion work of 11 October). Two things after it undid that:
+- **The virtual camera.** It was opened at 30 frames a second and fed on a clock of its own, 30 times a second, with the newest frame; OBS Virtual Camera's filter then picks frames up at the camera's rate on yet another clock. A frame drawn at 22 a second and picked up at 30 stays up for one pick up or two by turns. Measured with the real engine on a sample clip, the finish times replayed through each way of sending (`scripts/study_meeting_cadence.py`, `results/meeting_cadence_study.json`): a third of the frames a meeting got (34 and 37% in two runs) were held half again as long as their neighbours, the step error (from one new frame shown to the next, the time it stayed up less the time between their being finished) was 16 ms, and each frame waited 32 ms on average after it was finished; two frames finished within one tick meant the first was never sent. This is a likely part of the jerky picture in Meet (17 to 18 new frames a second seen on 18 October, 9.2 on 9 November); the rest is in the meeting application and needs a call.
+- **The Live Studio's stream.** It looked for a new frame every 10 ms, and on Windows such a wait lasts a tick of the system timer: measured, it looked every 16.7 ms, so frames left for the browser 0 to 17 ms after they were made.
+
+**Built.**
+- The virtual camera sends each frame once, as soon as it is finished: it waits on the session for the next frame (`LiveSession.wait_for_frame`), and sends the last one again only after half a second without one. The camera is opened at 20 frames a second.
+- While the virtual camera sends a camera session, the drawing is held to 20 frames a second, so the meeting picks every frame up once and for the same 50 ms. It is what the engine reaches during a call anyway (20.0 to 20.2 in Meet and Zoom, 23 October). A new switch, "Even delivery", on by default; the Live Studio alone still draws as fast as the card allows (22).
+- The studio's stream is woken by each frame as it is made, and the enrolment preview, which has no session, waits with a precise timer.
+- The voice is held back by half the camera's interval (25 ms) on top of the picture's delay, as before in form; the old figure, half of a 30 a second frame, was 16.7 ms where a meeting actually got 31.6 ms, so lips and voice are matched more closely now.
+
+**Measured.** Before and after, as a meeting application gets the frames: step error 15.8 to 6.7 ms and 16.3 to 2.0 ms in two runs, frames held long 34 to 3.0% and 37 to 0.8%, added wait 32 to 25 ms, new frames a second 22 to 20. On Linux, where v4l2loopback hands every frame written to the reader, step error 16 to 0 ms and the wait 16 to 0. Held to 20 the picture is no later: 86.7 ms from camera to output, against 84.6 drawn freely. The difference between the two runs is one frame of the second that came 84 ms after the one before.
+
+**Checked.** 5 new tests and one changed: every frame sent once and in order and within 30 ms of being finished; sent again only after a pause; the drawing held to the camera's rate only while it sends a camera session, and not with the switch off; about 20 new frames a second reach the camera and none twice; the studio stream carries each frame once at the rate it is made; the voice held back by half the camera's interval.
+
+**Not yet.** What the meeting application then does with the frames (its own encoding rate, a busy computer) is not modelled; a Meet call with `logs/server.log` will show what reaches it now. The voice mode draws at 16.5 frames a second, below the camera's 20, and is not held to it.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -957,6 +991,7 @@ Only outcomes and figures are kept: no picture from the camera, no face signatur
 | Motion fidelity measured beside CSIM | CSIM alone can be raised by damping motion |
 | ArcFace and the face cropper run on the CPU | The installed ONNX Runtime GPU build needs CUDA 13 libraries that PyTorch does not ship; the CPU works on every machine |
 | Newest-frame pacing, late frames dropped | Staying current matters more than showing every frame |
+| While it sends a meeting, the drawing held to the virtual camera's 20 frames a second (21 November 2026) | A meeting picks frames up at the camera's rate; 22 frames on a 30 a second camera are shown in short and long steps, 20 on a 20 a second camera evenly. During a call the engine reached only 20 anyway |
 | Web app is local, with a new design | The proposal requires local computation; the earlier prototype was simulated data |
 | No database so far (current position, open to change) | One user, one picture, results as files |
 | The enrolled picture is checked before it is kept, and the limits are set by measurement | Every output frame is made from it; a blurred picture cost 0.07 of identity match and two thirds of the fine detail |
@@ -1009,6 +1044,9 @@ Only outcomes and figures are kept: no picture from the camera, no face signatur
 | In the Live Studio the disclosure mark could not be seen | The monitor's own label for the picture size sat in the same corner, on top of it. Seen in the first screenshot of a live session | The size label of the output moved to the lower right |
 | After someone else had sat at the camera, the session could have stayed on the still picture until "Resume" was pressed | The identity guard had reacted to the output of those seconds and kept its own hold after the consent hold ended. Noticed in the browser run, where the guard had taken a fresh neutral pose in that time | A consent hold starts the identity guard afresh and takes the place of its hold |
 | The first person to try the liveness prompt at a real camera was refused on the first action, and did not know why the picture stood still | Three seconds an action had been set on a stand-in that answers at once; a person has to read the prompt first. One miss ended the check, and nothing on the output picture said that a check was running | Five seconds an action; a missed action is asked for again, twice at most, with a line on what was missing; the output picture says what it is waiting for. Measured again: photographs and sample recordings still never pass |
+| Two enrolments saved close together could get the same id, so the browser kept the old picture; a test failed about at random on a fresh copy | An id is the time to the microsecond, and Python 3.12's clock on Windows moves only about once a millisecond | A new id is never equal to or earlier than the one it replaces; a test freezes the clock (21 November 2026) |
+| A steady head turn reached a meeting in short and long steps | The virtual camera re-timed the evenly drawn frames on a 30 a second clock of its own, and the meeting application picks them up on another: a third of the frames were held half again as long | Each frame sent once as it is finished; the camera opened at 20 and the drawing held to it while it sends: step error 16 to 2 and 7 ms (21 November 2026) |
+| Frames reached the Live Studio 0 to 17 ms after they were made | The stream looked every 10 ms, and on Windows such a wait lasts a 15.6 ms timer tick | The stream is woken by each frame (21 November 2026) |
 
 ## Open items
 
