@@ -324,6 +324,51 @@ export interface Benchmark {
   targets: Partial<Targets>
 }
 
+/** One past session, as the database keeps it (neuropresence/database.py: sessions). Times are seconds since 1970. */
+export interface SessionRecord {
+  id: number
+  started_at: number
+  ended_at: number | null
+  kind: 'camera' | 'voice' | 'sample'
+  input_label: string
+  outcome: 'running' | 'stopped' | 'refused' | 'error' | 'interrupted'
+  message: string | null
+  frames: number
+  seconds: number
+  /** Medians over the session, or null when it never ran live. */
+  fps: number | null
+  delay_ms: number | null
+  render_ms: number | null
+  identity: number | null
+  virtual_camera: boolean
+  voice_in_step: boolean
+}
+
+export interface SessionDetail extends SessionRecord {
+  figures: { at: number; fps: number | null; delay_ms: number | null; render_ms: number | null; identity: number | null; live_share: number | null }[]
+  events: { at: number; level: 'info' | 'warning' | 'error'; message: string }[]
+  checks: { at: number; passed: number; failure: string | null; reason: string | null; lowest_match: number | null }[]
+}
+
+export interface History {
+  sessions: SessionRecord[]
+  totals: { all: { sessions: number; seconds: number }; since: { sessions: number; seconds: number } | null }
+}
+
+/** One line of the security log: a consent check, or a change to the enrolment. */
+export type SecurityItem =
+  | { kind: 'check'; at: number; purpose: 'session' | 'verify'; passed: boolean; failure: string | null; reason: string | null; lowest_match: number | null; session_id: number | null }
+  | { kind: 'enrolment'; at: number; action: 'face_verified' | 'pose_registered' | 'picture_enrolled' | 'picture_removed' | 'face_forgotten'; detail: string | null }
+
+export interface Security {
+  timeline: SecurityItem[]
+  attempts: { failures: number; free: number; wait_seconds: number }
+}
+
+export interface Preferences {
+  input?: string
+}
+
 /** How fast a live session runs, as the engine states it (server/capabilities.py: LIVE). */
 export interface LiveFigures {
   fps: [number, number]
@@ -475,6 +520,13 @@ export const api = {
   capabilities: () => request<Capabilities>('/api/capabilities'),
   latestBenchmark: () => request<Benchmark>('/api/benchmarks/latest'),
   benchmarks: () => request<Benchmarks>('/api/benchmarks'),
+  history: (limit = 100) => request<History>(`/api/history?limit=${limit}`),
+  historySession: (id: number) => request<SessionDetail>(`/api/history/${id}`),
+  clearHistory: () => request<History>('/api/history', { method: 'DELETE' }),
+  security: () => request<Security>('/api/security'),
+  clearSecurity: () => request<Security>('/api/security', { method: 'DELETE' }),
+  preferences: () => request<Preferences>('/api/preferences'),
+  setPreferences: (changes: Preferences) => request<Preferences>('/api/preferences', { method: 'PATCH', ...json(changes) }),
   system: (internet = true) => request<SystemReport>(`/api/system?internet=${internet}`),
   /** Opens the camera for two seconds and counts the pictures it sends. Refused while a session or the Enrolment camera has it. */
   testCamera: (input: string) => request<SystemCheck>('/api/system/camera', { method: 'POST', ...json({ input }) }),

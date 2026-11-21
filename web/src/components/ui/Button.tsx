@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { cn } from '../../lib/cn'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -19,6 +19,8 @@ const sizes: Record<Size, string> = {
 }
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** React 19 hands a ref to a function component as a prop; it reaches the button through the spread below. */
+  ref?: Ref<HTMLButtonElement>
   variant?: Variant
   size?: Size
   icon?: ReactNode

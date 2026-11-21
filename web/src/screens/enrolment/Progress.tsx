@@ -60,7 +60,7 @@ export function Progress({ face, record }: { face: FaceIdentity | null; record: 
               </span>
               {index === STEPS.length - 1 && state === 'current' ? (
                 // Everything is in place: the last step is where to go next.
-                <Link to="/studio" className="mt-2 text-[12.5px] leading-tight font-semibold text-accent-700 underline-offset-4 hover:underline">
+                <Link to="/studio/live" className="mt-2 text-[12.5px] leading-tight font-semibold text-accent-700 underline-offset-4 hover:underline">
                   {title}
                 </Link>
               ) : (

@@ -531,7 +531,7 @@ function EnrolledPanel({ record, face, limits, work, disabled, onRemove, onForge
         )}
 
         <div className="mt-auto grid gap-2 pt-5">
-          <Link to="/studio" className={buttonClass('primary', 'md', 'w-full')}>
+          <Link to="/studio/live" className={buttonClass('primary', 'md', 'w-full')}>
             Go to Live Studio
             <ArrowRight className="size-3.5" />
           </Link>

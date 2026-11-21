@@ -19,7 +19,14 @@ interface Props {
   /** What the chart shows, for screen readers and the table. */
   title: string
   height?: number
+  /** The words under the two ends of the axis, and in the table. Default: the run's date. */
+  xLabel?: (point: TrendPoint) => string
+  /** What one point is, in the plural, for screen readers: "runs" by default, "readings" over a session. */
+  noun?: string
 }
+
+// Past this many points a marker on each would be clutter: only the one pointed at is drawn.
+const MARKERS_UP_TO = 36
 
 const PAD = { top: 18, right: 14, bottom: 26, left: 40 }
 
@@ -27,7 +34,7 @@ const PAD = { top: 18, right: 14, bottom: 26, left: 40 }
  * One figure across the saved benchmark runs, oldest to newest: one line, a marker per run, the target as a
  * dashed threshold. The line draws itself in the first time it is seen. Hover or arrow keys show each run.
  */
-export function TrendChart({ points, target, better, format, title, height = 190 }: Props) {
+export function TrendChart({ points, target, better, format, title, height = 190, xLabel, noun = 'runs' }: Props) {
   const frame = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   const [active, setActive] = useState<number | null>(null)
@@ -62,6 +69,8 @@ export function TrendChart({ points, target, better, format, title, height = 190
     else if (event.key === 'Escape') setActive(null)
   }
   const shown = active === null ? null : points[active]
+  const endLabel = xLabel ?? ((point: TrendPoint) => point.date.slice(5, 10))
+  const markers = points.length <= MARKERS_UP_TO
 
   return (
     <div ref={frame} className="relative">
@@ -70,7 +79,7 @@ export function TrendChart({ points, target, better, format, title, height = 190
           width={width}
           height={height}
           role="img"
-          aria-label={`${title}, ${points.length} runs`}
+          aria-label={`${title}, ${points.length} ${noun}`}
           tabIndex={0}
           onKeyDown={keys}
           onBlur={() => setActive(null)}
@@ -126,9 +135,9 @@ export function TrendChart({ points, target, better, format, title, height = 190
           />
           {active !== null && <line x1={x(active)} x2={x(active)} y1={PAD.top} y2={PAD.top + innerHeight} stroke="var(--color-ink-200)" />}
           {points.map((point, i) =>
-            typeof point.value === 'number' ? (
+            typeof point.value === 'number' && (markers || active === i) ? (
               <motion.circle
-                key={`${point.label}-${point.date}`}
+                key={`${point.label}-${point.date}-${i}`}
                 cx={x(i)}
                 cy={y(point.value)}
                 r={active === i ? 5.5 : 4}
@@ -138,17 +147,17 @@ export function TrendChart({ points, target, better, format, title, height = 190
                 initial={{ opacity: 0, scale: 0.4 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.35, delay: 0.25 + (i / Math.max(1, points.length)) * 0.9 }}
+                transition={markers ? { duration: 0.35, delay: 0.25 + (i / Math.max(1, points.length)) * 0.9 } : { duration: 0.12 }}
               />
             ) : null,
           )}
           {points.length > 0 && (
             <>
               <text x={x(0)} y={height - 6} textAnchor="start" className="fill-ink-400 font-mono text-[10px]">
-                {points[0].date.slice(5, 10)}
+                {endLabel(points[0])}
               </text>
               <text x={x(points.length - 1)} y={height - 6} textAnchor="end" className="fill-ink-400 font-mono text-[10px]">
-                {points[points.length - 1].date.slice(5, 10)}
+                {endLabel(points[points.length - 1])}
               </text>
             </>
           )}
@@ -161,7 +170,8 @@ export function TrendChart({ points, target, better, format, title, height = 190
         >
           <p className="font-semibold whitespace-nowrap text-ink-950">{shown.label}</p>
           <p className="mt-0.5 font-mono whitespace-nowrap text-ink-600 tabular-nums">
-            {format(shown.value)} · {shown.date.slice(0, 10)}
+            {format(shown.value)}
+            {xLabel ? '' : ` · ${shown.date.slice(0, 10)}`}
           </p>
         </div>
       )}
@@ -179,7 +189,7 @@ export function TrendChart({ points, target, better, format, title, height = 190
             {points.map((point) => (
               <tr key={`${point.label}-${point.date}`}>
                 <td>{point.label}</td>
-                <td>{point.date.slice(0, 10)}</td>
+                <td>{xLabel ? xLabel(point) : point.date.slice(0, 10)}</td>
                 <td>{typeof point.value === 'number' ? format(point.value) : 'not measured'}</td>
               </tr>
             ))}

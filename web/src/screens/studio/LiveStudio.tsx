@@ -1,18 +1,19 @@
-import { ArrowRight, Clapperboard, Mic, Play, RotateCcw, Square, Video } from 'lucide-react'
+import { ArrowRight, Play, RotateCcw, Square } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, buttonClass, Spinner } from '../../components/ui/Button'
 import { Notice } from '../../components/ui/Notice'
 import { Pill } from '../../components/ui/Pill'
-import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { api, ApiError, type Benchmark, type IdentityGuard, type Session } from '../../lib/api'
 import { clock } from '../../lib/format'
+import { usePreferredInput } from '../../lib/preferences'
 import { useStudio } from '../../lib/studio'
 import { EnrolledPicture } from './EnrolledPicture'
 import { EventsPanel } from './EventsPanel'
 import { FeatureSwitches } from './FeatureSwitches'
 import { identityHoldText } from './holds'
+import { InputSelect } from './InputSelect'
 import { LatencyBreakdown } from './LatencyBreakdown'
 import { MetricTiles } from './MetricTiles'
 import { Monitors } from './Monitors'
@@ -91,7 +92,8 @@ function IdentityHold({ guard, busy, onResume, onStay }: { guard: IdentityGuard 
 export function LiveStudio() {
   const { status, connection } = useStudio()
   const toast = useToast()
-  const [input, setInput] = useState('camera:0')
+  // The input last used is offered again, also after a restart (the engine keeps it in its settings).
+  const [input, setInput] = usePreferredInput(status?.inputs ?? [])
   const [pending, setPending] = useState(false)
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null)
 
@@ -142,32 +144,7 @@ export function LiveStudio() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select
-            label="Input"
-            value={input}
-            onValueChange={setInput}
-            disabled={active || inputs.length === 0}
-            groups={[
-              {
-                title: 'Cameras',
-                options: inputs
-                  .filter((option) => option.kind === 'camera')
-                  .map((option) => ({ value: option.id, label: option.label, icon: <Video className="size-3.5 text-ink-500" /> })),
-              },
-              {
-                title: 'Camera off',
-                options: inputs
-                  .filter((option) => option.kind === 'voice')
-                  .map((option) => ({ value: option.id, label: option.label, icon: <Mic className="size-3.5 text-ink-500" /> })),
-              },
-              {
-                title: 'Recorded clips',
-                options: inputs
-                  .filter((option) => option.kind === 'sample')
-                  .map((option) => ({ value: option.id, label: option.label, icon: <Clapperboard className="size-3.5 text-ink-500" /> })),
-              },
-            ].filter((group) => group.options.length > 0)}
-          />
+          <InputSelect value={input} onValueChange={setInput} inputs={inputs} disabled={active} />
           {active ? (
             <Button variant="danger" icon={<Square className="size-3.5 fill-current" />} busy={pending} onClick={() => act(api.stopSession)}>
               Stop session

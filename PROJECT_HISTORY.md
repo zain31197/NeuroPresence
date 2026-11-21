@@ -917,11 +917,38 @@ Zain made a 60 second launch video in Remotion from a brief written for it (`pos
 
 **Checked.** The engine serves the file in parts (206, so the video can be wound on and back); in a browser it played from the click, 1920 x 1080 with sound; with the file taken away the section was gone; no page scrolls sideways at 375 pixels. 71 web tests pass.
 
+### 21 November 2026: a database, and the Overview, Sessions and Security screens
+
+**Asked by Zain.** There was no database: use PostgreSQL or whatever is best, according to what the system does, with the user's convenience first, and a modern interface to go with it.
+
+**Chosen: SQLite, not PostgreSQL.** The system runs on one computer for one person, and the demo laptop and the Kubuntu machine should need nothing installed: SQLite is part of Python, the database is one file (`data/neuropresence.db`, git ignored with the rest of `data/`), and it works offline. PostgreSQL would add a server to install, start and keep a password for on every machine, for no gain at this size. If the system ever serves several people from one machine, the tables move across unchanged.
+
+**What is kept** (`neuropresence/database.py`, six tables):
+- `sessions`: each session, what drove it (camera, voice with the camera off, or a recorded clip), when it started and ended, how it ended (completed, check not passed, stopped on a problem, or interrupted when the engine stopped under it), frames drawn, whether the meeting was sent the picture and the voice, and its typical figures (the medians of its readings).
+- `session_figures`: a reading every two seconds while a session runs (frame rate, delay, drawing time, identity match, share of live frames), for its charts afterwards.
+- `events`: the event list, each event tied to the session it happened in.
+- `consent_checks`: every liveness check, what it was for (a session or verifying a face), whether it passed, why not, and the lowest face match.
+- `enrolment_history`: face verified, each pose registered, picture enrolled or removed, face forgotten.
+- `settings`: the pipeline switches and the input last used.
+
+Only outcomes and figures are kept: no picture from the camera, no face signature, no sound. Writing never slows a session: one background thread does all the writing in batches, and a test session took 5.99 s with and without it. The schema carries its version (`PRAGMA user_version`), so later changes migrate a database in place. Sessions still marked running when the engine starts again are closed as interrupted.
+
+**What it fixed.** The retry limit on the liveness check was kept in memory, so a restart of the engine cleared it, a weakness the report had to state. It is now read back from `consent_checks` when the engine starts. The pipeline switches and the chosen input also come back after a restart.
+
+**The screens.**
+- **Overview**, the new home of the studio (`/studio`): a greeting, the next session (the enrolled picture, the four enrolment steps, and either what is missing or the input and a "Go live" button that starts the session and opens the Live Studio; while one runs, how long it has been live), whether this computer is ready (the System checks without the internet ones, kept for five minutes), four figures for the week (sessions, time live, typical frame rate, checks passed), the five latest sessions and the latest security entries.
+- **Sessions**: every session grouped by day, filtered by kind, with its outcome, time, length and typical figures. One opens in a panel from the right: its figures against the targets, the readings drawn over the session, its consent check, and what happened in it, minute by minute. A running session fills in as it goes. "Clear history" asks once, in place.
+- **Security**: the retry limit (three slots, the wait counting down, the rule in words), the checks of the week, what is enrolled now, and a timeline of every check and enrolment change, grouped by day, each check linked to its session. "Clear log" asks once.
+- The Live Studio moved to `/studio/live` and offers the input used last. The sidebar has three groups: Studio (Overview, Enrolment, Live Studio), History (Sessions, Security), Insight (Benchmarks, System).
+
+**Checked.** 13 new engine tests (10 for the database, 3 through the server: a session kept with its figures and how it ended, a refused check kept as such, switches, input and retry count surviving a restart); 469 engine and server tests pass. 7 new web tests for the history's words (durations, days, outcomes, thinning a long session's readings); 78 web tests pass. A recorded clip session on the test server landed in the history with real figures: 466 frames, 22.0 fps, 87 ms, identity 0.88. No page scrolls sideways at 375 pixels. The screenshots were taken from a test database in a scratch folder, not from the project's data.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
 |---|---|
 | Public repository; proposal and rubric PDFs kept out | The PDFs contain personal details |
+| SQLite for the database, not PostgreSQL (21 November 2026) | One person on one computer, offline: SQLite is part of Python and is one file, so the demo laptop and Kubuntu install nothing; PostgreSQL would add a server and a password to every machine for no gain at this size |
 | Windows and Kubuntu both supported | Team members own different machines; the proposal names Kubuntu |
 | LivePortrait fetched by a setup script at a pinned commit; weights not in the repository | Reproducible, and the weights carry their own licence |
 | Output is the full source frame with the face blended in | Stable background, no black borders, same shape as a webcam picture |

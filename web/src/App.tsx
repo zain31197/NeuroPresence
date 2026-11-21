@@ -7,6 +7,9 @@ import { StudioProvider } from './lib/studio'
 import { Benchmarks } from './screens/benchmarks/Benchmarks'
 import { Enrolment } from './screens/enrolment/Enrolment'
 import { Landing } from './screens/landing/Landing'
+import { Overview } from './screens/overview/Overview'
+import { Security } from './screens/security/Security'
+import { Sessions } from './screens/sessions/Sessions'
 import { LiveStudio } from './screens/studio/LiveStudio'
 import { System } from './screens/system/System'
 
@@ -54,8 +57,11 @@ const router = createBrowserRouter([
     element: <Studio />,
     errorElement: <Crash />,
     children: [
-      { index: true, element: <LiveStudio /> },
+      { index: true, element: <Overview /> },
+      { path: 'live', element: <LiveStudio /> },
       { path: 'enrolment', element: <Enrolment /> },
+      { path: 'sessions', element: <Sessions /> },
+      { path: 'security', element: <Security /> },
       { path: 'benchmarks', element: <Benchmarks /> },
       { path: 'system', element: <System /> },
     ],

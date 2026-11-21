@@ -1,4 +1,4 @@
-import { ArrowLeft, ChartNoAxesColumn, Lock, MonitorPlay, Server, UserRound, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, ChartNoAxesColumn, History, LayoutDashboard, Lock, MonitorPlay, Server, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Logo } from '../components/Logo'
@@ -6,16 +6,35 @@ import { DURATION, EASE_OUT } from '../components/motion'
 import { cn } from '../lib/cn'
 import { useStudio, type Connection } from '../lib/studio'
 
-// In the order a person goes through them: a picture first, then a session that animates it.
-const SCREENS: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: '/studio/enrolment', label: 'Enrolment', icon: UserRound },
-  { to: '/studio', label: 'Live Studio', icon: MonitorPlay },
-]
+type Screen = { to: string; label: string; icon: LucideIcon }
 
-// How the system measures up, and whether this computer is ready for it.
-const INSIGHT: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: '/studio/benchmarks', label: 'Benchmarks', icon: ChartNoAxesColumn },
-  { to: '/studio/system', label: 'System', icon: Server },
+// The studio's sidebar, in three groups. The first in the order a person goes through it: where things stand,
+// a picture, then a session that animates it.
+const GROUPS: { title: string; screens: Screen[] }[] = [
+  {
+    title: 'Studio',
+    screens: [
+      { to: '/studio', label: 'Overview', icon: LayoutDashboard },
+      { to: '/studio/enrolment', label: 'Enrolment', icon: UserRound },
+      { to: '/studio/live', label: 'Live Studio', icon: MonitorPlay },
+    ],
+  },
+  // What has happened, kept in the engine's database.
+  {
+    title: 'History',
+    screens: [
+      { to: '/studio/sessions', label: 'Sessions', icon: History },
+      { to: '/studio/security', label: 'Security', icon: ShieldCheck },
+    ],
+  },
+  // How the system measures up, and whether this computer is ready for it.
+  {
+    title: 'Insight',
+    screens: [
+      { to: '/studio/benchmarks', label: 'Benchmarks', icon: ChartNoAxesColumn },
+      { to: '/studio/system', label: 'System', icon: Server },
+    ],
+  },
 ]
 
 function SideLink({ to, label, icon: Icon, badge }: { to: string; label: string; icon: LucideIcon; badge?: string | null }) {
@@ -92,23 +111,18 @@ export function AppShell() {
         </Link>
 
         <nav className="flex-1 overflow-y-auto px-3 pt-2" aria-label="Studio">
-          <p className="label-caps px-2.5 pb-2 text-ink-400">Studio</p>
-          <ul className="grid gap-0.5">
-            {SCREENS.map((screen) => (
-              <li key={screen.to}>
-                <SideLink {...screen} badge={screen.to === startHere ? 'Start here' : null} />
-              </li>
-            ))}
-          </ul>
-
-          <p className="label-caps px-2.5 pt-6 pb-2 text-ink-400">Insight</p>
-          <ul className="grid gap-0.5">
-            {INSIGHT.map((screen) => (
-              <li key={screen.to}>
-                <SideLink {...screen} />
-              </li>
-            ))}
-          </ul>
+          {GROUPS.map((group, index) => (
+            <div key={group.title}>
+              <p className={cn('label-caps px-2.5 pb-2 text-ink-400', index > 0 && 'pt-6')}>{group.title}</p>
+              <ul className="grid gap-0.5">
+                {group.screens.map((screen) => (
+                  <li key={screen.to}>
+                    <SideLink {...screen} badge={screen.to === startHere ? 'Start here' : null} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <div className="grid gap-3 border-t border-line p-4">
@@ -134,7 +148,7 @@ export function AppShell() {
           </div>
           {/* Without the sidebar, the screens are reached from here. */}
           <nav className="flex gap-1 overflow-x-auto px-3 pb-2" aria-label="Studio">
-            {[...SCREENS, ...INSIGHT].map(({ to, label, icon: Icon }) => (
+            {GROUPS.flatMap((group) => group.screens).map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
