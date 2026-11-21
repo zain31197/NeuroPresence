@@ -1,25 +1,19 @@
 import { Fingerprint, ScanFace, ShieldCheck, Video } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { ReactNode } from 'react'
+import { GlowBorder } from '../../components/fx'
 import { CountUp, EASE_OUT } from '../../components/motion'
-import type { Benchmark } from '../../lib/api'
+import type { LiveFigures } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { FaceMeshCanvas } from './FaceMeshCanvas'
 
 /**
  * The idea in one picture, drawn as the product itself: a Live Studio window in which the face in front of
  * the camera drives the enrolled picture. The faces are an illustration; the figures under them are the
- * latest benchmark saved on this computer, or nothing when there is none.
+ * engine's own statement of a live session (capabilities.py: LIVE) and the identity match measured during
+ * calls, or nothing when the engine cannot be reached.
  */
-export function HeroVisual({ benchmark }: { benchmark: Benchmark | null }) {
-  const summary = benchmark?.summary
-  const readouts = [
-    { value: summary?.fps, format: (v: number) => v.toFixed(1), unit: 'fps', label: 'frame rate' },
-    { value: summary?.pipeline_ms, format: (v: number) => v.toFixed(0), unit: 'ms', label: 'per frame' },
-    { value: summary?.csim_self_reenactment, format: (v: number) => v.toFixed(2), unit: 'CSIM', label: 'identity match' },
-  ].filter((readout): readout is typeof readout & { value: number } => typeof readout.value === 'number')
-  const identity = summary?.csim_self_reenactment
-
+export function HeroVisual({ live, identity }: { live: LiveFigures | null; identity: number | null }) {
   return (
     <div className="relative">
       {/* A soft ultramarine glow behind the window, so it sits in light rather than on the page. */}
@@ -27,7 +21,8 @@ export function HeroVisual({ benchmark }: { benchmark: Benchmark | null }) {
         aria-hidden="true"
         className="pointer-events-none absolute -inset-x-8 -inset-y-10 rounded-[48px] bg-[radial-gradient(60%_55%_at_60%_45%,rgb(80_98_240/0.22),transparent_70%)] blur-2xl"
       />
-      <figure className="relative overflow-hidden rounded-[22px] border border-line bg-surface shadow-hero">
+      <GlowBorder className="shadow-hero" radius={22}>
+      <figure className="relative overflow-hidden rounded-[22px] bg-surface">
         <div className="flex h-10 items-center gap-3 border-b border-line bg-ink-50/70 px-4">
           <span className="flex gap-1.5" aria-hidden="true">
             {[0, 1, 2].map((dot) => (
@@ -74,19 +69,21 @@ export function HeroVisual({ benchmark }: { benchmark: Benchmark | null }) {
         </div>
 
         <figcaption className="border-t border-line px-4 pt-3 pb-3.5">
-          {readouts.length > 0 ? (
+          {live ? (
             <>
-              <p className="label-caps text-ink-400">Latest benchmark on this computer</p>
+              <p className="label-caps text-ink-400">A live session on this computer</p>
               <dl className="mt-2.5 grid grid-cols-3 divide-x divide-line">
-                {readouts.map((readout) => (
-                  <div key={readout.label} className="px-3 first:pl-0 last:pr-0">
-                    <dd className="flex items-baseline gap-1">
-                      <CountUp value={readout.value} format={readout.format} className="display text-[21px] leading-none font-semibold text-ink-950" />
-                      <span className="text-[12px] font-medium text-ink-500">{readout.unit}</span>
-                    </dd>
-                    <dt className="mt-1 text-[12px] text-ink-500">{readout.label}</dt>
-                  </div>
-                ))}
+                <Readout label="frame rate" unit="fps">
+                  <CountUp value={live.fps[0]} format={(v) => v.toFixed(0)} />–<CountUp value={live.fps[1]} format={(v) => v.toFixed(0)} />
+                </Readout>
+                <Readout label="camera to picture" unit="ms">
+                  <CountUp value={live.delay_ms} format={(v) => v.toFixed(0)} />
+                </Readout>
+                {typeof identity === 'number' && (
+                  <Readout label="identity match" unit="CSIM">
+                    <CountUp value={identity} format={(v) => v.toFixed(2)} />
+                  </Readout>
+                )}
               </dl>
             </>
           ) : (
@@ -94,6 +91,7 @@ export function HeroVisual({ benchmark }: { benchmark: Benchmark | null }) {
           )}
         </figcaption>
       </figure>
+      </GlowBorder>
 
       {/* What happens around the picture, as the Live Studio reports it. Hidden on narrow screens, where they would cover it. */}
       <Floating className="bottom-[34%] -left-9" delay={0.5} drift={5.5}>
@@ -114,6 +112,18 @@ export function HeroVisual({ benchmark }: { benchmark: Benchmark | null }) {
         <Video className="size-4 text-ink-700" />
         Sent to Google Meet
       </Floating>
+    </div>
+  )
+}
+
+function Readout({ label, unit, children }: { label: string; unit: string; children: ReactNode }) {
+  return (
+    <div className="px-3 first:pl-0 last:pr-0">
+      <dd className="flex items-baseline gap-1">
+        <span className="display text-[21px] leading-none font-semibold text-ink-950 tabular-nums">{children}</span>
+        <span className="text-[12px] font-medium text-ink-500">{unit}</span>
+      </dd>
+      <dt className="mt-1 text-[12px] text-ink-500">{label}</dt>
     </div>
   )
 }

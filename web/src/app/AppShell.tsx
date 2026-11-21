@@ -75,8 +75,17 @@ export function AppShell() {
   const startHere = status && status.enrolment.record === null ? '/studio/enrolment' : null
   const { pathname } = useLocation()
 
+  const onAir = status?.session.state === 'running'
+
   return (
     <div className="flex min-h-screen">
+      {/* On air: while a session runs, a band of light travels along the top of every studio screen. */}
+      {onAir && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-x-0 top-0 z-50 h-[2px] animate-onair bg-[linear-gradient(90deg,transparent,var(--color-live),var(--color-accent-500),transparent)] bg-[length:45%_100%] bg-no-repeat"
+        />
+      )}
       <aside className="sticky top-0 hidden h-screen w-[244px] shrink-0 flex-col border-r border-line bg-surface lg:flex">
         <Link to="/" className="flex h-16 items-center px-5" aria-label="NeuroPresence home">
           <Logo />

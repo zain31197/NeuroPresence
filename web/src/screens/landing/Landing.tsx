@@ -1,13 +1,15 @@
-import { ArrowRight, CalendarClock, Cpu, Fingerprint, HeartPulse, Lock, Tag, Video, Webcam } from 'lucide-react'
+import { Activity, ArrowRight, AudioLines, CalendarClock, Cast, Cpu, Fingerprint, Gauge, HeartPulse, Lock, ScanFace, ShieldCheck, Sparkles, Tag, Timer, Video, Webcam } from 'lucide-react'
 import { motion, useMotionValueEvent, useScroll } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { LiveDot, Marquee, SpotlightCard } from '../../components/fx'
 import { Logo } from '../../components/Logo'
 import { CountUp, EASE_OUT, Reveal, Stagger, StaggerItem, WordsIn } from '../../components/motion'
 import { Pill, type Tone } from '../../components/ui/Pill'
-import { api, type Benchmark, type PipelineStage } from '../../lib/api'
+import { api, type Benchmark, type CallMeasurement, type LiveFigures, type PipelineStage } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { longDate } from '../../lib/format'
+import { Bento } from './Bento'
 import { HeroVisual } from './HeroVisual'
 import { Modes } from './Modes'
 import { PipelineFlow } from './PipelineFlow'
@@ -28,6 +30,8 @@ export function Landing() {
   const [stages, setStages] = useState<PipelineStage[] | null>(null)
   const [enrolment, setEnrolment] = useState<PipelineStage | null>(null)
   const [modes, setModes] = useState<PipelineStage[] | null>(null)
+  const [live, setLive] = useState<LiveFigures | null>(null)
+  const [calls, setCalls] = useState<CallMeasurement | null>(null)
 
   useEffect(() => {
     document.title = 'NeuroPresence'
@@ -38,23 +42,31 @@ export function Landing() {
         setStages(reply.stages)
         setEnrolment(reply.enrolment ?? null)
         setModes(reply.modes ?? null)
+        setLive(reply.live ?? null)
       },
       () => setStages(null),
     )
+    api.benchmarks().then((reply) => setCalls(reply.calls), () => setCalls(null))
   }, [])
+
+  // The identity match during real calls, the median of the meeting phases; else the benchmark's.
+  const meetings = calls?.phases.filter((phase) => phase.key !== 'baseline' && phase.figures.identity) ?? []
+  const identity = meetings.length
+    ? meetings.reduce((sum, phase) => sum + phase.figures.identity!.median, 0) / meetings.length
+    : benchmark?.summary.csim_self_reenactment ?? null
 
   return (
     <div className="bg-surface">
       <Header />
       <main>
-        <Hero benchmark={benchmark} />
+        <Hero live={live} identity={identity} />
         <WorksWith />
+        <Figures live={live} identity={identity} calls={calls} />
         <Why />
         <DrivenBy modes={modes} />
         <HowItWorks stages={stages} enrolment={enrolment} />
-        <Results benchmark={benchmark} />
-        <Safeguards stages={stages} />
-        <Foundations />
+        <Results benchmark={benchmark} live={live} />
+        <Safeguards />
         <Closing />
       </main>
       <Footer />
@@ -90,6 +102,7 @@ function Header() {
   const { scrollY } = useScroll()
   const [scrolled, setScrolled] = useState(false)
   useMotionValueEvent(scrollY, 'change', (y) => setScrolled(y > 12))
+  const online = useEngineOnline()
 
   return (
     <header
@@ -114,10 +127,18 @@ function Header() {
             </a>
           ))}
         </nav>
-        <Link to="/studio" className={cn(primaryLink, 'h-9 px-3.5 text-[13.5px]')}>
-          Open the studio
-          <ArrowRight className={cn('size-3.5', nudge)} />
-        </Link>
+        <div className="flex items-center gap-3">
+          {online !== null && (
+            <span className="hidden items-center gap-2 rounded-full border border-line bg-surface/80 px-2.5 py-1 text-[12px] font-medium text-ink-700 backdrop-blur sm:inline-flex">
+              <LiveDot on={online} />
+              {online ? 'Engine online' : 'Engine offline'}
+            </span>
+          )}
+          <Link to="/studio" className={cn(primaryLink, 'h-9 px-3.5 text-[13.5px]')}>
+            Open the studio
+            <ArrowRight className={cn('size-3.5', nudge)} />
+          </Link>
+        </div>
       </Shell>
     </header>
   )
@@ -125,7 +146,26 @@ function Header() {
 
 /* -------------------------------------------------------------------- hero */
 
-function Hero({ benchmark }: { benchmark: Benchmark | null }) {
+/** Whether the engine answers, asked every few seconds; null until the first answer. */
+function useEngineOnline() {
+  const [online, setOnline] = useState<boolean | null>(null)
+  useEffect(() => {
+    let stopped = false
+    const ask = () =>
+      fetch('/api/status', { cache: 'no-store' })
+        .then((reply) => !stopped && setOnline(reply.ok))
+        .catch(() => !stopped && setOnline(false))
+    ask()
+    const timer = window.setInterval(ask, 6000)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [])
+  return online
+}
+
+function Hero({ live, identity }: { live: LiveFigures | null; identity: number | null }) {
   return (
     <section className="relative -mt-16 overflow-hidden border-b border-line pt-16">
       <Aurora />
@@ -202,7 +242,7 @@ function Hero({ benchmark }: { benchmark: Benchmark | null }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.9, ease: EASE_OUT, delay: 0.2 }}
         >
-          <HeroVisual benchmark={benchmark} />
+          <HeroVisual live={live} identity={identity} />
         </motion.div>
       </Shell>
     </section>
@@ -229,6 +269,20 @@ function Aurora() {
 
 /* -------------------------------------------------------------- works with */
 
+const FEATURES: [typeof Cpu, string][] = [
+  [ShieldCheck, 'Liveness check'],
+  [Fingerprint, 'Identity guard'],
+  [Tag, 'AI reenacted mark'],
+  [AudioLines, 'Camera-off voice mode'],
+  [Cast, 'Virtual camera'],
+  [Activity, 'Voice in step'],
+  [Gauge, 'TensorRT on your GPU'],
+  [ScanFace, '478-point face tracking'],
+  [Sparkles, 'Even motion'],
+  [Timer, 'Delay watchdog'],
+  [Lock, 'Nothing leaves your computer'],
+]
+
 function WorksWith() {
   return (
     <section className="border-b border-line bg-canvas/60 py-8">
@@ -242,6 +296,55 @@ function WorksWith() {
             </StaggerItem>
           ))}
         </Stagger>
+      </Shell>
+      <Marquee className="mt-6">
+        {FEATURES.map(([Icon, label]) => (
+          <span key={label} className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap text-ink-700 shadow-control">
+            <Icon className="size-3.5 text-accent-600" strokeWidth={2} />
+            {label}
+          </span>
+        ))}
+      </Marquee>
+    </section>
+  )
+}
+
+/* ----------------------------------------------------------------- figures */
+
+/** The live figures as a band of large numbers, from the engine's own statement and the measured calls. */
+function Figures({ live, identity, calls }: { live: LiveFigures | null; identity: number | null; calls: CallMeasurement | null }) {
+  if (!live) return null
+  const items: { value: ReactNode; label: string; note: string }[] = [
+    {
+      value: (
+        <>
+          <CountUp value={live.fps[0]} format={(v) => v.toFixed(0)} />
+          <span className="text-ink-300">–</span>
+          <CountUp value={live.fps[1]} format={(v) => v.toFixed(0)} />
+        </>
+      ),
+      label: 'frames a second',
+      note: 'in a live session',
+    },
+    { value: <CountUp value={live.delay_ms} format={(v) => v.toFixed(0)} />, label: 'ms', note: 'from camera to picture' },
+    ...(identity !== null
+      ? [{ value: <CountUp value={identity} format={(v) => v.toFixed(2)} />, label: 'identity match', note: calls ? 'during real calls' : 'on the benchmark' }]
+      : []),
+    { value: <CountUp value={2} format={(v) => v.toFixed(0)} />, label: 'ways to drive it', note: 'your face, or your voice' },
+  ]
+  return (
+    <section className="border-b border-line py-14">
+      <Shell>
+        <Stagger className="grid grid-cols-2 gap-y-10 lg:grid-cols-4">
+          {items.map((item) => (
+            <StaggerItem key={item.note} className="border-l border-line pl-6 max-lg:[&:nth-child(odd)]:border-l-0 max-lg:[&:nth-child(odd)]:pl-0 lg:first:border-l-0 lg:first:pl-0">
+              <p className="display flex items-baseline gap-1 text-[clamp(36px,4.4vw,54px)] leading-none font-semibold text-ink-950">{item.value}</p>
+              <p className="mt-3 text-[14.5px] font-semibold text-ink-800">{item.label}</p>
+              <p className="mt-0.5 text-[13px] text-ink-500">{item.note}</p>
+            </StaggerItem>
+          ))}
+        </Stagger>
+        <p className="mt-8 text-[12.5px] text-ink-400">{live.measured}</p>
       </Shell>
     </section>
   )
@@ -277,15 +380,16 @@ function Why() {
         </SectionHeading>
         <Stagger className="mt-12 grid gap-4 md:grid-cols-3">
           {REASONS.map(({ icon: Icon, title, text }) => (
-            <StaggerItem
-              key={title}
-              className="group rounded-card border border-line bg-surface p-7 shadow-card transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift"
-            >
-              <span className="grid size-10 place-items-center rounded-[12px] bg-accent-50 text-accent-700 transition-colors duration-300 group-hover:bg-accent-500 group-hover:text-white">
-                <Icon className="size-5" strokeWidth={1.8} />
-              </span>
-              <h3 className="mt-5 text-[17px] font-semibold">{title}</h3>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-600">{text}</p>
+            <StaggerItem key={title}>
+              <SpotlightCard className="group h-full rounded-card border border-line bg-surface shadow-card transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift">
+                <div className="p-7">
+                  <span className="grid size-10 place-items-center rounded-[12px] bg-accent-50 text-accent-700 transition-colors duration-300 group-hover:bg-accent-500 group-hover:text-white">
+                    <Icon className="size-5" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mt-5 text-[17px] font-semibold">{title}</h3>
+                  <p className="mt-2 text-[14.5px] leading-relaxed text-ink-600">{text}</p>
+                </div>
+              </SpotlightCard>
             </StaggerItem>
           ))}
         </Stagger>
@@ -381,16 +485,16 @@ function HowItWorks({ stages, enrolment }: { stages: PipelineStage[] | null; enr
 
 /* ----------------------------------------------------------------- results */
 
-function Results({ benchmark }: { benchmark: Benchmark | null }) {
-  const rows = benchmark ? resultRows(benchmark).filter((row) => row.value !== null && row.value !== undefined) : []
+function Results({ benchmark, live }: { benchmark: Benchmark | null; live: LiveFigures | null }) {
+  const rows = benchmark ? resultRows(benchmark, live).filter((row) => row.value !== null && row.value !== undefined) : []
   const met = rows.filter((row) => row.met(row.value as number)).length
 
   return (
     <section id="results" className="scroll-mt-16 border-b border-line bg-canvas py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="Results" title="Measured, not promised.">
-          Every figure below is read from the latest benchmark saved on this computer and set beside the target the project
-          committed to. Where a target is missed, it says so.
+          Every figure below is read from results saved on this computer and set beside the target the project committed to.
+          Where a target is missed, it says so.
         </SectionHeading>
 
         {benchmark && rows.length > 0 ? (
@@ -422,8 +526,8 @@ function Results({ benchmark }: { benchmark: Benchmark | null }) {
         )}
         <Reveal className="mt-5 max-w-[86ch] text-[13.5px] leading-relaxed text-ink-500">
           The benchmark drives the pipeline with recorded sample clips, one stage after another, so it can be repeated exactly. A
-          live session tracks the next frame while it draws this one, and runs faster. Flicker and head jitter are ratios against
-          the same measurement on the real video, where 1× means as steady as real video.
+          live session tracks the next frame while it draws this one, and runs at 20 to 22 frames a second. Flicker and head jitter
+          are ratios against the same measurement on the real video, where 1× means as steady as real video.
         </Reveal>
       </Shell>
     </section>
@@ -469,93 +573,15 @@ function ResultRow({ row }: { row: Row }) {
 
 /* -------------------------------------------------------------- safeguards */
 
-function Safeguards({ stages }: { stages: PipelineStage[] | null }) {
-  const consent = stages?.find((stage) => stage.key === 'consent')?.status ?? null
-  // Written as a commitment until the engine reports the stage as working.
-  const built = consent === 'working'
-  const items = [
-    {
-      icon: Fingerprint,
-      title: 'Your own face only',
-      text: built
-        ? 'Before a session starts you are asked for two quick actions, chosen at random, and the face at the camera is matched with your verified face all the way through. No match, no animation.'
-        : 'A session will start only if the live face matches the enrolled picture. No match, no animation.',
-      status: consent,
-    },
-    {
-      icon: Tag,
-      title: 'Always labelled',
-      text: built
-        ? 'Every output frame carries a visible "AI reenacted" mark, so the people you are talking to know what they are seeing.'
-        : 'Every output frame will carry a visible synthetic-media mark, so the people you are talking to know what they are seeing.',
-      status: consent,
-    },
-    {
-      icon: Lock,
-      title: 'Stays on this computer',
-      text: 'Camera frames, your picture and every model run locally. The app listens on this machine only, and there is no account.',
-      status: 'working' as const,
-    },
-  ]
+function Safeguards() {
   return (
     <section id="safeguards" className="scroll-mt-16 border-b border-line py-20 lg:py-28">
       <Shell>
         <SectionHeading eyebrow="Safeguards" title="Designed to be used on yourself, and to say what it is.">
           Face reenactment can be misused to impersonate someone. The answer here is in the design, not in a policy: the system is
-          restricted to its user's own likeness and discloses itself.
+          restricted to its user's own likeness, discloses itself, and keeps everything on your computer.
         </SectionHeading>
-        <Stagger className="mt-12 grid gap-4 md:grid-cols-3">
-          {items.map(({ icon: Icon, title, text, status }) => (
-            <StaggerItem
-              key={title}
-              className="group flex flex-col rounded-card border border-line bg-surface p-6 shadow-card transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="grid size-10 place-items-center rounded-[12px] bg-ink-950 text-white transition-transform duration-300 group-hover:scale-105">
-                  <Icon className="size-5" strokeWidth={1.75} />
-                </span>
-                {status && <Pill tone={STATUS[status].tone}>{STATUS[status].label}</Pill>}
-              </div>
-              <h3 className="mt-5 text-[17px] font-semibold">{title}</h3>
-              <p className="mt-1.5 text-[14.5px] leading-relaxed text-ink-600">{text}</p>
-            </StaggerItem>
-          ))}
-        </Stagger>
-      </Shell>
-    </section>
-  )
-}
-
-/* ------------------------------------------------------------- foundations */
-
-const FOUNDATIONS = [
-  { name: 'LivePortrait', role: 'Reenactment core', source: 'Guo et al., 2024' },
-  { name: 'Ditto', role: 'Speech to motion, camera off', source: 'Ant Group, 2025' },
-  { name: 'MediaPipe', role: 'Face tracking', source: 'Google' },
-  { name: 'ArcFace', role: 'Identity embedding', source: 'InsightFace' },
-]
-
-function Foundations() {
-  return (
-    <section className="border-b border-line bg-canvas py-20 lg:py-28">
-      <Shell>
-        <SectionHeading eyebrow="Foundations" title="Built on open research.">
-          The networks are other people's published work. This project's own contribution is around them: a live pipeline fast
-          enough on a consumer GPU, the safeguards, the meeting output, and honest measurement.
-        </SectionHeading>
-        <Stagger as="dl" className="mt-12 grid gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
-          {FOUNDATIONS.map((item) => (
-            <StaggerItem key={item.name} className="bg-surface p-6 transition-colors duration-300 hover:bg-ink-50/60">
-              <dt className="display text-[20px] font-semibold text-ink-950">{item.name}</dt>
-              <dd className="mt-1.5 text-[14px] text-ink-700">{item.role}</dd>
-              <dd className="mt-3 font-mono text-[11.5px] text-ink-500">{item.source}</dd>
-            </StaggerItem>
-          ))}
-        </Stagger>
-        <Reveal className="mt-5 max-w-[86ch] text-[13.5px] leading-relaxed text-ink-500">
-          Several of these components are released for research or non-commercial use only, so NeuroPresence is a research
-          prototype and is not licensed for commercial deployment.
-        </Reveal>
+        <Bento />
       </Shell>
     </section>
   )

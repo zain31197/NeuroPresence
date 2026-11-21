@@ -891,6 +891,24 @@ The last two steps of the round approved the same day.
 
 **Checked.** 4 server tests (every run oldest first with its label and the call measurement; the System screen through the engine's own devices, its virtual camera opened and let go; a camera tested only while nothing else has it) and 3 web tests (round axis steps, the enrolment steps). No page scrolls sideways at 375 pixels, and the browser console stays clean on every screen. 456 engine and server tests and 68 web tests pass.
 
+### 21 November 2026: one frame rate everywhere, and a livelier landing page
+
+**Asked by Zain.** Take the "Built on open research" section off the landing page; say everywhere that the frame rate is 20 to 22; and more live animation, more modern, a finished product.
+
+**The frame rate.** A live session runs at 20 to 22 frames a second on the RTX 5050: 21.5 to 22.0 with no meeting (11 October, 20 November), 20.0 to 20.2 as medians during calls in Google Meet and Zoom (23 October), 95 ms from camera to picture. The landing page had shown the latest benchmark, 16.6, because a benchmark tracks and draws one after the other on recorded clips while a session does both at once. Now the engine states the live figures in one place (`server/capabilities.py`, `LIVE`, served with the capabilities), and the hero, a new band of figures, the Results note, the stage note and the Benchmarks screen all read them from there. The benchmark's own figures are left as they were measured and labelled as the benchmark: changing a measured result would make it false.
+
+**The landing page.**
+- "Built on open research" removed, as asked. The components stay credited in the README, and they belong on Form 13 and in the report's tool table.
+- The header says whether the engine answers ("Engine online", asked every few seconds).
+- The hero window has a band of light travelling around its edge, and shows the live figures: 20 to 22 frames a second, 95 ms, and the identity match measured during the calls (0.96).
+- Under the meeting strip, every feature scrolls past without end, stopping while pointed at.
+- A band of large figures counting up: 20 to 22 frames a second, 95 ms, 0.96 identity during real calls, two ways to drive it.
+- The safeguards as a bento grid, each tile showing its idea in motion: the liveness prompt stepping through its actions, a needle well above the 0.75 limit, the mark on a meeting tile, the voice held back until it lines up with the lips, three free checks and then waits that double, and a dark tile for staying on the computer.
+- Cards light up under the pointer.
+- In the studio, a band of light travels along the top of every screen while a session runs.
+
+**Found on the way.** The gauge's needle did not show: a group turned in SVG lost its pivot. It is drawn by moving its tip instead. On a phone the landing page was 398 pixels wide on a 375 pixel screen: the liveness tile's picture and prompt had fixed widths; they shrink now. Every screen was checked at 375 pixels again.
+
 ## Decisions and their reasons
 
 | Decision | Reason |

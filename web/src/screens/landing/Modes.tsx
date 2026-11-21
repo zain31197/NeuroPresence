@@ -1,5 +1,6 @@
 import { ArrowRight, AudioLines, Webcam, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
+import { SpotlightCard } from '../../components/fx'
 import { Stagger, StaggerItem } from '../../components/motion'
 import { Pill, type Tone } from '../../components/ui/Pill'
 import type { PipelineStage } from '../../lib/api'
@@ -27,7 +28,8 @@ export function Modes({ modes }: { modes: PipelineStage[] | null }) {
       {list.map((mode) => {
         const Icon = ICONS[mode.key] ?? Webcam
         return (
-          <StaggerItem key={mode.key} className="group flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card transition-shadow duration-300 hover:shadow-lift">
+          <StaggerItem key={mode.key}>
+            <SpotlightCard className="group flex h-full flex-col rounded-card border border-line bg-surface shadow-card transition-shadow duration-300 hover:shadow-lift">
             <div className="relative grid h-[220px] place-items-center overflow-hidden border-b border-line bg-[radial-gradient(70%_80%_at_50%_30%,var(--color-accent-50),var(--color-surface))]">
               {mode.key === 'voice' ? <VoiceVisual /> : <CameraVisual />}
             </div>
@@ -44,6 +46,7 @@ export function Modes({ modes }: { modes: PipelineStage[] | null }) {
               <p className="mt-3 text-[15px] leading-relaxed text-ink-700">{mode.summary}</p>
               {mode.note && <p className="mt-4 border-t border-line pt-3 text-[13px] leading-snug text-ink-500">{mode.note}</p>}
             </div>
+            </SpotlightCard>
           </StaggerItem>
         )
       })}
