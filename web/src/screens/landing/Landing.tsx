@@ -1,11 +1,13 @@
 import { Activity, ArrowRight, AudioLines, CalendarClock, Cast, Cpu, Fingerprint, Gauge, HeartPulse, Lock, Play, ScanFace, ShieldCheck, Sparkles, Tag, Timer, Video, Webcam } from 'lucide-react'
 import { motion, useMotionValueEvent, useScroll } from 'motion/react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LiveDot, Marquee, SpotlightCard } from '../../components/fx'
 import { Logo } from '../../components/Logo'
 import { CountUp, EASE_OUT, Reveal, Stagger, StaggerItem, WordsIn } from '../../components/motion'
 import { Pill, type Tone } from '../../components/ui/Pill'
+import { Avatar } from '../../app/UserMenu'
+import { useAccount } from '../../lib/account'
 import { api, type Benchmark, type CallMeasurement, type LiveFigures, type PipelineStage } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { longDate } from '../../lib/format'
@@ -25,6 +27,21 @@ const primaryLink = cn(
 const secondaryLink = cn(linkButton, 'border border-line-strong bg-surface text-ink-900 shadow-control hover:bg-ink-50')
 // The arrow of a call to action moves on a little when the button is pointed at.
 const nudge = 'transition-transform duration-200 group-hover:translate-x-0.5'
+
+/** The headline's colour at a point along it, from 0 to 1: ultramarine, a lighter ultramarine, then ink. */
+const inkAt = (t: number) =>
+  t < 0.55
+    ? `color-mix(in oklab, var(--color-accent-400) ${(t / 0.55) * 100}%, var(--color-accent-600))`
+    : `color-mix(in oklab, var(--color-ink-950) ${((t - 0.55) / 0.45) * 100}%, var(--color-accent-400))`
+const inkAlong = (from: number, to: number): CSSProperties => ({
+  backgroundImage: `linear-gradient(100deg, ${inkAt(from)}, ${inkAt(to)})`,
+  backgroundClip: 'text',
+  WebkitBackgroundClip: 'text',
+  color: 'transparent',
+  // Room for the tails of letters, which the clip would cut.
+  paddingBottom: '0.14em',
+  marginBottom: '-0.14em',
+})
 
 export function Landing() {
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null)
@@ -105,6 +122,7 @@ function Header() {
   const [scrolled, setScrolled] = useState(false)
   useMotionValueEvent(scrollY, 'change', (y) => setScrolled(y > 12))
   const online = useEngineOnline()
+  const { user, first } = useAccount()
 
   return (
     <header
@@ -137,6 +155,18 @@ function Header() {
               {online ? 'Engine online' : 'Engine offline'}
             </span>
           )}
+          {user ? (
+            <Link to="/studio/account" aria-label={`Account of ${user.name}`} title={`Signed in as ${user.name}`} className="hidden min-[420px]:block">
+              <Avatar name={user.name} />
+            </Link>
+          ) : (
+            <Link
+              to={first ? '/sign-up' : '/sign-in'}
+              className="hidden rounded-control px-2.5 py-1.5 text-[13.5px] font-medium text-ink-700 transition-colors hover:bg-ink-50 hover:text-ink-950 min-[420px]:block"
+            >
+              {first ? 'Create an account' : 'Sign in'}
+            </Link>
+          )}
           <Link to="/studio" className={cn(primaryLink, 'h-9 px-3.5 text-[13.5px]')}>
             Open the studio
             <ArrowRight className={cn('size-3.5', nudge)} />
@@ -155,7 +185,7 @@ function useEngineOnline() {
   useEffect(() => {
     let stopped = false
     const ask = () =>
-      fetch('/api/status', { cache: 'no-store' })
+      fetch('/api/health', { cache: 'no-store' })
         .then((reply) => !stopped && setOnline(reply.ok))
         .catch(() => !stopped && setOnline(false))
     ask()
@@ -192,9 +222,7 @@ function Hero({ live, identity }: { live: LiveFigures | null; identity: number |
           </motion.a>
           <h1 className="display mt-6 text-[clamp(38px,5.4vw,68px)] leading-[1.02] font-semibold">
             <WordsIn text="One good picture of you," delay={0.1} />{' '}
-            <span className="bg-[linear-gradient(100deg,var(--color-accent-600),var(--color-accent-400)_55%,var(--color-ink-950))] bg-clip-text text-transparent">
-              <WordsIn text="driven live by your own face." delay={0.3} />
-            </span>
+            <WordsIn text="driven live by your own face." delay={0.3} wordStyle={inkAlong} />
           </h1>
           <motion.p
             className="mt-6 max-w-[50ch] text-[17px] leading-relaxed text-ink-600"
@@ -293,10 +321,10 @@ function WorksWith() {
       <Shell className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-center">
         <p className="label-caps text-ink-400">Shows up as a camera in</p>
         <Stagger className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3" gap={0.08}>
-          {['Google Meet', 'Zoom', 'any app that picks a camera'].map((name, index) => (
+          {['Google Meet', 'Zoom', 'Microsoft Teams', 'any app that picks a camera'].map((name, index, all) => (
             <StaggerItem key={name} className="inline-flex items-center gap-2 text-[16px] font-semibold text-ink-700">
               <Video className="size-4 text-ink-400" strokeWidth={1.9} />
-              <span className={index === 2 ? 'font-medium text-ink-500' : 'display'}>{name}</span>
+              <span className={index === all.length - 1 ? 'font-medium text-ink-500' : 'display'}>{name}</span>
             </StaggerItem>
           ))}
         </Stagger>

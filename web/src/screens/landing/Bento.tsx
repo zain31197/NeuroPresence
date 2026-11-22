@@ -39,12 +39,12 @@ export function Bento() {
             <div className="min-w-0 flex-1 basis-[300px]">
               <h3 className="text-[18px] font-semibold text-white">Stays on this computer</h3>
               <p className="mt-1.5 max-w-[70ch] text-[14.5px] leading-relaxed text-ink-300">
-                Camera frames, your picture and every model run here. There is no account and nothing is uploaded: the engine listens on
-                this machine only.
+                Camera frames, your picture and every model run here. Your account is a database on this machine, with your password kept
+                only as a hash, and nothing is uploaded: the engine listens on this machine only.
               </p>
             </div>
             <ul className="flex flex-wrap gap-2 text-[12.5px] font-medium text-ink-200">
-              {['No account', 'No upload', 'Runs on your GPU'].map((item) => (
+              {['Account kept here', 'No upload', 'Runs on your GPU'].map((item) => (
                 <li key={item} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5">
                   <Check className="size-3.5 text-good" strokeWidth={3} />
                   {item}

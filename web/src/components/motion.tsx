@@ -4,7 +4,7 @@
  * their system for less motion get the final state at once (MotionConfig reducedMotion="user" in App).
  */
 import { animate, motion, useInView, useReducedMotion, type Variants } from 'motion/react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
 /** Decelerating: quick to arrive, gentle to settle. */
@@ -83,8 +83,22 @@ export function CountUp({ value, format, className, duration = 1.1 }: { value: n
   )
 }
 
-/** A headline whose words rise into place one after another. The text stays one readable string for screen readers. */
-export function WordsIn({ text, className, delay = 0 }: { text: string; className?: string; delay?: number }) {
+/**
+ * A headline whose words rise into place one after another. The text stays one readable string for screen readers.
+ * wordStyle colours a word by how far along the line it is: a gradient has to be on the words themselves, because
+ * each is a layer of its own while it moves, and a browser leaves such layers out of a gradient on their parent.
+ */
+export function WordsIn({
+  text,
+  className,
+  delay = 0,
+  wordStyle,
+}: {
+  text: string
+  className?: string
+  delay?: number
+  wordStyle?: (from: number, to: number) => CSSProperties
+}) {
   const words = text.split(' ')
   return (
     <span className={className} aria-label={text}>
@@ -93,6 +107,7 @@ export function WordsIn({ text, className, delay = 0 }: { text: string; classNam
           key={`${word}-${index}`}
           aria-hidden="true"
           className="inline-block whitespace-pre"
+          style={wordStyle?.(index / words.length, (index + 1) / words.length)}
           initial={{ opacity: 0, y: '0.35em', filter: 'blur(6px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{ duration: DURATION.slow, ease: EASE_OUT, delay: delay + index * 0.045 }}

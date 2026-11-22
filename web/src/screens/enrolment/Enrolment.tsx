@@ -26,6 +26,7 @@ import { dateTime, splitHint } from '../../lib/format'
 import { useStudio } from '../../lib/studio'
 import { Checklist } from './Checklist'
 import { Evidence } from './Evidence'
+import { Library } from './Library'
 import { PoseCapture } from './PoseCapture'
 import { Progress } from './Progress'
 import { isAsking } from '../../components/liveness'
@@ -383,7 +384,7 @@ export function Enrolment() {
               work={work}
               disabled={offline || busy}
               onRemove={() => run('remove', api.removeEnrolment, 'Meeting picture removed.')}
-              onForget={() => run('forget', api.forgetFace, 'Face signature and meeting picture removed.')}
+              onForget={() => run('forget', api.forgetFace, 'Face signature and pictures removed.')}
             />
           ) : (
             <StepsPanel face={face} forgetting={work === 'forget'} disabled={offline || busy} onForget={() => run('forget', api.forgetFace, 'Face signature removed.')} />
@@ -391,6 +392,7 @@ export function Enrolment() {
         </div>
       </div>
 
+      <Library version={record?.id ?? null} />
       <Evidence guide={guide} yours={valueOf(record, 'size')} />
       <input ref={fileInput} type="file" accept="image/png,image/jpeg" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={onFile} />
     </main>
@@ -537,7 +539,7 @@ function EnrolledPanel({ record, face, limits, work, disabled, onRemove, onForge
           </Link>
           <Ask
             label="Remove picture"
-            question="Remove the meeting picture? Your verified face stays, so you can upload another."
+            question="Stop using this picture? It stays in your pictures, and your verified face stays too."
             confirm="Remove"
             icon={<Trash2 className="size-4" />}
             busy={work === 'remove'}
@@ -546,7 +548,7 @@ function EnrolledPanel({ record, face, limits, work, disabled, onRemove, onForge
           />
           <Ask
             label="Forget my face"
-            question="Remove your face signature and the meeting picture from this computer?"
+            question="Remove your face signature and all of your pictures from this computer?"
             confirm="Forget"
             icon={<UserRoundX className="size-4" />}
             busy={work === 'forget'}
@@ -605,13 +607,13 @@ function StepsPanel({ face, forgetting, disabled, onForget }: { face: FaceIdenti
         </ol>
         <div className="mt-auto grid gap-2 pt-5">
           <p className="border-t border-line pt-3.5 text-[12.5px] leading-relaxed text-ink-500">
-            The face signature and the meeting picture are kept as files in this project's data folder. Nothing is uploaded
-            anywhere else.
+            The face signature and your pictures are kept in your account, on this computer. Nothing is uploaded anywhere
+            else.
           </p>
           {face && (
             <Ask
               label="Forget my face"
-              question="Remove your face signature from this computer?"
+              question="Remove your face signature and your pictures from this computer?"
               confirm="Forget"
               icon={<UserRoundX className="size-4" />}
               busy={forgetting}

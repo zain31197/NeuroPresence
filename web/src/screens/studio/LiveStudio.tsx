@@ -233,7 +233,7 @@ export function LiveStudio() {
 
       <div className="stagger mt-5 grid gap-7">
         <Monitors />
-        <Section title="Meeting output" hint="What Google Meet, Zoom or any other meeting application receives from this session.">
+        <Section title="Meeting output" hint="What Google Meet, Zoom, Microsoft Teams or any other meeting application receives from this session.">
           <VirtualCameraBar />
           <VirtualMicrophoneBar />
         </Section>

@@ -14,7 +14,8 @@ A running record of what was built, what was decided and why, what was measured,
 | 5. Consent and disclosure | Working: before a face is verified and before every camera session two actions chosen at random are asked for, and the face is matched with the registered signatures all the way through; during a session the camera face is compared once a second; every output frame carries the label "AI reenacted", in the middle of the lower edge so that a meeting's crop leaves it. An action has five seconds and is asked for again after a miss, since the first trial by a person at a real camera (12 October) ended on a missed action; nobody has passed it at a real camera yet |
 | 6. Virtual camera (meeting apps) | Working on Windows through OBS Virtual Camera: a switch in the Live Studio; a meeting sees the marked output of a running session and a plain card at any other time. The voice is held back by as long as the picture takes, through VB-Audio Virtual Cable. Tried in one Google Meet call (18 October): 17 to 18 frames a second shown, lips and voice within 80 ms of each other; the mark, cut by Meet's crop, was moved. Measured on 23 October with a phone as the second person, in Meet and in Zoom: no change in frame rate (about 20), delay (95 ms) or render time against no meeting, the picture, the mark and the voice all arrived, lips and voice in step. Not yet tried on Kubuntu |
 | Evaluation | Benchmark of speed, identity, motion and stability, with a saved baseline |
-| Web app | Landing page, Enrolment and Live Studio; further screens are added with the features they belong to |
+| Web app | Landing page, sign-in, and the studio: Overview, Enrolment, Live Studio, Sessions, Security, Your data, Account, Benchmarks, System |
+| Accounts and database | Working: accounts on this computer and eleven tables in one SQLite file, every row a person's own (22 November 2026) |
 
 Measured against the targets (benchmark and live session of 11 October 2026, RTX 5050, eight sample clips; the first benchmark, of 6 October, is in brackets where the figure changed):
 
@@ -30,7 +31,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 421 for the engine and server, 62 for the web app, all passing.
+Tests: 585 for the engine and server, 85 for the web app, all passing (22 November 2026).
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -1005,11 +1006,34 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 
 **What is not known.** Why the mouth stuck. Replaying his recordings through the live pipeline did not show it (correlation 0.92, open by mistake 0.6% of the time over six minutes), so it is either a thing of a longer session or of the live path, or of what his mouth really did: the recording shows the output only. The watch repairs what it can tell from the outside, and the next call will show the two lip gaps side by side. His real call carried about two frames a second more than the test, so 22 may come out as 21 to 22 in it.
 
+### 22 November 2026: accounts, and a database that is used in full
+
+**Asked by Zain.** Microsoft Teams in the landing page's list of applications (tried by Zain and working), and a login, so that a person can store things of theirs in the database: everything that shows a proper use of a database in the project.
+
+**What was there.** The database of 21 November had six tables with no owner. Whoever opened the page saw everything. Nothing in it was made by the user except switches: no names, no notes, no pictures.
+
+**Built.**
+- **Accounts on this computer** (`neuropresence/accounts.py`, `neuropresence/server/account_routes.py`): sign up, sign in, sign out, a new password, a recovery code for a forgotten one, where the account is signed in and signing the others out, the latest tries, export, and deleting the account with everything in it. Passwords as scrypt hashes (32 MB, about 0.2 s a try), sign-ins as SHA-256 of a 256-bit token whose only copy is in a cookie scripts cannot read, five tries in a row and then a quarter of an hour, the same answer and the same time for an email that does not exist.
+- **Every row has an owner** (schema 3, upgraded in place): five new tables (users, logins, login_attempts, user_settings, pictures), an owner on sessions, events, consent checks and enrolment changes, cascading deletes, indexes by owner. Every query that reads or changes a person's rows is given their id. The first account made takes over the enrolment and the history that were there; its files are not moved. Accounts after it have folders of their own.
+- **The engine is one person's at a time.** Signing in to another account signs the one before out, and is refused while a session runs; signing out stops the session and closes the enrolment, the switches and the live connection.
+- **What a person can store**: a library of up to twelve meeting pictures, kept in the database itself, any of which is brought back with one press after the upload's checks (so it cannot bring back someone else's face); a name, a note and a star for each session, a search over them, and deleting one. Clearing the history keeps the starred ones.
+- **Screens**: Sign in, Sign up, Set a new password; Account; Your data, which shows the tables, their columns and keys, how many rows are the person's, whether the file is intact, and an entity relationship diagram, all read from the file and not from a picture of it; Your pictures in Enrolment; the person's menu in the sidebar.
+- **`docs/DATABASE.md`**: the diagram, the data dictionary, what keeps the data right and what it does not protect against. A test compares it with the real schema, column by column, so it cannot fall behind.
+- **Microsoft Teams** in the landing page, the Live Studio and the README, as tried by hand; not measured.
+
+**Found while looking.** Half of the landing page's headline ("driven live by your own face.") did not show in Edge. Each word keeps a blur filter after it has moved into place, which makes it a layer of its own, and a browser leaves such layers out of a gradient put on their parent's text. Each word now carries its own part of the gradient.
+
+**Checked.** 585 engine and server tests (80 of them new) and 85 web tests pass. In a real browser against a test server with scratch data: 22 steps as two people would use it (a note typed and closed at once is saved, the search takes % and _ as they are, the second person sees nothing of the first, a session and a picture of someone else's are not found, the old password stops working, a deleted account is gone and the first person's things are where they were), the recovery code, and every new page at phone width. With the real engine on a recorded clip: the session is kept for the person signed in, another account is refused while it runs, signing out stops it. **Not done:** nobody has used it in a real meeting since; the demonstration laptop needs its account made beforehand.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
 |---|---|
 | Public repository; proposal and rubric PDFs kept out | The PDFs contain personal details |
+| Accounts that exist only on this computer (22 November 2026) | A server that knows accounts would break the promise that nothing leaves the computer; a recovery code does what an email would |
+| One account uses the engine at a time (22 November 2026) | One camera, one graphics card, one virtual camera: two people's faces in one engine is the fault the whole consent part exists to prevent |
+| The meeting pictures are in the database, the face signature is a file (22 November 2026) | Pictures belong with the rows that speak of them and are deleted with them; "Forget my face" must remove the signature outright, which deleting a file does |
+| A consent check outlives the session it opened (22 November 2026) | Deleting a session must not clear the limit on retries |
 | SQLite for the database, not PostgreSQL (21 November 2026) | One person on one computer, offline: SQLite is part of Python and is one file, so the demo laptop and Kubuntu install nothing; PostgreSQL would add a server and a password to every machine for no gain at this size |
 | Windows and Kubuntu both supported | Team members own different machines; the proposal names Kubuntu |
 | LivePortrait fetched by a setup script at a pinned commit; weights not in the repository | Reproducible, and the weights carry their own licence |
@@ -1077,9 +1101,13 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 | Frames reached the Live Studio 0 to 17 ms after they were made | The stream looked every 10 ms, and on Windows such a wait lasts a 15.6 ms timer tick | The stream is woken by each frame (21 November 2026) |
 | In a call the engine drew 17 to 18 frames a second, not 22 | The card is at its power limit, and the Live Studio page alone took 1.6 frames a second; a call and a recorder take more | The heaviest layers in 8 bit, the studio held still in a meeting and sent nothing while hidden: 19.5 to 23.6 in a test call, 22.0 steady (22 November 2026) |
 | The benchmark refused the first 8-bit version: flicker 0.81 to 1.02 | The `up_0` SPADE block, whose rounding shows as flicker | Left in 16 bit; flicker 0.87, the rest unchanged (22 November 2026) |
+| Half of the landing page's headline did not show in Edge | Each word keeps a blur filter once in place; a browser leaves such a layer out of a gradient on its parent's text | Each word carries its own part of the gradient (22 November 2026) |
+| After an account was deleted the app went to the sign-in page | The engine's "signed out" on the live connection came before the reply | The app knows it is deleting before it asks (22 November 2026) |
+| The tries at a password were counted by time, and one made in the same instant as a success was not counted | Two rows with the same time have no order | Counted by the order they were written in (22 November 2026) |
 
 ## Open items
 
+- The database file is not encrypted: someone with the computer's own account can open it. The face signature is a file beside it, as before.
 - The picture's mouth stood open for ten seconds and stayed shut in two places in a Meet call on 22 November; the cause is not known. The mouth is now watched and put right, and the lips at the camera and in the output are kept side by side: look at them after the next call.
 - In a call the engine is expected to draw 21 to 22 frames a second with the 8-bit layers and the calm studio; only the test call has been measured.
 - The 8-bit layers raise tremble to 1.06 and flicker to 0.87 of real video, against 1.03 and 0.81 in 16 bit (targets: at most 1). The generator's main convolutions and a lighter network are what is left for more speed.
