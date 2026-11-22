@@ -230,7 +230,7 @@ class Accounts:
         try:
             user_id = self._db.write(work)
         except sqlite3.IntegrityError:
-            raise AccountError("There is already an account with that email. Sign in instead.", 409) from None
+            raise AccountError("There is already an account with that email.", 409) from None
         return self.public(self._row("id = ?", (user_id,))), code
 
     def check(self, email, password):
