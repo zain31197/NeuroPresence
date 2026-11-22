@@ -1,0 +1,105 @@
+{
+  "date": "2026-11-21T21:32:24",
+  "machine": {
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "device": "OBS Virtual Camera",
+  "seconds_per_case": 20.0,
+  "offered_with_no_writer_fps": [
+    30.0
+  ],
+  "cases": [
+    {
+      "case": "Before: camera at 30, drawn at 22, sent on a 30 a second clock",
+      "camera_fps": 30,
+      "made_fps": 22.0,
+      "written": "30 Hz clock",
+      "read_per_second": 30.06,
+      "new_per_second": 22.07,
+      "never_arrived": 0.0,
+      "held_half_again_longer": 0.3794,
+      "step_error_ms_sd": 18.85,
+      "late_ms_mean": 81.6
+    },
+    {
+      "case": "Camera session now: camera at 20, drawn at 20, each sent as it is made",
+      "camera_fps": 20,
+      "made_fps": 20.0,
+      "written": "as made",
+      "read_per_second": 20.05,
+      "new_per_second": 19.63,
+      "never_arrived": 0.0209,
+      "held_half_again_longer": 0.0211,
+      "step_error_ms_sd": 11.13,
+      "late_ms_mean": 64.0
+    },
+    {
+      "case": "Even delivery off: camera at 20, drawn at 22, each sent as it is made",
+      "camera_fps": 20,
+      "made_fps": 22.0,
+      "written": "as made",
+      "read_per_second": 20.05,
+      "new_per_second": 20.05,
+      "never_arrived": 0.092,
+      "held_half_again_longer": 0.0,
+      "step_error_ms_sd": 16.55,
+      "late_ms_mean": 84.5
+    },
+    {
+      "case": "Voice mode before: camera at 30, drawn at 16.5, 30 a second clock",
+      "camera_fps": 30,
+      "made_fps": 16.5,
+      "written": "30 Hz clock",
+      "read_per_second": 30.05,
+      "new_per_second": 16.58,
+      "never_arrived": 0.0,
+      "held_half_again_longer": 0.0,
+      "step_error_ms_sd": 15.06,
+      "late_ms_mean": 63.4
+    },
+    {
+      "case": "Voice mode now: camera at 20, drawn at 16.5, each sent as it is made",
+      "camera_fps": 20,
+      "made_fps": 16.5,
+      "written": "as made",
+      "read_per_second": 20.05,
+      "new_per_second": 16.59,
+      "never_arrived": 0.0,
+      "held_half_again_longer": 0.2087,
+      "step_error_ms_sd": 21.75,
+      "late_ms_mean": 87.3
+    },
+    {
+      "case": "Voice mode on a camera at 30, each sent as it is made",
+      "camera_fps": 30,
+      "made_fps": 16.5,
+      "written": "as made",
+      "read_per_second": 30.05,
+      "new_per_second": 16.57,
+      "never_arrived": 0.0,
+      "held_half_again_longer": 0.0,
+      "step_error_ms_sd": 15.2,
+      "late_ms_mean": 62.5
+    },
+    {
+      "case": "Voice mode held to 15, on a camera at 30",
+      "camera_fps": 30,
+      "made_fps": 15.0,
+      "written": "as made",
+      "read_per_second": 30.03,
+      "new_per_second": 15.04,
+      "never_arrived": 0.0,
+      "held_half_again_longer": 0.0,
+      "step_error_ms_sd": 7.74,
+      "late_ms_mean": 55.1
+    }
+  ],
+  "rate_change_while_read": {
+    "read_while_writing_at_20": 20.1,
+    "read_after_the_writer_opened_again_at_30": 20.0
+  },
+  "notes": [
+    "Numbered test frames written with pyvirtualcam and read back by ffmpeg through DirectShow; arrival times include ffmpeg's pipe, which puts a floor of about 8 ms under the step error.",
+    "A reader keeps the rate it was offered when it opened the camera, and with no writer the device offers 30. So the engine's camera has to be on before a meeting opens it; the engine switches it back on at start if it was on when it stopped."
+  ]
+}
