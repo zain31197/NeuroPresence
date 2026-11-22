@@ -1,5 +1,6 @@
 import { ArrowLeft, ChartNoAxesColumn, History, LayoutDashboard, Lock, MonitorPlay, Server, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
+import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { DURATION, EASE_OUT } from '../components/motion'
@@ -95,6 +96,14 @@ export function AppShell() {
   const { pathname } = useLocation()
 
   const onAir = status?.session.state === 'running'
+  // In a meeting the graphics card belongs to the picture. The endless decoration (the travelling line, the pulsing
+  // dots) makes the browser redraw the page 60 times a second, which cost the drawing about 0.7 frames a second when
+  // measured on 22 November 2026, so it stands still while a session runs with the virtual camera on.
+  const inMeeting = onAir && !!status?.virtual_camera?.on
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-calm', inMeeting)
+    return () => document.documentElement.removeAttribute('data-calm')
+  }, [inMeeting])
 
   return (
     <div className="flex min-h-screen">
@@ -102,7 +111,12 @@ export function AppShell() {
       {onAir && (
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 top-0 z-50 h-[2px] animate-onair bg-[linear-gradient(90deg,transparent,var(--color-live),var(--color-accent-500),transparent)] bg-[length:45%_100%] bg-no-repeat"
+          className={cn(
+            'pointer-events-none fixed inset-x-0 top-0 z-50 h-[2px]',
+            inMeeting
+              ? 'bg-[linear-gradient(90deg,var(--color-live),var(--color-accent-500))]'
+              : 'animate-onair bg-[linear-gradient(90deg,transparent,var(--color-live),var(--color-accent-500),transparent)] bg-[length:45%_100%] bg-no-repeat',
+          )}
         />
       )}
       <aside className="sticky top-0 hidden h-screen w-[244px] shrink-0 flex-col border-r border-line bg-surface lg:flex">

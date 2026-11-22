@@ -286,3 +286,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* In a meeting (AppShell sets data-calm): the endless decoration stands still. Spinners and one-off transitions do not. */
+html[data-calm] .animate-onair,
+html[data-calm] .animate-lamp,
+html[data-calm] .animate-ping,
+html[data-calm] .animate-pulse,
+html[data-calm] .animate-marquee,
+html[data-calm] .animate-shimmer {
+  animation: none;
+}

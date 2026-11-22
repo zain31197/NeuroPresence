@@ -51,6 +51,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     let closed = false
     let attempt = 0
 
+    // Behind another window or tab the monitors are seen by nobody: no frames are sent then, and the engine keeps the
+    // computer for the drawing. Status goes on, and the frames come back with the tab.
+    const tell = () => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ frames: !document.hidden }))
+    }
+    document.addEventListener('visibilitychange', tell)
+
     const connect = () => {
       setConnection('connecting')
       const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
@@ -61,6 +68,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       socket.onopen = () => {
         attempt = 0
         setConnection('open')
+        tell()
       }
       socket.onmessage = (message) => {
         if (typeof message.data !== 'string') {
@@ -102,6 +110,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     connect()
     return () => {
       closed = true
+      document.removeEventListener('visibilitychange', tell)
       window.clearTimeout(retry)
       socket?.close()
     }
