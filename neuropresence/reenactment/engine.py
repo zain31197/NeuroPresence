@@ -252,6 +252,10 @@ class ReenactmentEngine:
             updated["pitch"] = (most * (POSE_RANGE_DEG["pitch"][0] / POSE_RANGE_DEG["pitch"][1]), most)
         self.pose_range_deg = updated
 
+    def reset_pose_range(self):
+        """Back to the generic range: the engine is about to draw someone else."""
+        self.pose_range_deg = dict(POSE_RANGE_DEG)
+
     def _use_tensorrt(self):
         """Run the warping network and the generator through TensorRT (see accelerate.py for the measurements).
 

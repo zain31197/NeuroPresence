@@ -1,15 +1,18 @@
 """What the server keeps alive between requests: the engine, the enrolment, the session, the switches."""
 
+import hashlib
 import logging
 import threading
 import time
 from collections import deque
+from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 import cv2
+import numpy as np
 
-from dataclasses import replace
-
+from ..accounts import Accounts
 from ..capture.crop import MAX_PICTURE_DIM, limit_size, square_face_crop
 from ..database import Database
 from ..consent import LivenessChallenge
@@ -34,6 +37,8 @@ SAMPLE_CLIPS = ROOT / "third_party" / "LivePortrait" / "assets" / "examples" / "
 SAMPLE_NAMES = ("d0", "d3", "d6", "d9", "d10", "d13", "d18")
 CAMERA_INDEXES = (0, 1, 2)
 DATA_DIR = ROOT / "data"
+MOST_PICTURES, MOST_PICTURE_NAME = 12, 60  # of an account's library, in the database
+THUMBNAIL_PX = 320
 RESULTS_DIR = ROOT / "results"
 
 
@@ -59,6 +64,11 @@ class EventLog:
     def since(self, last_id=0):
         with self._lock:
             return [event for event in self._events if event["id"] > last_id]
+
+    def clear(self):
+        """Another account: what was listed is not theirs. The numbers go on, so a page that is open misses nothing."""
+        with self._lock:
+            self._events.clear()
 
 
 # After an identity fallback the still picture stayed until the person pressed Resume in the Live Studio
@@ -396,20 +406,20 @@ class Runtime:
         self._samples_used = 0
         self._gpu_peak = 0.0
 
-        self.store = EnrolmentStore(Path(data_dir) / "enrolment")
-        self.enrolment = self.store.load()  # the meeting picture
-        self.face = self.store.load_identity()  # who the user is: a signature taken live from the camera
         self.candidate = None  # a checked picture waiting to be confirmed or discarded
         self._candidate_id = 0
+        self._candidate_name = None  # what its file was called, for its name in the library
 
-        # What happened, kept on this computer (database.py): sessions, events, checks, enrolment changes, settings.
-        self.db = Database(Path(data_dir) / "neuropresence.db")
+        # What happened, kept on this computer (database.py): whose it is, sessions, events, checks, pictures, settings.
+        self._data_dir = Path(data_dir)
+        self.db = Database(self._data_dir / "neuropresence.db")
+        self.accounts = Accounts(self.db, self._data_dir)
+        self._account_lock = threading.RLock()
+        self.user = None  # the account the engine is open for (accounts.py); None before the first one, and signed out
         self.features = FeatureSet()
-        self.features.restore({key.removeprefix("feature."): on for key, on in self.db.settings("feature.").items()})
-        self.features.on_change = lambda key, enabled: self.db.set_setting(f"feature.{key}", enabled)
+        self.features.on_change = lambda key, enabled: self.db.set_user_setting(self.user_id, f"feature.{key}", enabled)
         self.events = EventLog(sink=self._keep_event)
-        # Consent checks that did not pass, so that they cannot be repeated endlessly; read back after a restart.
-        self.attempts = Attempts(failures=self.db.failures_since_last_pass(FORGET_SECONDS))
+        self._read_account()  # the files, switches and retry count of the account that is open
         self.session = LiveSession(self)
         self.preview = EnrolmentPreview(self)
         self.identity = IdentityMonitor(self)
@@ -424,6 +434,85 @@ class Runtime:
         # The voice for meeting applications, held back to stay in step with that picture (virtual_microphone.py).
         self.virtual_microphone = VirtualMicrophone(self.picture_delay, devices=sound_devices, opener=sound_opener,
                                                     settings=Path(data_dir) / "virtual_microphone.json")
+        user = self.accounts.last_user()  # signed in when the engine last ran, and the sign-in is still good
+        if user is not None or self.accounts.any():
+            self._open(user)
+
+    # ------------------------------------------------------------- account
+
+    @property
+    def user_id(self):
+        return None if self.user is None else self.user["id"]
+
+    def open_account(self, user):
+        """Make the engine this account's: its face and pictures, its switches, its history."""
+        with self._account_lock:
+            if self.user is not None and self.user["id"] == user["id"]:
+                self.user = user  # the same account, perhaps under a new name
+                return
+            self.may_open(user)
+            self._open(user)
+        self.events.add("info", f"Signed in as {user['name']}.")
+
+    def may_open(self, user):
+        """Raise if the engine cannot change hands now."""
+        if self.session.active and self.user is not None and self.user["id"] != user["id"]:
+            raise SessionError(f"A session of {self.user['name']}'s is running. Stop it before signing in to another account.")
+
+    def close_account(self):
+        """Signed out: whatever runs is stopped, and nothing of the account stays open."""
+        with self._account_lock:
+            if self.user is None:
+                return
+            self.session.stop()
+            self._open(None)
+
+    def _open(self, user):
+        self.preview.stop()
+        self.virtual_microphone.change(on=False)  # whoever is here next has not asked for it
+        with self.engine_lock:
+            if self._engine is not None and self.engine_holds is not None:
+                self._engine.clear_source()  # the picture of the account before
+            self.engine_holds = None
+            self.user, self.candidate = user, None
+            self._read_account()
+            if self._engine is not None:
+                reset = getattr(self._engine, "reset_pose_range", None)
+                if reset is not None:
+                    reset()
+                self._apply_pose_calibration(self._engine)
+        self.events.clear()
+        if user is not None:
+            self._keep_enrolled_picture()
+
+    def _read_account(self):
+        """The files, the switches and the retry count of the account that is open.
+
+        Before there are accounts they are the computer's, as they always were. Signed out they are no one's: a folder
+        that does not exist, and nothing is read from it."""
+        if self.user is not None:
+            folder = self.user["folder"]
+        else:
+            folder = "signed-out" if self.accounts.any() else "enrolment"
+        self.store = EnrolmentStore(self._data_dir / folder)
+        self.enrolment = self.store.load()  # the meeting picture
+        self.face = self.store.load_identity()  # who the user is: a signature taken live from the camera
+        self.features.reset()
+        self.features.restore({key.removeprefix("feature."): on
+                               for key, on in self.db.user_settings(self.user_id, "feature.").items()})
+        # Consent checks that did not pass, so that they cannot be repeated endlessly; read back after a restart.
+        self.attempts = Attempts(failures=self.db.failures_since_last_pass(FORGET_SECONDS, self.user_id))
+
+    def delete_account(self):
+        """Delete the open account with everything of its."""
+        with self._account_lock:
+            user = self.user
+            if user is None:
+                return
+            self.session.stop()
+            self._open(None)
+            self.accounts.delete(user["id"])
+            self._read_account()  # the last account may have gone: the computer's own folder again
 
     # ------------------------------------------------------------- engine
 
@@ -518,12 +607,12 @@ class Runtime:
         """How a consent check ended, kept in the database (the Security screen, and the retry count after a restart)."""
         session_id = self.session.record_id if purpose == "session" else None
         self.db.add_consent_check(purpose, check.passed, check.failure, check.reason,
-                                  None if check.lowest is None else round(float(check.lowest), 3), session_id)
+                                  None if check.lowest is None else round(float(check.lowest), 3), session_id, self.user_id)
 
     def _keep_event(self, event):
         session = getattr(self, "session", None)
         session_id = session.record_id if session is not None and session.active else None
-        self.db.add_event(event["level"], event["message"], session_id=session_id, at=event["at"])
+        self.db.add_event(event["level"], event["message"], session_id=session_id, at=event["at"], user_id=self.user_id)
 
     def _refuse_too_soon(self):
         """After several checks that did not pass, the next one waits (consent/attempts.py)."""
@@ -594,11 +683,13 @@ class Runtime:
             candidate.checks.append(self._same_person(candidate, self.face, "Only you can register a pose."))
         return self._hold(candidate)
 
-    def check_upload(self, image):
+    def check_upload(self, image, name=None):
         """Check an uploaded meeting picture: the usual checks, and that it shows the verified face.
 
-        It becomes the candidate whether or not it passes, so the result can be shown.
+        It becomes the candidate whether or not it passes, so the result can be shown. `name` is what it will be
+        called in the account's library: what its file was called.
         """
+        self._candidate_name = " ".join((name or "").split())[:MOST_PICTURE_NAME] or None
         face = self.face
         if face is None:
             raise SessionError("Verify your face with the camera first. An uploaded picture is compared with it.")
@@ -757,14 +848,14 @@ class Runtime:
                                "Check that the identity model is installed: python scripts/download_models.py.")
         self.face = self.store.save_identity(signature, candidate.summary()["checks"])
         self.events.add("info", "Face verified from the camera. Only its signature was kept.")
-        self.db.add_enrolment("face_verified")
+        self.db.add_enrolment("face_verified", user_id=self.user_id)
         # A meeting picture enrolled earlier has to be of this face too.
         enrolment = self.enrolment
         if enrolment is not None and enrolment.signature is not None:
             if self.scorer().similarity(signature, enrolment.signature) < SAME_PERSON_CSIM:
                 self._drop_picture()
                 self.events.add("warning", "The meeting picture does not match the newly verified face and was removed.")
-                self.db.add_enrolment("picture_removed", "It did not match the newly verified face.")
+                self.db.add_enrolment("picture_removed", "It did not match the newly verified face.", user_id=self.user_id)
 
     def _register_pose(self, candidate):
         """A pose capture (turned to one side, or tilted up/down) that passed its checks:
@@ -781,7 +872,7 @@ class Runtime:
             if self._engine is not None:
                 self._apply_pose_calibration(self._engine)
         self.events.add("info", f"{pose.capitalize()} pose registered.")
-        self.db.add_enrolment("pose_registered", pose)
+        self.db.add_enrolment("pose_registered", pose, user_id=self.user_id)
 
     def _enrol_picture(self, candidate):
         """An uploaded picture that passed every check, the face match among them, becomes the meeting picture."""
@@ -796,7 +887,8 @@ class Runtime:
         else:
             self._enrol(candidate)
         self.events.add("info", "Meeting picture enrolled. Its face matches the verified face.")
-        self.db.add_enrolment("picture_enrolled")
+        name = self._keep_enrolled_picture(candidate, self._candidate_name)
+        self.db.add_enrolment("picture_enrolled", name, user_id=self.user_id)
 
     def _enrol(self, candidate):
         with self.engine_lock:
@@ -825,7 +917,7 @@ class Runtime:
             raise SessionError("Stop the live session first.")
         self._drop_picture()
         self.events.add("info", "Meeting picture removed.")
-        self.db.add_enrolment("picture_removed")
+        self.db.add_enrolment("picture_removed", user_id=self.user_id)
 
     def forget_face(self):
         """Remove everything kept about the user: the face signature and the meeting picture."""
@@ -835,16 +927,91 @@ class Runtime:
         self.store.remove_identity()
         self.face = None
         self.candidate = None
-        self.events.add("info", "Face signature and meeting picture removed.")
-        self.db.add_enrolment("face_forgotten")
+        self.db.delete_pictures(self.user_id)  # every picture in the library shows that face
+        self.events.add("info", "Face signature and meeting pictures removed.")
+        self.db.add_enrolment("face_forgotten", user_id=self.user_id)
 
     def _drop_picture(self):
         with self.engine_lock:
             self.store.remove()
             self.enrolment = None
+            self.db.no_picture_in_use(self.user_id)
             if self._engine is not None and self.engine_holds is not None and self.engine_holds[0] == "enrolment":
                 self._engine.clear_source()
                 self.engine_holds = None
+
+    # ------------------------------------------------------------ pictures
+
+    def _keep_enrolled_picture(self, candidate=None, name=None):
+        """Keep the meeting picture in the account's library, in the database, and return its name there.
+
+        Without a candidate it is the picture that is already enrolled, for an account that had one before the library."""
+        if self.user is None or self.enrolment is None:
+            return None
+        image = self.enrolment.picture if candidate is None else candidate.image
+        ok, png = cv2.imencode(".png", image)
+        if not ok:
+            return None
+        data = png.tobytes()
+        height, width = image.shape[:2]
+        scale = THUMBNAIL_PX / max(height, width)
+        small = cv2.resize(image, (max(1, round(width * scale)), max(1, round(height * scale))), interpolation=cv2.INTER_AREA)
+        taken = {picture["name"] for picture in self.db.pictures(self.user_id)}
+        if not name or name in taken:
+            name = next(f"Picture {n}" for n in range(1, MOST_PICTURES + 2) if f"Picture {n}" not in taken)
+        enrolled = None
+        if candidate is None:
+            try:
+                enrolled = datetime.fromisoformat(self.enrolment.enrolled_at).timestamp()
+            except ValueError:
+                pass  # a record whose date cannot be read: today's will do
+        kept = self.db.keep_picture(self.user_id, name, data, _jpeg(small), hashlib.sha256(data).hexdigest(), width, height,
+                                    self.enrolment.match, MOST_PICTURES, enrolled)
+        return self.db.picture(self.user_id, kept, "name")
+
+    def pictures(self):
+        return {"pictures": self.db.pictures(self.user_id), "most": MOST_PICTURES}
+
+    def picture_image(self, picture_id, thumbnail=False):
+        return self.db.picture(self.user_id, picture_id, "thumbnail" if thumbnail else "image")
+
+    def use_picture(self, picture_id):
+        """Make a picture of the library the meeting picture. It is checked as an upload is, the face match included,
+        so a library cannot bring back a picture of someone who is not the verified face."""
+        data = self.db.picture(self.user_id, picture_id)
+        if data is None:
+            raise KeyError(picture_id)
+        image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if image is None:
+            raise SessionError("That picture cannot be read any more. Delete it and upload it again.")
+        self.check_upload(image, self.db.picture(self.user_id, picture_id, "name"))
+        candidate = self.candidate
+        try:
+            if not candidate.passed:
+                failed = next(check for check in candidate.checks if not check.passed)
+                raise SessionError(failed.hint or "That picture no longer passes the checks.")
+            self.confirm_candidate()
+        finally:
+            self.discard_candidate()
+        return self.pictures()
+
+    def rename_picture(self, picture_id, name):
+        name = " ".join((name or "").split())[:MOST_PICTURE_NAME]
+        if not name:
+            raise SessionError("Give the picture a name.")
+        if not self.db.rename_picture(self.user_id, picture_id, name):
+            raise KeyError(picture_id)
+        return self.pictures()
+
+    def delete_picture(self, picture_id):
+        """Delete a picture of the library. The one in use stops being the meeting picture too."""
+        found = next((p for p in self.db.pictures(self.user_id) if p["id"] == picture_id), None)
+        if found is None:
+            raise KeyError(picture_id)
+        if found["in_use"] and self.enrolment is not None:
+            self.remove_enrolment()
+        self.db.delete_picture(self.user_id, picture_id)
+        return self.pictures()
 
     def enrolment_jpeg(self):
         enrolment = self.enrolment
@@ -995,32 +1162,43 @@ class Runtime:
 
     # ------------------------------------------------------------- history
 
-    def history(self, limit=100):
-        """Past sessions, newest first, with the totals of the last seven days and of all time."""
+    def history(self, limit=100, search="", starred=False):
+        """The account's past sessions, newest first, with the totals of the last seven days and of all time."""
         week = time.time() - 7 * 24 * 3600
-        return {"sessions": self.db.sessions(limit), "totals": self.db.totals(since=week)}
+        return {"sessions": self.db.sessions(limit, self.user_id, search, starred),
+                "totals": self.db.totals(since=week, user_id=self.user_id)}
 
     def session_record(self, session_id):
-        found = self.db.session(session_id)
+        found = self.db.session(session_id, self.user_id)
         if found is None:
             raise KeyError(session_id)
         return found
 
+    def change_session(self, session_id, changes):
+        """Give a past session a name or a note, or a star."""
+        if not self.db.update_session(session_id, self.user_id, **changes):
+            raise KeyError(session_id)
+        return self.session_record(session_id)
+
+    def delete_session(self, session_id):
+        if not self.db.delete_session(session_id, self.user_id):
+            raise KeyError(session_id)
+
     def clear_history(self):
-        self.db.clear_sessions()
+        self.db.clear_sessions(self.user_id)
 
     def security(self, limit=200):
         """Every consent check and change to the enrolment, newest first, and where the retry limit stands."""
-        return {"timeline": self.db.security(limit), "attempts": self.attempts.snapshot()}
+        return {"timeline": self.db.security(limit, self.user_id), "attempts": self.attempts.snapshot()}
 
     def clear_security(self):
-        self.db.clear_security()
+        self.db.clear_security(self.user_id)
 
     # The app's own choices that are remembered, and what each may hold.
     PREFERENCES = {"input": str}
 
     def preferences(self):
-        return {key.removeprefix("ui."): value for key, value in self.db.settings("ui.").items()
+        return {key.removeprefix("ui."): value for key, value in self.db.user_settings(self.user_id, "ui.").items()
                 if key.removeprefix("ui.") in self.PREFERENCES}
 
     def set_preferences(self, changes):
@@ -1028,7 +1206,7 @@ class Runtime:
             kind = self.PREFERENCES.get(key)
             if kind is None or not isinstance(value, kind):
                 raise SessionError(f"Unknown preference: {key}")
-            self.db.set_setting(f"ui.{key}", value)
+            self.db.set_user_setting(self.user_id, f"ui.{key}", value)
         return self.preferences()
 
     # ------------------------------------------------------------- status
@@ -1049,6 +1227,12 @@ class Runtime:
             self._gpu_peak = max(self._gpu_peak, used)
             info = {**info, "allocated_gb": used, "peak_gb": self._gpu_peak}
         return info
+
+    def engine_status(self):
+        """How the engine runs, with nothing of the account's: what a measurement reads (scripts/measure_call.py)."""
+        status = self.status()
+        return {key: status[key] for key in ("session", "virtual_camera", "virtual_microphone", "gpu", "targets")} | {
+            "identity": {"csim": status["identity"].get("csim")}}
 
     def status(self):
         enrolment = self.enrolment

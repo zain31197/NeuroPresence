@@ -1,6 +1,7 @@
 """The local web server: a small API over the pipeline, plus the built web app.
 
-It listens on this machine only. Nothing it handles leaves the computer.
+It listens on this machine only. Nothing it handles leaves the computer. Everything but the landing page's
+figures needs a signed-in account (account_routes.py).
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .account_routes import SIGNED_OUT, add_account_routes, signed_in
 from .capabilities import ENROLMENT, LIVE, MODES, STAGES
 from .preview import NotGoodEnough
 from .runtime import Runtime
@@ -40,6 +42,12 @@ class FeaturePatch(BaseModel):
     enabled: bool
 
 
+class SessionChange(BaseModel):
+    title: str | None = None
+    note: str | None = None
+    starred: bool | None = None
+
+
 class CameraSwitch(BaseModel):
     on: bool
 
@@ -61,6 +69,7 @@ def create_app(runtime=None, web_dist=WEB_DIST):
     app = FastAPI(title="NeuroPresence", lifespan=lifespan, docs_url="/api/docs", redoc_url=None,
                   openapi_url="/api/openapi.json")
     app.state.runtime = runtime
+    add_account_routes(app, runtime)
 
     def refuse(err, status=409):
         raise HTTPException(status_code=status, detail=str(err)) from None
@@ -96,9 +105,9 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         return {"enrolment": ENROLMENT, "stages": STAGES, "modes": MODES, "live": LIVE}
 
     @app.get("/api/history")
-    def history(limit: int = 100):
-        """Past sessions, newest first, with totals (database.py)."""
-        return runtime.history(limit=max(1, min(limit, 1000)))
+    def history(limit: int = 100, search: str = "", starred: bool = False):
+        """The account's past sessions, newest first, with totals (database.py)."""
+        return runtime.history(max(1, min(limit, 1000)), search[:100], starred)
 
     @app.get("/api/history/{session_id}")
     def history_session(session_id: int):
@@ -108,9 +117,25 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         except KeyError:
             raise HTTPException(status_code=404, detail="No such session.") from None
 
+    @app.patch("/api/history/{session_id}")
+    def change_session(session_id: int, change: SessionChange):
+        """Give a past session a name or a note, or a star."""
+        try:
+            return runtime.change_session(session_id, change.model_dump(exclude_unset=True))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="No such session.") from None
+
+    @app.delete("/api/history/{session_id}")
+    def delete_session(session_id: int):
+        try:
+            runtime.delete_session(session_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="No such session, or it is still running.") from None
+        return {"ok": True}
+
     @app.delete("/api/history")
     def clear_history():
-        """Forget the session history. A running session is kept."""
+        """Forget the session history. A running session is kept, and the starred ones."""
         runtime.clear_history()
         return runtime.history()
 
@@ -196,7 +221,7 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None:
             refuse("That file is not a picture this app can read. Use a JPEG or PNG.", 422)
-        return attempt(lambda: runtime.check_upload(image))
+        return attempt(lambda: runtime.check_upload(image, Path(file.filename or "").stem))
 
     @app.post("/api/enrolment/confirm")
     def confirm():
@@ -295,6 +320,10 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         """Pushes status four times a second and every new frame as it is made:
         camera and output pairs in a live session, camera frames in the enrolment preview."""
         await socket.accept()
+        user = await asyncio.to_thread(signed_in, runtime, socket.cookies)
+        if user is None:
+            await socket.close(SIGNED_OUT)  # after accepting: before it, a browser is not told the code
+            return
         loop = asyncio.get_running_loop()
         last_frame, last_event, next_status, seen = None, 0, 0.0, None
         wanted = {"frames": True}
@@ -320,6 +349,9 @@ def create_app(runtime=None, web_dist=WEB_DIST):
                 now = loop.time()
                 if now >= next_status:
                     next_status = now + STATUS_INTERVAL_S
+                    if await asyncio.to_thread(signed_in, runtime, socket.cookies) is None:
+                        await socket.close(SIGNED_OUT)  # signed out meanwhile, here or by another account
+                        return
                     try:
                         status = runtime.status()
                     except Exception:  # one bad reading must not cut the picture off

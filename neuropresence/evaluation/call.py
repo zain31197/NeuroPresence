@@ -21,7 +21,7 @@ import numpy as np
 
 from ..targets import TARGETS
 
-STATUS_URL = "http://127.0.0.1:8000/api/status"
+STATUS_URL = "http://127.0.0.1:8000/api/engine"  # the engine's figures, which need no signing in
 GPU_FIELDS = ("gpu_util_pct", "gpu_memory_mb", "gpu_power_w", "gpu_clock_mhz", "gpu_temp_c")
 GPU_QUERY = "utilization.gpu,memory.used,power.draw,clocks.sm,temperature.gpu"
 
@@ -48,7 +48,7 @@ FIGURES = (
 
 
 def engine_sample(status):
-    """The engine's figures from its /api/status reply, or a mark that it could not be reached."""
+    """The engine's figures from its /api/engine reply, or a mark that it could not be reached."""
     if status is None:
         return {"engine_reachable": False, "state": None}
     session = status.get("session") or {}

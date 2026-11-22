@@ -5,16 +5,25 @@ server such as PostgreSQL on 21 November 2026, for this use: one person on their
 install or start on the demonstration laptop or on Kubuntu (it is part of Python), and no network service, in
 keeping with "nothing leaves your computer". It is a real SQL database all the same: tables, keys, transactions.
 
-What it holds, and what each serves:
-  sessions            one row a session: when, how it was driven, how it ended, its typical figures (Sessions)
+What it holds, and what each serves (docs/DATABASE.md has the diagram and every column):
+  users               the accounts on this computer (accounts.py)
+  logins              the sign-ins that are still good, as hashes of their tokens
+  login_attempts      every try at signing in, for the limit on guessing and the Account screen
+  user_settings       a user's feature switches and choices (Live Studio)
+  pictures            a user's meeting pictures, the picture itself included (Enrolment: Your pictures)
+  sessions            one row a session: whose, when, how it was driven, how it ended, its typical figures, and the
+                      name and note the user gave it (Sessions)
   session_figures     the figures every few seconds during a session (the charts of a past session)
   events              everything the event list says, kept past a restart (Sessions, Live Studio)
   consent_checks      every liveness check and how it ended (Security; the limit on retries survives restarts)
   enrolment_history   face verified, poses registered, picture enrolled or removed, face forgotten (Security)
-  settings            the feature switches and the app's choices, remembered (Live Studio)
+  settings            what belongs to the computer and not to a user, such as the virtual camera being on
 
-The face signatures and the meeting picture stay as files in data/enrolment, as before: "Forget my face"
-deletes them outright, which a row in a database file would not guarantee.
+Every row of a user's carries their id, and every query here that reads or changes one is given the user's id
+(None is the time before the first account). Deleting an account deletes its rows with it, by the foreign keys.
+
+The face signatures and the picture a session animates stay as files in the user's own folder: "Forget my face"
+deletes them outright. The database overwrites what is deleted from it (secure_delete), the pictures included.
 
 Writes go through one background thread, so the live session never waits on the disk; the screens read
 through their own connection, after the writes queued before them have landed (WAL mode lets both run).
@@ -29,7 +38,7 @@ import time
 from concurrent.futures import Future
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 MIGRATIONS = {
     1: """
@@ -105,7 +114,94 @@ MIGRATIONS = {
     ALTER TABLE session_figures ADD COLUMN lips_output REAL;
     ALTER TABLE session_figures ADD COLUMN longest_gap_ms REAL;
     """,
+    # 22 November 2026: accounts. Every row gets an owner; a history from before the first account has none, and goes
+    # to the first account that is made (accounts.py: Accounts.sign_up).
+    3: """
+    CREATE TABLE users (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,   -- never given to someone else after a deletion
+        email          TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        name           TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 60),
+        password_hash  TEXT    NOT NULL,                    -- scrypt, with its own salt and cost
+        recovery_hash  TEXT    NOT NULL,                    -- of the code shown once, for a forgotten password
+        folder         TEXT    NOT NULL UNIQUE,             -- where the face signature and the picture files are
+        created_at     REAL    NOT NULL,
+        last_login_at  REAL
+    );
+
+    CREATE TABLE logins (
+        token_hash    TEXT    PRIMARY KEY,                  -- the token itself is only in the browser's cookie
+        user_id       INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        created_at    REAL    NOT NULL,
+        last_seen_at  REAL    NOT NULL,
+        expires_at    REAL    NOT NULL,
+        device        TEXT
+    );
+    CREATE INDEX logins_by_user ON logins (user_id);
+
+    CREATE TABLE login_attempts (
+        id         INTEGER PRIMARY KEY,
+        at         REAL    NOT NULL,
+        email      TEXT    NOT NULL COLLATE NOCASE,
+        user_id    INTEGER REFERENCES users (id) ON DELETE CASCADE,
+        succeeded  INTEGER NOT NULL
+    );
+    CREATE INDEX login_attempts_by_email ON login_attempts (email, at DESC);
+
+    CREATE TABLE user_settings (
+        user_id     INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        key         TEXT    NOT NULL,
+        value       TEXT    NOT NULL,                       -- JSON
+        updated_at  REAL    NOT NULL,
+        PRIMARY KEY (user_id, key)
+    );
+
+    CREATE TABLE pictures (
+        id            INTEGER PRIMARY KEY,
+        user_id       INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        name          TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 60),
+        created_at    REAL    NOT NULL,
+        last_used_at  REAL,
+        width         INTEGER NOT NULL,
+        height        INTEGER NOT NULL,
+        face_match    REAL,                                 -- how alike its face is to the verified face
+        sha256        TEXT    NOT NULL,                     -- of the picture, so the same one is not kept twice
+        image         BLOB    NOT NULL,                     -- PNG
+        thumbnail     BLOB    NOT NULL,                     -- JPEG
+        in_use        INTEGER NOT NULL DEFAULT 0,           -- the one a session animates
+        UNIQUE (user_id, sha256)
+    );
+    CREATE UNIQUE INDEX one_picture_in_use ON pictures (user_id) WHERE in_use = 1;
+
+    ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users (id) ON DELETE CASCADE;
+    ALTER TABLE sessions ADD COLUMN picture_id INTEGER REFERENCES pictures (id) ON DELETE SET NULL;
+    ALTER TABLE sessions ADD COLUMN title TEXT;
+    ALTER TABLE sessions ADD COLUMN note TEXT;
+    ALTER TABLE sessions ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
+    CREATE INDEX sessions_by_user ON sessions (user_id, started_at DESC);
+    ALTER TABLE events ADD COLUMN user_id INTEGER REFERENCES users (id) ON DELETE CASCADE;
+    CREATE INDEX events_by_user ON events (user_id, at DESC);
+    ALTER TABLE consent_checks ADD COLUMN user_id INTEGER REFERENCES users (id) ON DELETE CASCADE;
+    CREATE INDEX consent_checks_by_user ON consent_checks (user_id, at DESC);
+    ALTER TABLE enrolment_history ADD COLUMN user_id INTEGER REFERENCES users (id) ON DELETE CASCADE;
+    CREATE INDEX enrolment_history_by_user ON enrolment_history (user_id, at DESC);
+    """,
 }
+
+# What each table is for, in words for the screen that shows a user their data (the Data screen).
+TABLES = {
+    "users": "Your account: name, email, and a hash of your password.",
+    "logins": "Where you are signed in. Only a hash of each token is kept.",
+    "login_attempts": "Every try at signing in to your account, for the limit on guessing.",
+    "user_settings": "Your switches and choices, restored when you sign in.",
+    "pictures": "Your meeting pictures, each with how well it matched your face.",
+    "sessions": "Every session you ran, with its typical figures, its name and your note.",
+    "session_figures": "A reading every two seconds of each session: frame rate, delay, identity, lips.",
+    "events": "What happened, as the event list said it.",
+    "consent_checks": "Every liveness check: what it was for, whether it passed, and why not.",
+    "enrolment_history": "Every change to your enrolment: face, poses, picture.",
+}
+OWNED_THROUGH = {"session_figures": "session_id IN (SELECT id FROM sessions WHERE user_id IS ?)", "users": "id IS ?"}
+TEXT_FIELDS = {"title": 80, "note": 2000}  # what a user may write on a session, and how long
 
 FLUSH_SECONDS = 5.0  # how long a read waits for the writes queued before it
 
@@ -133,6 +229,7 @@ class Database:
         connection.execute("PRAGMA journal_mode = WAL")
         connection.execute("PRAGMA synchronous = NORMAL")  # with WAL: safe after a crash, without a disk sync per write
         connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA secure_delete = ON")  # what is deleted is overwritten: pictures are in here too
         return connection
 
     @staticmethod
@@ -172,20 +269,30 @@ class Database:
             connection = self._writer_connection
             try:
                 connection.execute("BEGIN")
+                done = []
                 for work, future in batch:
+                    # All of one piece of work or none of it; and one that fails must not lose the others.
+                    connection.execute("SAVEPOINT piece")
                     try:
-                        result = work(connection)
-                        if future is not None:
-                            future.set_result(result)
-                    except Exception as err:  # one bad write must not lose the others
+                        done.append((future, work(connection)))
+                        connection.execute("RELEASE piece")
+                    except Exception as err:
+                        connection.execute("ROLLBACK TO piece")
+                        connection.execute("RELEASE piece")
                         if future is not None:
                             future.set_exception(err)
                 connection.execute("COMMIT")
-            except sqlite3.Error:
+                for future, result in done:  # told only once it is really in the file
+                    if future is not None:
+                        future.set_result(result)
+            except sqlite3.Error as err:
                 try:
                     connection.execute("ROLLBACK")
                 except sqlite3.Error:
                     pass
+                for _, future in batch:
+                    if future is not None and not future.done():
+                        future.set_exception(err)
             finally:
                 for _ in batch:
                     self._writes.task_done()
@@ -196,6 +303,16 @@ class Database:
         future = Future() if wait else None
         self._writes.put((work, future))
         return future.result(timeout=FLUSH_SECONDS) if wait else None
+
+    def write(self, work):
+        """Do `work(connection)` on the writing thread, all of it or none, and return what it returns."""
+        if self.closed:
+            raise RuntimeError("The database is closed.")
+        return self._write(work, wait=True)
+
+    def read(self, sql, params=()):
+        """Rows, as dicts, after every write queued so far has landed."""
+        return self._read(sql, params)
 
     def flush(self):
         """Wait until every write queued so far has landed."""
@@ -221,12 +338,18 @@ class Database:
 
     # ---------------------------------------------------------------- sessions
 
-    def start_session(self, kind, input_label):
-        """A session begins. Returns its id."""
+    def start_session(self, kind, input_label, user_id=None):
+        """A session begins, with the picture the user has in use if it animates one. Returns its id."""
         at = self._clock()
-        return self._write(lambda c: c.execute(
-            "INSERT INTO sessions (started_at, kind, input_label) VALUES (?, ?, ?)", (at, kind, input_label)).lastrowid,
-            wait=True)
+
+        def work(c):
+            picture = None
+            if kind != "sample" and user_id is not None:
+                row = c.execute("SELECT id FROM pictures WHERE user_id = ? AND in_use = 1", (user_id,)).fetchone()
+                picture = None if row is None else row["id"]
+            return c.execute("INSERT INTO sessions (started_at, kind, input_label, user_id, picture_id) VALUES (?, ?, ?, ?, ?)",
+                             (at, kind, input_label, user_id, picture)).lastrowid
+        return self._write(work, wait=True)
 
     def add_figures(self, session_id, fps=None, delay_ms=None, render_ms=None, identity=None, live_share=None,
                     lips_camera=None, lips_output=None, longest_gap_ms=None):
@@ -262,15 +385,50 @@ class Database:
         now = self._clock()
         for row in rows:
             row["seconds"] = round((row["ended_at"] or now) - row["started_at"], 1)
-            row["virtual_camera"], row["voice_in_step"] = bool(row["virtual_camera"]), bool(row["voice_in_step"])
+            for flag in ("virtual_camera", "voice_in_step", "starred"):
+                row[flag] = bool(row[flag])
+            row.pop("user_id", None)
         return rows
 
-    def sessions(self, limit=100):
-        return self._rounded(self._read("SELECT * FROM sessions ORDER BY started_at DESC, id DESC LIMIT ?", (limit,)))
+    def sessions(self, limit=100, user_id=None, search="", starred=False):
+        """A user's sessions, newest first; those whose name, note or input holds `search`, if given."""
+        where, params = ["user_id IS ?"], [user_id]
+        if search.strip():
+            pattern = "%" + search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            where.append("(title LIKE ? ESCAPE '\\' OR note LIKE ? ESCAPE '\\' OR input_label LIKE ? ESCAPE '\\')")
+            params += [pattern] * 3
+        if starred:
+            where.append("starred = 1")
+        return self._rounded(self._read(
+            f"SELECT * FROM sessions WHERE {' AND '.join(where)} ORDER BY started_at DESC, id DESC LIMIT ?", (*params, limit)))
 
-    def session(self, session_id):
-        """One session with its figures over time, its events and its consent check, or None."""
-        found = self._rounded(self._read("SELECT * FROM sessions WHERE id = ?", (session_id,)))
+    def update_session(self, session_id, user_id, **changes):
+        """Give a session a name or a note, or a star. Returns False if it is not one of this user's."""
+        fields, values = [], []
+        for key, value in changes.items():
+            if key in TEXT_FIELDS:
+                fields.append(f"{key} = ?")
+                values.append((value or "").strip()[:TEXT_FIELDS[key]] or None)
+            elif key == "starred":
+                fields.append("starred = ?")
+                values.append(int(bool(value)))
+            else:
+                raise ValueError(f"a session has no {key}")
+        if not fields:
+            return bool(self._read("SELECT id FROM sessions WHERE id = ? AND user_id IS ?", (session_id, user_id)))
+        return self._write(lambda c: c.execute(
+            f"UPDATE sessions SET {', '.join(fields)} WHERE id = ? AND user_id IS ?", (*values, session_id, user_id)).rowcount > 0,
+            wait=True)
+
+    def delete_session(self, session_id, user_id):
+        """Forget one finished session, its figures and its events with it. False if it is not this user's, or runs."""
+        return self._write(lambda c: c.execute(
+            "DELETE FROM sessions WHERE id = ? AND user_id IS ? AND ended_at IS NOT NULL", (session_id, user_id)).rowcount > 0,
+            wait=True)
+
+    def session(self, session_id, user_id=None):
+        """One of a user's sessions with its figures over time, its events and its consent check, or None."""
+        found = self._rounded(self._read("SELECT * FROM sessions WHERE id = ? AND user_id IS ?", (session_id, user_id)))
         if not found:
             return None
         session = found[0]
@@ -281,65 +439,72 @@ class Database:
         session["events"] = self._read("SELECT at, level, message FROM events WHERE session_id = ? ORDER BY at, id", (session_id,))
         session["checks"] = self._read(
             "SELECT at, passed, failure, reason, lowest_match FROM consent_checks WHERE session_id = ? ORDER BY at", (session_id,))
+        picture = self._read("SELECT name FROM pictures WHERE id IS ?", (session["picture_id"],))
+        session["picture"] = picture[0]["name"] if picture else None
         return session
 
-    def totals(self, since=None):
-        """How much the app has been used: sessions and time live, in all and since a moment."""
+    def totals(self, since=None, user_id=None):
+        """How much a user has used the app: sessions and time live, in all and since a moment."""
         def count(where, params):
             row = self._read(
                 f"SELECT COUNT(*) AS sessions, COALESCE(SUM(COALESCE(ended_at, ?) - started_at), 0) AS seconds "
-                f"FROM sessions WHERE kind != 'sample' {where}", (self._clock(), *params))[0]
+                f"FROM sessions WHERE kind != 'sample' AND user_id IS ? {where}", (self._clock(), user_id, *params))[0]
             return {"sessions": row["sessions"], "seconds": round(row["seconds"], 1)}
         return {"all": count("", ()), "since": count("AND started_at >= ?", (since,)) if since is not None else None}
 
-    def clear_sessions(self):
-        """Forget the session history: the sessions, their figures and their events."""
-        self._write(lambda c: (c.execute("DELETE FROM sessions WHERE ended_at IS NOT NULL"),
-                               c.execute("DELETE FROM events WHERE session_id IS NULL")), wait=True)
+    def clear_sessions(self, user_id=None):
+        """Forget a user's session history: the sessions, their figures and their events. Starred ones are kept."""
+        self._write(lambda c: (
+            c.execute("DELETE FROM sessions WHERE ended_at IS NOT NULL AND starred = 0 AND user_id IS ?", (user_id,)),
+            c.execute("DELETE FROM events WHERE session_id IS NULL AND user_id IS ?", (user_id,))), wait=True)
 
     # ---------------------------------------------------------------- events
 
-    def add_event(self, level, message, session_id=None, at=None):
+    def add_event(self, level, message, session_id=None, at=None, user_id=None):
         at = self._clock() if at is None else at
-        self._write(lambda c: c.execute("INSERT INTO events (at, level, message, session_id) VALUES (?, ?, ?, ?)",
-                                        (at, level, message, session_id)))
+        self._write(lambda c: c.execute("INSERT INTO events (at, level, message, session_id, user_id) VALUES (?, ?, ?, ?, ?)",
+                                        (at, level, message, session_id, user_id)))
 
-    def events(self, limit=200):
-        return list(reversed(self._read("SELECT at, level, message, session_id FROM events ORDER BY at DESC, id DESC LIMIT ?",
-                                        (limit,))))
+    def events(self, limit=200, user_id=None):
+        return list(reversed(self._read(
+            "SELECT at, level, message, session_id FROM events WHERE user_id IS ? ORDER BY at DESC, id DESC LIMIT ?",
+            (user_id, limit))))
 
     # ---------------------------------------------------------------- security
 
-    def add_consent_check(self, purpose, passed, failure=None, reason=None, lowest_match=None, session_id=None):
+    def add_consent_check(self, purpose, passed, failure=None, reason=None, lowest_match=None, session_id=None, user_id=None):
         at = self._clock()
         self._write(lambda c: c.execute(
-            "INSERT INTO consent_checks (at, purpose, passed, failure, reason, lowest_match, session_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)", (at, purpose, int(bool(passed)), failure, reason or None, lowest_match, session_id)))
+            "INSERT INTO consent_checks (at, purpose, passed, failure, reason, lowest_match, session_id, user_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (at, purpose, int(bool(passed)), failure, reason or None, lowest_match, session_id, user_id)))
 
-    def failures_since_last_pass(self, within):
-        """When the checks that did not pass ended, after the last one that passed and within `within` seconds."""
+    def failures_since_last_pass(self, within, user_id=None):
+        """When a user's checks that did not pass ended, after the last that passed and within `within` seconds."""
         rows = self._read(
-            "SELECT at FROM consent_checks WHERE passed = 0 AND at >= ? AND at > COALESCE("
-            "(SELECT MAX(at) FROM consent_checks WHERE passed = 1), 0) ORDER BY at", (self._clock() - within,))
+            "SELECT at FROM consent_checks WHERE passed = 0 AND user_id IS ? AND at >= ? AND at > COALESCE("
+            "(SELECT MAX(at) FROM consent_checks WHERE passed = 1 AND user_id IS ?), 0) ORDER BY at",
+            (user_id, self._clock() - within, user_id))
         return [row["at"] for row in rows]
 
-    def add_enrolment(self, action, detail=None):
+    def add_enrolment(self, action, detail=None, user_id=None):
         at = self._clock()
-        self._write(lambda c: c.execute("INSERT INTO enrolment_history (at, action, detail) VALUES (?, ?, ?)",
-                                        (at, action, detail)))
+        self._write(lambda c: c.execute("INSERT INTO enrolment_history (at, action, detail, user_id) VALUES (?, ?, ?, ?)",
+                                        (at, action, detail, user_id)))
 
-    def security(self, limit=200):
-        """The consent checks and the changes to the enrolment, newest first, as one timeline."""
+    def security(self, limit=200, user_id=None):
+        """A user's consent checks and changes to the enrolment, newest first, as one timeline."""
         checks = self._read("SELECT 'check' AS kind, at, purpose, passed, failure, reason, lowest_match, session_id "
-                            "FROM consent_checks ORDER BY at DESC LIMIT ?", (limit,))
-        changes = self._read("SELECT 'enrolment' AS kind, at, action, detail FROM enrolment_history ORDER BY at DESC LIMIT ?",
-                             (limit,))
+                            "FROM consent_checks WHERE user_id IS ? ORDER BY at DESC LIMIT ?", (user_id, limit))
+        changes = self._read("SELECT 'enrolment' AS kind, at, action, detail FROM enrolment_history WHERE user_id IS ? "
+                             "ORDER BY at DESC LIMIT ?", (user_id, limit))
         for check in checks:
             check["passed"] = bool(check["passed"])
         return sorted(checks + changes, key=lambda item: item["at"], reverse=True)[:limit]
 
-    def clear_security(self):
-        self._write(lambda c: (c.execute("DELETE FROM consent_checks"), c.execute("DELETE FROM enrolment_history")), wait=True)
+    def clear_security(self, user_id=None):
+        self._write(lambda c: (c.execute("DELETE FROM consent_checks WHERE user_id IS ?", (user_id,)),
+                               c.execute("DELETE FROM enrolment_history WHERE user_id IS ?", (user_id,))), wait=True)
 
     # ---------------------------------------------------------------- settings
 
@@ -350,12 +515,133 @@ class Database:
             "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) "
             "ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", (key, text, at)))
 
+    def set_user_setting(self, user_id, key, value):
+        """Keep a choice of a user's. Without one (before the first account) it is the computer's."""
+        if user_id is None:
+            self.set_setting(key, value)
+            return
+        at, text = self._clock(), json.dumps(value)
+        self._write(lambda c: c.execute(
+            "INSERT INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (user_id, key, text, at)))
+
+    def user_settings(self, user_id, prefix=""):
+        if user_id is None:
+            return self.settings(prefix)
+        return self._parsed(self._read("SELECT key, value FROM user_settings WHERE user_id = ? AND key LIKE ? ORDER BY key",
+                                       (user_id, prefix.replace("%", "") + "%")))
+
     def settings(self, prefix=""):
-        rows = self._read("SELECT key, value FROM settings WHERE key LIKE ? ORDER BY key", (prefix.replace("%", "") + "%",))
+        return self._parsed(self._read("SELECT key, value FROM settings WHERE key LIKE ? ORDER BY key",
+                                       (prefix.replace("%", "") + "%",)))
+
+    @staticmethod
+    def _parsed(rows):
         found = {}
         for row in rows:
             try:
                 found[row["key"]] = json.loads(row["value"])
             except ValueError:
                 continue
+        return found
+
+    # ---------------------------------------------------------------- pictures
+
+    def keep_picture(self, user_id, name, image, thumbnail, sha256, width, height, face_match, limit, created_at=None):
+        """Keep a meeting picture in the user's library and mark it the one in use. The same picture is kept once.
+        Returns its id. When the library is full the one used longest ago makes room. created_at is for a picture
+        that was enrolled before now."""
+        at = self._clock()
+
+        def work(c):
+            c.execute("UPDATE pictures SET in_use = 0 WHERE user_id = ?", (user_id,))
+            row = c.execute("SELECT id FROM pictures WHERE user_id = ? AND sha256 = ?", (user_id, sha256)).fetchone()
+            if row is not None:
+                c.execute("UPDATE pictures SET in_use = 1, last_used_at = ?, face_match = ? WHERE id = ?", (at, face_match, row["id"]))
+                return row["id"]
+            kept = c.execute("SELECT COUNT(*) FROM pictures WHERE user_id = ?", (user_id,)).fetchone()[0]
+            if kept >= limit:
+                c.execute("DELETE FROM pictures WHERE id IN (SELECT id FROM pictures WHERE user_id = ? "
+                          "ORDER BY COALESCE(last_used_at, created_at) LIMIT ?)", (user_id, kept - limit + 1))
+            return c.execute(
+                "INSERT INTO pictures (user_id, name, created_at, last_used_at, width, height, face_match, sha256, image, "
+                "thumbnail, in_use) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                (user_id, name, at if created_at is None else created_at, at, width, height, face_match, sha256, image,
+                 thumbnail)).lastrowid
+        return self.write(work)
+
+    def pictures(self, user_id):
+        """A user's pictures without the pictures themselves, the newest used first."""
+        rows = self._read(
+            "SELECT p.id, p.name, p.created_at, p.last_used_at, p.width, p.height, p.face_match, p.in_use, "
+            "length(p.image) AS bytes, COUNT(s.id) AS sessions FROM pictures p LEFT JOIN sessions s ON s.picture_id = p.id "
+            "WHERE p.user_id = ? GROUP BY p.id ORDER BY COALESCE(p.last_used_at, p.created_at) DESC, p.id DESC", (user_id,))
+        for row in rows:
+            row["in_use"] = bool(row["in_use"])
+        return rows
+
+    def picture(self, user_id, picture_id, column="image"):
+        """One picture of a user's, or its thumbnail, as bytes; None if it is not theirs."""
+        assert column in ("image", "thumbnail", "name")
+        rows = self._read(f"SELECT {column} FROM pictures WHERE id = ? AND user_id = ?", (picture_id, user_id))
+        return rows[0][column] if rows else None
+
+    def rename_picture(self, user_id, picture_id, name):
+        return self.write(lambda c: c.execute("UPDATE pictures SET name = ? WHERE id = ? AND user_id = ?",
+                                              (name, picture_id, user_id)).rowcount > 0)
+
+    def delete_picture(self, user_id, picture_id):
+        return self.write(lambda c: c.execute("DELETE FROM pictures WHERE id = ? AND user_id = ?",
+                                              (picture_id, user_id)).rowcount > 0)
+
+    def no_picture_in_use(self, user_id):
+        self._write(lambda c: c.execute("UPDATE pictures SET in_use = 0 WHERE user_id IS ?", (user_id,)))
+
+    def delete_pictures(self, user_id):
+        self._write(lambda c: c.execute("DELETE FROM pictures WHERE user_id IS ?", (user_id,)), wait=True)
+
+    # ---------------------------------------------------------------- what a user has in here
+
+    def overview(self, user_id):
+        """The database as a user's data: every table with its columns, keys and how many of its rows are theirs.
+
+        The structure is read from the file itself, so what the Data screen draws is what the database is."""
+        tables = []
+        for name, purpose in TABLES.items():
+            columns = self._read(f"PRAGMA table_info({name})")
+            references = {row["from"]: {"table": row["table"], "column": row["to"], "on_delete": row["on_delete"]}
+                          for row in self._read(f"PRAGMA foreign_key_list({name})")}
+            mine = OWNED_THROUGH.get(name, "user_id IS ?")
+            tables.append({
+                "name": name, "purpose": purpose,
+                "rows": self._read(f"SELECT COUNT(*) AS n FROM {name} WHERE {mine}", (user_id,))[0]["n"],
+                "columns": [{"name": c["name"], "type": c["type"], "key": bool(c["pk"]), "required": bool(c["notnull"] or c["pk"]),
+                             "references": references.get(c["name"])} for c in columns],
+            })
+        files = [self.path, self.path.with_name(self.path.name + "-wal")]
+        pragma = {name: self._read(f"PRAGMA {name}")[0] for name in ("user_version", "journal_mode", "foreign_keys", "quick_check")}
+        value = {name: next(iter(row.values())) for name, row in pragma.items()}
+        return {
+            "file": self.path.name,
+            "bytes": sum(file.stat().st_size for file in files if file.exists()),
+            "pictures_bytes": self._read("SELECT COALESCE(SUM(length(image) + length(thumbnail)), 0) AS n FROM pictures "
+                                         "WHERE user_id IS ?", (user_id,))[0]["n"],
+            "sqlite": sqlite3.sqlite_version,
+            "schema": value["user_version"],
+            "journal": value["journal_mode"],
+            "foreign_keys": bool(value["foreign_keys"]),
+            "integrity": value["quick_check"],
+            "orphans": len(self._read("PRAGMA foreign_key_check")),
+            "tables": tables,
+        }
+
+    def export(self, user_id):
+        """Everything the database holds about a user, as plain values: no hash, no token, and no picture's bytes."""
+        found = {}
+        hidden = {"password_hash", "recovery_hash", "token_hash", "image", "thumbnail", "folder"}
+        for name in TABLES:
+            shown = ", ".join(c["name"] for c in self._read(f"PRAGMA table_info({name})") if c["name"] not in hidden)
+            mine = OWNED_THROUGH.get(name, "user_id IS ?")
+            found[name] = self._read(f"SELECT {shown} FROM {name} WHERE {mine}", (user_id,))
         return found

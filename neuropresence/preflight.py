@@ -292,7 +292,7 @@ def port_check(port=8000):
     if not taken:
         return Check(f"Port {port}", OK, "free for the engine")
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=3) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=3) as r:
             json.loads(r.read())
         return Check(f"Port {port}", OK, "the engine is already running there")
     except Exception:

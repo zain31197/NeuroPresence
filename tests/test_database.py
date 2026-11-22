@@ -1,10 +1,12 @@
 """The app's database (neuropresence/database.py), on a file in a test folder and a clock the tests move."""
 
+import re
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from neuropresence.database import SCHEMA_VERSION, Database
+from neuropresence.database import SCHEMA_VERSION, TABLES, Database
 
 
 class Clock:
@@ -155,7 +157,7 @@ def test_a_file_from_the_first_version_gains_the_lips_and_keeps_its_figures(tmp_
     old.close()
     db = Database(path)
     try:
-        assert db._reader.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        assert db._reader.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         figures = db.session(7)["figures"]
         assert figures[0]["fps"] == 20.5 and figures[0]["lips_camera"] is None and figures[0]["lips_output"] is None
         db.add_figures(7, fps=19.0, lips_camera=0.01, lips_output=0.02)
@@ -163,3 +165,27 @@ def test_a_file_from_the_first_version_gains_the_lips_and_keeps_its_figures(tmp_
         assert db.session(7)["figures"][-1]["lips_output"] == 0.02
     finally:
         db.close()
+
+
+def test_the_document_names_every_table_and_column_as_they_are(tmp_path):
+    """docs/DATABASE.md is read by people who do not read the code: it may not fall behind the schema."""
+    Database(tmp_path / "np.db").close()
+    connection = sqlite3.connect(tmp_path / "np.db")
+    names = [row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+    real = {name: sorted((row[1], row[2].lower()) for row in connection.execute(f"PRAGMA table_info({name})")) for name in names}
+    connection.close()
+    document = (Path(__file__).parent.parent / "docs" / "DATABASE.md").read_text(encoding="utf-8")
+
+    # In the data dictionary: a heading for each table, and a row for each column with its type.
+    sections = re.split(r"^### ", document, flags=re.MULTILINE)[1:]
+    told = {section.split(":")[0]: re.findall(r"^\| `(\w+)` \| (\w+) \|", section, flags=re.MULTILINE) for section in sections}
+    assert {name: sorted((column, kind.lower()) for column, kind in rows) for name, rows in told.items()} == real
+
+    # And the same in the diagram.
+    diagram = document.split("```mermaid")[1].split("```")[0]
+    boxes = re.findall(r"^    (\w+) \{\n(.*?)^    \}", diagram, flags=re.MULTILINE | re.DOTALL)
+    drawn = {name: re.findall(r"^ +(\w+) (\w+)", body, flags=re.MULTILINE) for name, body in boxes}
+    assert {name: sorted((column, kind) for kind, column in rows) for name, rows in drawn.items()} == real
+
+    # The Data screen speaks of every table that has an owner.
+    assert set(TABLES) == set(real) - {"settings"}

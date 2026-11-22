@@ -96,6 +96,13 @@ class FeatureSet:
                 if key in self._features and isinstance(enabled, bool):
                     self._features[key].enabled = enabled
 
+    def reset(self):
+        """Every switch as it is from the start, for another account."""
+        with self._lock:
+            for feature in DEFAULTS:
+                if feature.key in self._features:
+                    self._features[feature.key].enabled = feature.enabled
+
     def enabled(self, key):
         with self._lock:
             return self._features[key].enabled

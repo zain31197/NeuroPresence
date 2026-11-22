@@ -236,7 +236,8 @@ class LiveSession:
                 self.mouth.reset()
             database = getattr(self._rt, "db", None)
             kind = "voice" if voice else "camera" if uses_enrolment else "sample"
-            self.record_id = database.start_session(kind, label) if database is not None else None
+            self.record_id = (database.start_session(kind, label, user_id=getattr(self._rt, "user_id", None))
+                              if database is not None else None)
             opening = "Opening the camera" if isinstance(source, int) else "Opening the clip"
             self.state, self.message, self.input_label = SessionState.STARTING, opening, label
             self._thread = threading.Thread(target=self._run, args=(source,), name="live-session", daemon=True)

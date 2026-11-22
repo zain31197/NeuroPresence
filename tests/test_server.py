@@ -259,12 +259,25 @@ def make_runtime(tmp_path, parts):
                    voice_factory=make_voice)
 
 
+def sign_up(client, email="zain@example.com", name="Zain", password="correct horse battery"):
+    reply = client.post("/api/account/sign-up", json={"email": email, "name": name, "password": password})
+    assert reply.status_code == 200, reply.text
+    return reply.json()
+
+
+@pytest.fixture(autouse=True)
+def quick_hashes(monkeypatch):
+    """Passwords are hashed with a cost made to be slow; here it would only make every test slow."""
+    monkeypatch.setattr("neuropresence.accounts.SCRYPT_COST", (2 ** 4, 8, 1))
+
+
 @pytest.fixture
-def parts(tmp_path):
+def parts(tmp_path, quick_hashes):
     parts = {"feeds": [], "sources": [], "engines": [], "gpu_reads": [], "tracker": FakeTracker(), "tmp": tmp_path}
     parts["runtime"] = make_runtime(tmp_path, parts)
     with TestClient(create_app(parts["runtime"], web_dist=tmp_path / "no-web-build")) as client:
         parts["client"] = client
+        sign_up(client)  # the studio belongs to a signed-in account; signing in itself is tested in test_accounts.py
         yield parts
 
 
@@ -945,7 +958,7 @@ def test_removing_the_picture_keeps_the_face_and_forgetting_the_face_removes_bot
     assert found["face"] is None and found["record"] is None
     assert list(stored.iterdir()) == []  # nothing about the person is left on disk
     assert upload(parts).status_code == 409  # and an upload has nothing to be compared with again
-    assert "Face signature and meeting picture removed." in events(parts)
+    assert "Face signature and meeting pictures removed." in events(parts)
 
 
 def test_the_enrolment_survives_a_restart(parts):
@@ -1954,9 +1967,9 @@ def test_the_lips_at_the_camera_and_in_the_output_are_kept_with_the_figures(part
     session = parts["runtime"].session
     with session._mouth_lock:
         session.mouth.camera_gap, session.mouth.output_gap = 0.0123, 0.0456
-    assert wait_for(lambda: [f for f in parts["runtime"].db.session(session.record_id)["figures"] if f["lips_output"] is not None])
+    assert wait_for(lambda: [f for f in parts["runtime"].db.session(session.record_id, parts["runtime"].user_id)["figures"] if f["lips_output"] is not None])
     parts["client"].post("/api/session/stop")
-    figures = parts["runtime"].db.session(session.record_id)["figures"]
+    figures = parts["runtime"].db.session(session.record_id, parts["runtime"].user_id)["figures"]
     kept = [f for f in figures if f["lips_output"] is not None]
     assert kept and kept[-1]["lips_output"] == 0.0456
 
