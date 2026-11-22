@@ -1,7 +1,7 @@
 /** The live connection to the engine: status, events and frames over one WebSocket. */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, type FrameHeader, type Status, type StudioEvent } from './api'
+import { api, SIGNED_OUT_EVENT, type FrameHeader, type Status, type StudioEvent } from './api'
 import { parseFrame } from './frames'
 
 export type Connection = 'connecting' | 'open' | 'closed'
@@ -100,8 +100,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           return [...samples, sample].slice(-HISTORY_SAMPLES)
         })
       }
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (closed) return
+        if (event.code === 4401) window.dispatchEvent(new Event(SIGNED_OUT_EVENT)) // signed out, here or in another browser
         setConnection('closed')
         attempt += 1
         retry = window.setTimeout(connect, Math.min(5000, 500 * attempt))

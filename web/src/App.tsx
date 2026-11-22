@@ -1,10 +1,16 @@
 import { MotionConfig } from 'motion/react'
-import { createBrowserRouter, Navigate, RouterProvider, useRouteError } from 'react-router-dom'
+import { createBrowserRouter, Navigate, RouterProvider, useLocation, useRouteError } from 'react-router-dom'
 import { AppShell } from './app/AppShell'
+import { Logo } from './components/Logo'
+import { Spinner } from './components/ui/Button'
 import { ToastProvider } from './components/ui/Toast'
 import { TooltipProvider } from './components/ui/Tooltip'
+import { AccountProvider, useAccount } from './lib/account'
 import { StudioProvider } from './lib/studio'
+import { Account } from './screens/account/Account'
+import { Auth } from './screens/auth/Auth'
 import { Benchmarks } from './screens/benchmarks/Benchmarks'
+import { Data } from './screens/data/Data'
 import { Enrolment } from './screens/enrolment/Enrolment'
 import { Landing } from './screens/landing/Landing'
 import { Overview } from './screens/overview/Overview'
@@ -39,8 +45,34 @@ function Crash() {
   )
 }
 
-/** Everything under /studio shares one live connection to the engine. */
+/** While who is signed in is not known: the engine is being asked, or it is not there to ask. */
+function Opening({ unreachable }: { unreachable: boolean }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-canvas p-6">
+      <div className="flex max-w-[420px] flex-col items-center text-center">
+        <Logo />
+        <Spinner className="mt-7 size-5 text-ink-400" />
+        {unreachable && (
+          <p role="status" className="mt-5 text-[13.5px] leading-relaxed text-ink-600">
+            The engine is not running. Start it in a terminal with{' '}
+            <code className="rounded-[5px] bg-ink-100 px-1.5 py-0.5 font-mono text-[12px]">python -m neuropresence.server</code>. This page
+            goes on by itself.
+          </p>
+        )}
+      </div>
+    </main>
+  )
+}
+
+/** Everything under /studio is someone's, so it needs a person signed in; and it shares one live connection to the engine. */
 function Studio() {
+  const { user, loading, unreachable, removed } = useAccount()
+  const { pathname } = useLocation()
+  if (!user) {
+    if (removed) return <Navigate to="/" replace />
+    if (loading || unreachable) return <Opening unreachable={unreachable} />
+    return <Navigate to={`/sign-in?next=${encodeURIComponent(pathname)}`} replace />
+  }
   return (
     <StudioProvider>
       <ToastProvider>
@@ -52,6 +84,9 @@ function Studio() {
 
 const router = createBrowserRouter([
   { path: '/', element: <Landing />, errorElement: <Crash /> },
+  { path: '/sign-in', element: <Auth mode="sign-in" />, errorElement: <Crash /> },
+  { path: '/sign-up', element: <Auth mode="sign-up" />, errorElement: <Crash /> },
+  { path: '/reset', element: <Auth mode="reset" />, errorElement: <Crash /> },
   {
     path: '/studio',
     element: <Studio />,
@@ -62,6 +97,8 @@ const router = createBrowserRouter([
       { path: 'enrolment', element: <Enrolment /> },
       { path: 'sessions', element: <Sessions /> },
       { path: 'security', element: <Security /> },
+      { path: 'data', element: <Data /> },
+      { path: 'account', element: <Account /> },
       { path: 'benchmarks', element: <Benchmarks /> },
       { path: 'system', element: <System /> },
     ],
@@ -74,7 +111,9 @@ export function App() {
     // People who ask their system for less motion get every animation's final state at once.
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
-        <RouterProvider router={router} />
+        <AccountProvider>
+          <RouterProvider router={router} />
+        </AccountProvider>
       </TooltipProvider>
     </MotionConfig>
   )

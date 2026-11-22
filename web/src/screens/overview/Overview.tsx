@@ -7,6 +7,7 @@ import { CountUp, EASE_OUT } from '../../components/motion'
 import { Button, buttonClass } from '../../components/ui/Button'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { useToast } from '../../components/ui/Toast'
+import { useAccount } from '../../lib/account'
 import { api, ApiError, enrolledPictureUrl, type History, type Security, type SystemReport } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { clock, dash } from '../../lib/format'
@@ -33,6 +34,7 @@ function greeting(hour: number): string {
 /** The studio's home: whether everything is ready for a call, a way to go live, and what the sessions have done. */
 export function Overview() {
   const { status } = useStudio()
+  const { user } = useAccount()
   const [history, setHistory] = useState<History | null>(null)
   const [security, setSecurity] = useState<Security | null>(null)
   const [open, setOpen] = useState<number | null>(null)
@@ -57,7 +59,10 @@ export function Overview() {
   return (
     <main className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
       <div>
-        <p className="text-[13px] font-medium text-ink-500">{greeting(new Date(now).getHours())}</p>
+        <p className="text-[13px] font-medium text-ink-500">
+          {greeting(new Date(now).getHours())}
+          {user && `, ${user.name.split(' ')[0]}`}
+        </p>
         <h1 className="display mt-0.5 text-[26px] leading-tight font-semibold">Overview</h1>
         <p className="mt-1 max-w-[90ch] text-[13.5px] text-ink-500">
           Where everything stands before a call: your enrolment, this computer, and what your sessions have done.
@@ -88,7 +93,7 @@ export function Overview() {
         <SecuritySnippet security={security} />
       </div>
 
-      <SessionDrawer id={open} targets={status?.targets ?? null} onClose={closeDrawer} />
+      <SessionDrawer id={open} targets={status?.targets ?? null} onClose={closeDrawer} onChange={load} />
     </main>
   )
 }

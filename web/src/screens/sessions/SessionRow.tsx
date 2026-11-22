@@ -1,10 +1,11 @@
-import { ChevronRight, Clapperboard, Mic, Video, type LucideIcon } from 'lucide-react'
+import { ChevronRight, Clapperboard, Mic, Star, Video, type LucideIcon } from 'lucide-react'
 import { LiveDot } from '../../components/fx'
 import { Pill } from '../../components/ui/Pill'
 import type { SessionRecord } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { fixed } from '../../lib/format'
 import { clockTime, duration, OUTCOME } from '../../lib/history'
+import { StarButton } from './SessionNotes'
 
 export const KIND_ICON: Record<SessionRecord['kind'], LucideIcon> = { camera: Video, voice: Mic, sample: Clapperboard }
 
@@ -13,19 +14,31 @@ export function lasted(session: SessionRecord, now: number): number {
   return session.outcome === 'running' ? Math.max(0, now / 1000 - session.started_at) : session.seconds
 }
 
+interface Props {
+  session: SessionRecord
+  now: number
+  onOpen: () => void
+  /** With it, the row has a star to press; without, a starred session only shows one. */
+  onStar?: (on: boolean) => void
+  compact?: boolean
+}
+
 /** One past session in a list: what drove it, when, how long, how it ran and how it ended. Opens its detail. */
-export function SessionRow({ session, now, onOpen, compact = false }: { session: SessionRecord; now: number; onOpen: () => void; compact?: boolean }) {
+export function SessionRow({ session, now, onOpen, onStar, compact = false }: Props) {
   const Icon = KIND_ICON[session.kind]
   const outcome = OUTCOME[session.outcome]
   const running = session.outcome === 'running'
   const when = running ? `since ${clockTime(session.started_at)}` : `${clockTime(session.started_at)} to ${clockTime(session.ended_at ?? session.started_at)}`
   const flags = [session.virtual_camera && 'Sent to the meeting', session.voice_in_step && 'Voice in step'].filter(Boolean) as string[]
 
-  return (
+  const row = (
     <button
       type="button"
       onClick={onOpen}
-      className="group flex w-full items-center gap-3.5 px-4 py-3 text-left transition-colors duration-200 hover:bg-ink-50/80 focus-visible:bg-ink-50 focus-visible:outline-none sm:px-5"
+      className={cn(
+        'group flex w-full min-w-0 items-center gap-3.5 px-4 py-3 text-left transition-colors duration-200 focus-visible:bg-ink-50 focus-visible:outline-none sm:px-5',
+        onStar ? 'pl-1 sm:pl-1.5' : 'hover:bg-ink-50/80',
+      )}
     >
       <span
         className={cn(
@@ -38,7 +51,11 @@ export function SessionRow({ session, now, onOpen, compact = false }: { session:
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13.5px] font-semibold text-ink-950">{session.input_label}</span>
+        <span className="flex items-center gap-1.5 text-[13.5px]">
+          <span className="truncate font-semibold text-ink-950">{session.title ?? session.input_label}</span>
+          {session.title && <span className="hidden shrink-0 text-[12.5px] text-ink-400 sm:inline">{session.input_label}</span>}
+          {!onStar && session.starred && <Star className="size-3.5 shrink-0 fill-warning text-warning" aria-label="Starred" />}
+        </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px] text-ink-500">
           <span className="font-mono tabular-nums">{when}</span>
           <span aria-hidden="true">·</span>
@@ -67,6 +84,13 @@ export function SessionRow({ session, now, onOpen, compact = false }: { session:
       </span>
       <ChevronRight className="size-4 shrink-0 text-ink-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-ink-500" />
     </button>
+  )
+  if (!onStar) return row
+  return (
+    <div className="flex items-center pl-2 transition-colors duration-200 hover:bg-ink-50/80 sm:pl-3">
+      <StarButton on={session.starred} onChange={onStar} />
+      {row}
+    </div>
   )
 }
 

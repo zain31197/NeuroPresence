@@ -5,11 +5,13 @@ import { createPortal } from 'react-dom'
 import { EASE_OUT } from '../../components/motion'
 import { Pill } from '../../components/ui/Pill'
 import { TrendChart, type TrendPoint } from '../../components/viz/TrendChart'
-import { api, type SessionDetail, type Targets } from '../../lib/api'
+import { useToast } from '../../components/ui/Toast'
+import { api, ApiError, type SessionDetail, type Targets } from '../../lib/api'
 import { cn } from '../../lib/cn'
 import { clock, fixed } from '../../lib/format'
 import { clockTime, dayLabel, duration, KIND, median, OUTCOME, thin } from '../../lib/history'
 import { useNow } from '../../lib/useNow'
+import { SessionNotes, StarButton } from './SessionNotes'
 import { KIND_ICON, lasted } from './SessionRow'
 
 const LEVEL_ICON: Record<'info' | 'warning' | 'error', { icon: LucideIcon; tone: string }> = {
@@ -21,9 +23,10 @@ const LEVEL_ICON: Record<'info' | 'warning' | 'error', { icon: LucideIcon; tone:
 /**
  * One past session in full, in a panel that slides in from the right: how it ended, its typical figures, how
  * they moved over the session, its consent check and what happened in it. A running one is read again every
- * few seconds. Escape, the close button or a click beside the panel closes it.
+ * few seconds. Escape, the close button or a click beside the panel closes it. It can be given a name, a note
+ * and a star, or be deleted; onChange says that it was.
  */
-export function SessionDrawer({ id, targets, onClose }: { id: number | null; targets: Targets | null; onClose: () => void }) {
+export function SessionDrawer({ id, targets, onClose, onChange }: { id: number | null; targets: Targets | null; onClose: () => void; onChange: () => void }) {
   return createPortal(
     <AnimatePresence>
       {id !== null && (
@@ -43,7 +46,7 @@ export function SessionDrawer({ id, targets, onClose }: { id: number | null; tar
             variants={{ closed: { x: '100%' }, open: { x: 0 } }}
             transition={{ type: 'spring', stiffness: 380, damping: 40 }}
           >
-            <Detail id={id} targets={targets} onClose={onClose} />
+            <Detail key={id} id={id} targets={targets} onClose={onClose} onChange={onChange} />
           </motion.aside>
         </motion.div>
       )}
@@ -52,7 +55,8 @@ export function SessionDrawer({ id, targets, onClose }: { id: number | null; tar
   )
 }
 
-function Detail({ id, targets, onClose }: { id: number; targets: Targets | null; onClose: () => void }) {
+function Detail({ id, targets, onClose, onChange }: { id: number; targets: Targets | null; onClose: () => void; onChange: () => void }) {
+  const toast = useToast()
   const [detail, setDetail] = useState<SessionDetail | 'missing' | null>(null)
   const close = useRef<HTMLButtonElement>(null)
   const running = detail !== null && detail !== 'missing' && detail.outcome === 'running'
@@ -96,12 +100,22 @@ function Detail({ id, targets, onClose }: { id: number; targets: Targets | null;
     return () => window.clearInterval(timer)
   }, [running, id])
 
+  const star = async (on: boolean) => {
+    try {
+      setDetail(await api.changeSession(id, { starred: on }))
+      onChange()
+    } catch (error) {
+      toast.problem(error instanceof ApiError ? error.message : 'The star could not be saved.')
+    }
+  }
+
   return (
     <>
       <header className="flex items-start gap-3 border-b border-line px-5 py-4 sm:px-6">
         <div className="min-w-0 flex-1">
           {detail && detail !== 'missing' ? <Heading session={detail} now={now} /> : <p id="session-title" className="text-[15px] font-semibold text-ink-950">Session</p>}
         </div>
+        {detail && detail !== 'missing' && <StarButton on={detail.starred} onChange={star} />}
         <button
           ref={close}
           type="button"
@@ -116,7 +130,25 @@ function Detail({ id, targets, onClose }: { id: number; targets: Targets | null;
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-10 sm:px-6">
         {detail === null && <Loading />}
         {detail === 'missing' && <p className="text-[13.5px] text-ink-600">This session is no longer in the history.</p>}
-        {detail && detail !== 'missing' && <Body session={detail} targets={targets} />}
+        {detail && detail !== 'missing' && (
+          <Body
+            session={detail}
+            targets={targets}
+            notes={
+              <SessionNotes
+                session={detail}
+                onChange={(changed) => {
+                  setDetail(changed)
+                  onChange()
+                }}
+                onDelete={() => {
+                  onChange()
+                  onClose()
+                }}
+              />
+            }
+          />
+        )}
       </div>
     </>
   )
@@ -131,9 +163,9 @@ function Heading({ session, now }: { session: SessionDetail; now: number }) {
         <Icon className="size-[18px]" strokeWidth={1.9} />
       </span>
       <div className="min-w-0">
-        <p className="label-caps text-ink-400">{KIND[session.kind]}</p>
+        <p className="label-caps truncate text-ink-400">{session.title ? session.input_label : KIND[session.kind]}</p>
         <h2 id="session-title" className="display mt-0.5 truncate text-[18px] leading-tight font-semibold text-ink-950">
-          {session.input_label}
+          {session.title ?? session.input_label}
         </h2>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-ink-500">
           <span>
@@ -148,7 +180,7 @@ function Heading({ session, now }: { session: SessionDetail; now: number }) {
   )
 }
 
-function Body({ session, targets }: { session: SessionDetail; targets: Targets | null }) {
+function Body({ session, targets, notes }: { session: SessionDetail; targets: Targets | null; notes: ReactNode }) {
   const readings = thin(session.figures)
   const point = (value: (f: SessionDetail['figures'][number]) => number | null) =>
     readings.map((f): TrendPoint => ({ label: clock(f.at - session.started_at), date: '', value: value(f) }))
@@ -189,6 +221,8 @@ function Body({ session, targets }: { session: SessionDetail; targets: Targets |
           </span>
         )}
       </div>
+
+      {notes}
 
       {readings.length > 1 ? (
         <div className="grid gap-5">

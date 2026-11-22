@@ -1,11 +1,13 @@
-import { ArrowLeft, ChartNoAxesColumn, History, LayoutDashboard, Lock, MonitorPlay, Server, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, ChartNoAxesColumn, Database, History, LayoutDashboard, Lock, MonitorPlay, Server, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { DURATION, EASE_OUT } from '../components/motion'
+import { useAccount } from '../lib/account'
 import { cn } from '../lib/cn'
 import { useStudio, type Connection } from '../lib/studio'
+import { Avatar, UserMenu } from './UserMenu'
 
 type Screen = { to: string; label: string; icon: LucideIcon }
 
@@ -20,12 +22,13 @@ const GROUPS: { title: string; screens: Screen[] }[] = [
       { to: '/studio/live', label: 'Live Studio', icon: MonitorPlay },
     ],
   },
-  // What has happened, kept in the engine's database.
+  // What has happened, kept in the account's part of the database.
   {
-    title: 'History',
+    title: 'Records',
     screens: [
       { to: '/studio/sessions', label: 'Sessions', icon: History },
       { to: '/studio/security', label: 'Security', icon: ShieldCheck },
+      { to: '/studio/data', label: 'Your data', icon: Database },
     ],
   },
   // How the system measures up, and whether this computer is ready for it.
@@ -91,6 +94,7 @@ function EngineStatus({ connection, className }: { connection: Connection; class
 
 export function AppShell() {
   const { connection, status } = useStudio()
+  const { user } = useAccount()
   // Until a picture is enrolled, a camera session cannot start: point at the screen that comes first.
   const startHere = status && status.enrolment.record === null ? '/studio/enrolment' : null
   const { pathname } = useLocation()
@@ -139,7 +143,7 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="grid gap-3 border-t border-line p-4">
+        <div className="grid gap-2.5 px-5 pb-4">
           <EngineStatus connection={connection} />
           <span className="inline-flex items-center gap-2 text-[12.5px] text-ink-600">
             <Lock className="size-3.5 text-ink-400" />
@@ -150,6 +154,9 @@ export function AppShell() {
             About NeuroPresence
           </Link>
         </div>
+        <div className="border-t border-line p-3">
+          <UserMenu />
+        </div>
       </aside>
 
       <div className="min-w-0 flex-1">
@@ -158,7 +165,14 @@ export function AppShell() {
             <Link to="/" aria-label="NeuroPresence home">
               <Logo />
             </Link>
-            <EngineStatus connection={connection} />
+            <div className="flex items-center gap-3">
+              <EngineStatus connection={connection} className="hidden min-[420px]:inline-flex" />
+              {user && (
+                <Link to="/studio/account" aria-label={`Account of ${user.name}`}>
+                  <Avatar name={user.name} className="size-8 rounded-[10px] text-[11px]" />
+                </Link>
+              )}
+            </div>
           </div>
           {/* Without the sidebar, the screens are reached from here. */}
           <nav className="flex gap-1 overflow-x-auto px-3 pb-2" aria-label="Studio">

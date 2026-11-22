@@ -342,9 +342,79 @@ export interface SessionRecord {
   identity: number | null
   virtual_camera: boolean
   voice_in_step: boolean
+  /** What the user called it and wrote about it. */
+  title: string | null
+  note: string | null
+  starred: boolean
+}
+
+/** An account on this computer (neuropresence/accounts.py). */
+export interface User {
+  id: number
+  email: string
+  name: string
+  created_at: number
+  last_login_at: number | null
+}
+
+/** Who is signed in on this browser, and whether this computer has an account yet. */
+export interface AccountState {
+  user: User | null
+  /** No account has been made on this computer. */
+  first: boolean
+  /** ... and there is a face, a picture or a history from before accounts, which the first one takes over. */
+  claims: boolean
+}
+
+export interface Devices {
+  devices: { device: string | null; created_at: number; last_seen_at: number; expires_at: number; this: boolean }[]
+  attempts: { at: number; succeeded: boolean }[]
+}
+
+/** The database as the signed-in account's data, read from the file itself (neuropresence/database.py: overview). */
+export interface DataOverview {
+  file: string
+  bytes: number
+  pictures_bytes: number
+  sqlite: string
+  schema: number
+  journal: string
+  foreign_keys: boolean
+  integrity: string
+  orphans: number
+  tables: DataTable[]
+}
+
+export interface DataTable {
+  name: string
+  purpose: string
+  rows: number
+  columns: { name: string; type: string; key: boolean; required: boolean; references: { table: string; column: string; on_delete: string } | null }[]
+}
+
+/** A meeting picture in the account's library, without the picture itself. */
+export interface LibraryPicture {
+  id: number
+  name: string
+  created_at: number
+  last_used_at: number | null
+  width: number
+  height: number
+  /** How alike its face was to the verified face. */
+  face_match: number | null
+  in_use: boolean
+  bytes: number
+  sessions: number
+}
+
+export interface Library {
+  pictures: LibraryPicture[]
+  most: number
 }
 
 export interface SessionDetail extends SessionRecord {
+  /** The name of the picture it animated, if it is still in the library. */
+  picture?: string | null
   figures: { at: number; fps: number | null; delay_ms: number | null; render_ms: number | null; identity: number | null; live_share: number | null }[]
   events: { at: number; level: 'info' | 'warning' | 'error'; message: string }[]
   checks: { at: number; passed: number; failure: string | null; reason: string | null; lowest_match: number | null }[]
@@ -488,12 +558,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Sent to the window when the engine says that no one is signed in. */
+export const SIGNED_OUT_EVENT = 'neuropresence:signed-out'
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, init)
   } catch {
     throw new ApiError('The engine is not reachable. Start it with: python -m neuropresence.server', 0)
+  }
+  if (response.status === 401 && !path.startsWith('/api/account/')) {
+    window.dispatchEvent(new Event(SIGNED_OUT_EVENT)) // signed out meanwhile: the app goes to the sign-in page
   }
   if (!response.ok) {
     let message = `The request failed (${response.status}).`
@@ -520,8 +596,38 @@ export const api = {
   capabilities: () => request<Capabilities>('/api/capabilities'),
   latestBenchmark: () => request<Benchmark>('/api/benchmarks/latest'),
   benchmarks: () => request<Benchmarks>('/api/benchmarks'),
-  history: (limit = 100) => request<History>(`/api/history?limit=${limit}`),
+  account: () => request<AccountState>('/api/account'),
+  signUp: (body: { email: string; name: string; password: string; remember: boolean }) =>
+    request<{ user: User; recovery_code: string }>('/api/account/sign-up', { method: 'POST', ...json(body) }),
+  signIn: (body: { email: string; password: string; remember: boolean }) =>
+    request<{ user: User }>('/api/account/sign-in', { method: 'POST', ...json(body) }),
+  signOut: () => request<{ ok: boolean }>('/api/account/sign-out', { method: 'POST' }),
+  resetPassword: (body: { email: string; code: string; password: string }) =>
+    request<{ user: User; recovery_code: string }>('/api/account/reset', { method: 'POST', ...json(body) }),
+  changeAccount: (body: { name?: string; email?: string; password?: string }) =>
+    request<{ user: User }>('/api/account', { method: 'PATCH', ...json(body) }),
+  changePassword: (body: { current: string; new: string }) =>
+    request<{ ok: boolean }>('/api/account/password', { method: 'POST', ...json(body) }),
+  newRecoveryCode: (password: string) =>
+    request<{ recovery_code: string }>('/api/account/recovery-code', { method: 'POST', ...json({ password }) }),
+  devices: () => request<Devices>('/api/account/devices'),
+  signOutOthers: () => request<Devices>('/api/account/devices', { method: 'DELETE' }),
+  deleteAccount: (password: string) => request<{ ok: boolean }>('/api/account/delete', { method: 'POST', ...json({ password }) }),
+  data: () => request<DataOverview>('/api/account/data'),
+
+  pictures: () => request<Library>('/api/pictures'),
+  /** Makes it the meeting picture, after the checks an upload goes through. */
+  usePicture: (id: number) => request<Library>(`/api/pictures/${id}/use`, { method: 'POST' }),
+  renamePicture: (id: number, name: string) => request<Library>(`/api/pictures/${id}`, { method: 'PATCH', ...json({ name }) }),
+  deletePicture: (id: number) => request<Library>(`/api/pictures/${id}`, { method: 'DELETE' }),
+
+  history: (limit = 100, search = '', starred = false) =>
+    request<History>(`/api/history?limit=${limit}&search=${encodeURIComponent(search)}&starred=${starred}`),
   historySession: (id: number) => request<SessionDetail>(`/api/history/${id}`),
+  /** A name, a note or a star for a past session. */
+  changeSession: (id: number, change: { title?: string; note?: string; starred?: boolean }) =>
+    request<SessionDetail>(`/api/history/${id}`, { method: 'PATCH', ...json(change) }),
+  deleteSession: (id: number) => request<{ ok: boolean }>(`/api/history/${id}`, { method: 'DELETE' }),
   clearHistory: () => request<History>('/api/history', { method: 'DELETE' }),
   security: () => request<Security>('/api/security'),
   clearSecurity: () => request<Security>('/api/security', { method: 'DELETE' }),
@@ -570,6 +676,9 @@ export const api = {
     request<Feature>(`/api/features/${encodeURIComponent(key)}`, { method: 'PATCH', ...json({ enabled }) }),
 }
 
+export const EXPORT_PATH = '/api/account/export'
+/** Address of a picture in the library, or its thumbnail. */
+export const libraryPictureUrl = (id: number, thumbnail = true) => `/api/pictures/${id}/image?thumbnail=${thumbnail}`
 /** Address of the enrolled picture. Its id changes with every enrolment, so the browser refetches it. */
 export const enrolledPictureUrl = (id: string) => `/api/enrolment/picture?v=${encodeURIComponent(id)}`
 /** Address of the picture waiting to be kept or discarded. */
