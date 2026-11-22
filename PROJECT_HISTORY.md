@@ -1025,6 +1025,8 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 
 **Checked.** 585 engine and server tests (80 of them new) and 85 web tests pass. In a real browser against a test server with scratch data: 22 steps as two people would use it (a note typed and closed at once is saved, the search takes % and _ as they are, the second person sees nothing of the first, a session and a picture of someone else's are not found, the old password stops working, a deleted account is gone and the first person's things are where they were), the recovery code, and every new page at phone width. With the real engine on a recorded clip: the session is kept for the person signed in, another account is refused while it runs, signing out stops it. **Not done:** nobody has used it in a real meeting since; the demonstration laptop needs its account made beforehand.
 
+**Then, asked by Zain:** what if a person already has an account? On a computer without one the sign-up page offered no way to sign in, and the sign-in page led back to it. Now every sign-up page offers signing in, an email that already has an account is answered with a way to sign in, the email typed goes along from page to page, and on a computer without an account the sign-in page says that an account stays on the computer it was made on and how to bring it over: by copying the `data` folder with the engine closed on both. Checked in a browser in 17 steps, and the copy by signing in on one (face, pictures and sessions there, file intact).
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1104,6 +1106,7 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 | Half of the landing page's headline did not show in Edge | Each word keeps a blur filter once in place; a browser leaves such a layer out of a gradient on its parent's text | Each word carries its own part of the gradient (22 November 2026) |
 | After an account was deleted the app went to the sign-in page | The engine's "signed out" on the live connection came before the reply | The app knows it is deleting before it asks (22 November 2026) |
 | The tries at a password were counted by time, and one made in the same instant as a success was not counted | Two rows with the same time have no order | Counted by the order they were written in (22 November 2026) |
+| Someone with an account elsewhere could not get past "Create the first account" | The sign-in page led back to sign-up on a computer without an account | Both pages lead to each other, and the sign-in page says how to bring an account over (22 November 2026) |
 
 ## Open items
 
