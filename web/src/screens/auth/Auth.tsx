@@ -1,7 +1,7 @@
-import { ArrowLeft, ArrowRight, CircleAlert, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleAlert, MonitorSmartphone, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Logo } from '../../components/Logo'
 import { EASE_OUT } from '../../components/motion'
 import { RecoveryCode } from '../../components/RecoveryCode'
@@ -35,8 +35,8 @@ export function Auth({ mode }: { mode: Mode }) {
   }
 
   if (account.user && !fresh) return <Navigate to={next} replace />
-  // The first person on this computer has no account to sign in to.
-  if (account.first && mode !== 'sign-up') return <Navigate to={`/sign-up${suffix}`} replace />
+  // Without an account there is no password to set anew.
+  if (account.first && mode === 'reset') return <Navigate to={`/sign-up${suffix}`} replace />
 
   return (
     <div className="grid min-h-screen bg-surface lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)]">
@@ -71,7 +71,7 @@ export function Auth({ mode }: { mode: Mode }) {
               ) : mode === 'reset' ? (
                 <Reset suffix={suffix} onDone={(user, code) => setFresh({ user, code })} />
               ) : (
-                <SignIn suffix={suffix} onDone={done} />
+                <SignIn first={account.first} suffix={suffix} onDone={done} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -104,6 +104,7 @@ function Heading({ title, children }: { title: string; children: ReactNode }) {
 function useSubmit() {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const [status, setStatus] = useState(0)
   const submit = (work: () => Promise<void>) => async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
@@ -112,14 +113,15 @@ function useSubmit() {
       await work()
     } catch (error) {
       setProblem(error instanceof ApiError ? error.message : 'Something went wrong. Try again.')
+      setStatus(error instanceof ApiError ? error.status : 0)
     } finally {
       setBusy(false)
     }
   }
-  return { busy, problem, submit, clear: () => setProblem(null) }
+  return { busy, problem, status, submit }
 }
 
-function Problem({ children }: { children: string | null }) {
+function Problem({ children, action }: { children: string | null; action?: ReactNode }) {
   return (
     <AnimatePresence>
       {children && (
@@ -132,7 +134,8 @@ function Problem({ children }: { children: string | null }) {
           transition={{ duration: 0.25, ease: EASE_OUT }}
         >
           <CircleAlert className="mt-px size-4 shrink-0" />
-          {children}
+          <span className="min-w-0 flex-1">{children}</span>
+          {action}
         </motion.p>
       )}
     </AnimatePresence>
@@ -150,8 +153,12 @@ function Remember({ checked, onChange }: { checked: boolean; onChange: (on: bool
 
 const inline = 'font-semibold text-accent-700 underline-offset-4 hover:underline'
 
-function SignIn({ suffix, onDone }: { suffix: string; onDone: (user: User) => void }) {
-  const [email, setEmail] = useState('')
+/** The email that was typed on the page before this one, so that it is not typed twice. */
+const useTyped = () => (useLocation().state as { email?: string } | null)?.email ?? ''
+
+function SignIn({ first, suffix, onDone }: { first: boolean; suffix: string; onDone: (user: User) => void }) {
+  const typed = useTyped()
+  const [email, setEmail] = useState(typed)
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
   const { busy, problem, submit } = useSubmit()
@@ -159,19 +166,31 @@ function SignIn({ suffix, onDone }: { suffix: string; onDone: (user: User) => vo
     <form onSubmit={submit(async () => onDone((await api.signIn({ email, password, remember })).user))} className="grid gap-4" noValidate>
       <div>
         <Heading title="Welcome back">Sign in to your pictures, your sessions and your studio as you left it.</Heading>
+        {first && (
+          <p className="mb-4 flex gap-2.5 rounded-panel border border-accent-200 bg-accent-50 px-3.5 py-3 text-[13px] leading-snug text-accent-800">
+            <MonitorSmartphone className="mt-px size-4 shrink-0" />
+            <span>
+              There is no account on this computer yet: an account stays on the computer it was made on. Create one below, or bring yours over by
+              copying the project's <code className="font-mono text-[12px]">data</code> folder from that computer, with the engine closed on both.
+            </span>
+          </p>
+        )}
         <Problem>{problem}</Problem>
       </div>
-      <Field label="Email" type="email" autoComplete="username" autoFocus required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+      <Field label="Email" type="email" autoComplete="username" autoFocus={!typed} required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
       <PasswordField
         label="Password"
         autoComplete="current-password"
+        autoFocus={!!typed}
         required
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         aside={
-          <Link to={`/reset${suffix}`} className={`text-[12.5px] ${inline}`}>
-            Forgot it?
-          </Link>
+          !first && (
+            <Link to={`/reset${suffix}`} state={{ email }} className={`text-[12.5px] ${inline}`}>
+              Forgot it?
+            </Link>
+          )
         }
       />
       <Remember checked={remember} onChange={setRemember} />
@@ -181,7 +200,7 @@ function SignIn({ suffix, onDone }: { suffix: string; onDone: (user: User) => vo
       </Button>
       <p className="text-center text-[13.5px] text-ink-600">
         New on this computer?{' '}
-        <Link to={`/sign-up${suffix}`} className={inline}>
+        <Link to={`/sign-up${suffix}`} state={{ email }} className={inline}>
           Create an account
         </Link>
       </p>
@@ -191,10 +210,10 @@ function SignIn({ suffix, onDone }: { suffix: string; onDone: (user: User) => vo
 
 function SignUp({ first, claims, suffix, onDone }: { first: boolean; claims: boolean; suffix: string; onDone: (user: User, code: string) => void }) {
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(useTyped())
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
-  const { busy, problem, submit } = useSubmit()
+  const { busy, problem, status, submit } = useSubmit()
   return (
     <form
       onSubmit={submit(async () => {
@@ -214,7 +233,17 @@ function SignUp({ first, claims, suffix, onDone }: { first: boolean; claims: boo
             What is already on this computer, the enrolled face and picture and the history, becomes yours. Nothing is lost.
           </p>
         )}
-        <Problem>{problem}</Problem>
+        <Problem
+          action={
+            status === 409 && (
+              <Link to={`/sign-in${suffix}`} state={{ email }} className="shrink-0 self-center font-semibold underline underline-offset-4">
+                Sign in
+              </Link>
+            )
+          }
+        >
+          {problem}
+        </Problem>
       </div>
       <Field label="Name" autoComplete="name" autoFocus required maxLength={60} value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" />
       <Field label="Email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" hint="Only to sign in with. No email is ever sent." />
@@ -224,20 +253,18 @@ function SignUp({ first, claims, suffix, onDone }: { first: boolean; claims: boo
         Create account
         {!busy && <ArrowRight className="size-4" />}
       </Button>
-      {!first && (
-        <p className="text-center text-[13.5px] text-ink-600">
-          Have an account?{' '}
-          <Link to={`/sign-in${suffix}`} className={inline}>
-            Sign in
-          </Link>
-        </p>
-      )}
+      <p className="text-center text-[13.5px] text-ink-600">
+        Already have an account?{' '}
+        <Link to={`/sign-in${suffix}`} state={{ email }} className={inline}>
+          Sign in
+        </Link>
+      </p>
     </form>
   )
 }
 
 function Reset({ suffix, onDone }: { suffix: string; onDone: (user: User, code: string) => void }) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(useTyped())
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const { busy, problem, submit } = useSubmit()
@@ -271,7 +298,7 @@ function Reset({ suffix, onDone }: { suffix: string; onDone: (user: User, code: 
       </Button>
       <p className="text-center text-[13.5px] text-ink-600">
         Remembered it?{' '}
-        <Link to={`/sign-in${suffix}`} className={inline}>
+        <Link to={`/sign-in${suffix}`} state={{ email }} className={inline}>
           Sign in
         </Link>
       </p>

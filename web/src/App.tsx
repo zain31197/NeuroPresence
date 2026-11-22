@@ -66,12 +66,13 @@ function Opening({ unreachable }: { unreachable: boolean }) {
 
 /** Everything under /studio is someone's, so it needs a person signed in; and it shares one live connection to the engine. */
 function Studio() {
-  const { user, loading, unreachable, removed } = useAccount()
+  const { user, first, loading, unreachable, removed } = useAccount()
   const { pathname } = useLocation()
   if (!user) {
     if (removed) return <Navigate to="/" replace />
     if (loading || unreachable) return <Opening unreachable={unreachable} />
-    return <Navigate to={`/sign-in?next=${encodeURIComponent(pathname)}`} replace />
+    // A computer without an account starts with making one; signing in is one press away from there.
+    return <Navigate to={`${first ? '/sign-up' : '/sign-in'}?next=${encodeURIComponent(pathname)}`} replace />
   }
   return (
     <StudioProvider>
