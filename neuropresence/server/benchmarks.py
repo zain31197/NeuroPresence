@@ -15,6 +15,8 @@ LABELS = {
     "smooth": "Even motion",
     "rest": "Neutral pose follows the person",
     "lips": "Closed lips anchored",
+    "half": "16-bit networks, for comparison",
+    "int8": "Heaviest layers in 8 bit",
     "own_camera": "Own camera recording",
 }
 

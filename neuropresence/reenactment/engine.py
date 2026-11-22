@@ -8,6 +8,7 @@ what a live loop needs, and times each part.
 import copy
 import logging
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -76,6 +77,7 @@ LIP_ANCHOR_SECONDS = 0.35  # how quickly: within one closing of the lips between
 # leaves the mouth nearly shut (0.051, 10%), is still repaired (0.095, 26%).
 LIP_HOLD_SECONDS = 0.4
 LIP_GAIN = 1.0  # the movement of the mouth, as it is read; kept for trials
+MOUTH_REPAIR_EASE, MOUTH_REPAIR_SECONDS = 0.10, 0.6  # a neutral mouth that has stopped following is eased right, not snapped
 
 REST_HOLD_SECONDS = 1.5  # at rest for this long before the neutral pose starts to follow
 REST_SECONDS = 12.0  # where the head is follows this slowly: a look to one side for a few seconds still shows
@@ -172,7 +174,12 @@ class _HalfPrecision(torch.nn.Module):
 
 
 class ReenactmentEngine:
-    def __init__(self, liveportrait_dir=LIVEPORTRAIT_DIR, half_precision=True, compile_networks=False, tensorrt=False):
+    def __init__(self, liveportrait_dir=LIVEPORTRAIT_DIR, half_precision=True, compile_networks=False, tensorrt=False,
+                 int8=True):
+        """With `tensorrt`, the two networks that draw run through TensorRT; with `int8` their heaviest layers also run
+        in 8 bit (quantize.py) unless NEUROPRESENCE_INT8=0 is set. Whatever fails falls back to 16 bit."""
+        self._int8 = int8 and os.environ.get("NEUROPRESENCE_INT8", "1") != "0"
+        self.precision = None  # "int8" or "half", once TensorRT runs the networks that draw
         # How much of the card was free before anything was loaded: the engine's own use is measured from it.
         self._gpu_free_before = torch.cuda.mem_get_info()[0] if torch.cuda.is_available() else None
         CropConfig, InferenceConfig, Wrapper, self._rotation, Cropper = _load_liveportrait(
@@ -254,19 +261,29 @@ class ReenactmentEngine:
         """
         w = self._wrapper
         try:
-            from .accelerate import to_tensorrt
+            from .accelerate import to_tensorrt, to_tensorrt_int8
 
-            warping, generator = to_tensorrt(w.warping_module.network, w.spade_generator.network, TENSORRT_DIR)
-            feature = torch.zeros(1, 32, 16, 64, 64, device=self._device)
-            keypoints = torch.rand(1, 21, 3, device=self._device) * 0.2
             kept = w.warping_module, w.spade_generator
-            w.warping_module, w.spade_generator = warping, generator
-            try:
-                w.warp_decode(feature, keypoints, keypoints * 1.01)  # prove it runs before relying on it
-                torch.cuda.synchronize()
-            except Exception:
-                w.warping_module, w.spade_generator = kept
-                raise
+            # 8 bit first; if that does not convert or run on this machine, 16 bit as before.
+            for precision, convert in (("int8", to_tensorrt_int8), ("half", to_tensorrt)):
+                if precision == "int8" and not self._int8:
+                    continue
+                try:
+                    warping, generator = convert(kept[0].network, kept[1].network, TENSORRT_DIR)
+                    feature = torch.zeros(1, 32, 16, 64, 64, device=self._device)
+                    keypoints = torch.rand(1, 21, 3, device=self._device) * 0.2
+                    w.warping_module, w.spade_generator = warping, generator
+                    out = w.warp_decode(feature, keypoints, keypoints * 1.01)["out"]  # prove it runs before relying on it
+                    torch.cuda.synchronize()
+                    if not torch.isfinite(out).all():
+                        raise RuntimeError("the networks gave numbers that are not finite")
+                    self.precision = precision
+                    break
+                except Exception as err:
+                    w.warping_module, w.spade_generator = kept
+                    if precision == "half":
+                        raise
+                    log.warning("The 8-bit layers are not used: %s", (str(err).splitlines() or [type(err).__name__])[0][:200])
             self.accelerated = "tensorrt"
         except Exception as err:
             log.warning("TensorRT is not used: %s", (str(err).splitlines() or [type(err).__name__])[0][:200])
@@ -480,10 +497,37 @@ class ReenactmentEngine:
         self._posture_at, self._settling = None, False
         self._rest_since = self._rest_at = None
 
+    def repair_mouth(self, how):
+        """Ask for the neutral mouth to be put right, as server/mouth.py finds it has stopped following.
+
+        "open": the picture's mouth stands open while the person's is closed, so the neutral mouth goes to how their
+        closed mouth reads now. "shut": it stays shut while they speak, so it goes to how their mouth last read closed.
+        Done by the drawing thread, eased over a fraction of a second."""
+        self._mouth_repair = how
+
+    def _repair_lips(self, driving, now, last):
+        how, self._mouth_repair = getattr(self, "_mouth_repair", None), None
+        if how is not None and self.anchor_lips and self._reference is not None:
+            mouth = driving["exp"][:, LIP_KEYPOINTS] if how == "open" and self.lips_closed else getattr(self, "_closed_mouth", None)
+            if mouth is not None:
+                self._mouth_to = (mouth.clone(), now + MOUTH_REPAIR_SECONDS)
+        target = getattr(self, "_mouth_to", None)
+        if target is None or self._reference is None:
+            return
+        mouth, until = target
+        elapsed = 0.05 if last is None else min(max(now - last, 0.0), 0.2)
+        rest = self._reference["info"]
+        expression = rest["exp"].clone()
+        expression[:, LIP_KEYPOINTS] += (mouth - expression[:, LIP_KEYPOINTS]) * (1.0 - math.exp(-elapsed / MOUTH_REPAIR_EASE))
+        self._reference = {"info": {**rest, "exp": expression}, "rotation": self._reference["rotation"]}
+        if now >= until:
+            self._mouth_to = None
+
     def _follow_lips(self, driving, at):
         """While the lips are closed at the camera, bring the mouth of the neutral pose to how it reads now."""
         now = time.perf_counter() if at is None else at
         last, self._lips_at = getattr(self, "_lips_at", None), now
+        self._repair_lips(driving, now, last)
         if not (self.anchor_lips and self.lips_closed):
             self._lips_closed_since = None
             return
@@ -491,6 +535,7 @@ class ReenactmentEngine:
             self._lips_closed_since = now
         if last is None or now - self._lips_closed_since < LIP_HOLD_SECONDS:
             return  # closed for a moment only, between two syllables: not a mouth at rest
+        self._closed_mouth = driving["exp"][:, LIP_KEYPOINTS].clone()  # how their mouth reads closed, for a repair
         share = 1.0 - math.exp(-min(max(now - last, 0.0), 0.5) / LIP_ANCHOR_SECONDS)
         rest = self._reference["info"]
         mouth = rest["exp"].clone()

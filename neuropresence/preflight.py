@@ -363,7 +363,8 @@ def _warm_engine(source, seconds, say):
     _KEPT.append(engine)
     loaded = time.perf_counter() - start
     level = OK if engine.accelerated == "tensorrt" else WARN
-    checks.append(Check("Engine", level, f"ready in {loaded:.0f} s, drawing with {engine.accelerated or 'plain PyTorch'}",
+    how = "TensorRT, its heaviest layers in 8 bit" if engine.precision == "int8" else engine.accelerated or "plain PyTorch"
+    checks.append(Check("Engine", level, f"ready in {loaded:.0f} s, drawing with {how}",
                         "" if level == OK else "TensorRT did not load: pip install -r requirements.txt, then run again"))
 
     engine.set_source(cv2.imread(str(source)))

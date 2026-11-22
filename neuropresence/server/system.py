@@ -45,7 +45,8 @@ def _engine(runtime):
         return Check("Engine", OK, "not loaded yet: it loads with the first session, in a few seconds")
     accelerated = getattr(engine, "accelerated", None)
     if accelerated == "tensorrt":
-        return Check("Engine", OK, "loaded, drawing with TensorRT")
+        how = "TensorRT, its heaviest layers in 8 bit" if getattr(engine, "precision", None) == "int8" else "TensorRT"
+        return Check("Engine", OK, f"loaded, drawing with {how}")
     return Check("Engine", WARN, f"loaded, drawing with {accelerated or 'plain PyTorch'}: slower than TensorRT",
                  "pip install -r requirements.txt, then restart the engine")
 

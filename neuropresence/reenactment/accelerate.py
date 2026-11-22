@@ -89,12 +89,17 @@ class _AsTuple(torch.nn.Module):
         return tuple(out[key] for key in self.keys)
 
 
-def _build(module, example, input_names, opset, onnx_path, output_names=("out",)):
-    """Export a network to ONNX and build a TensorRT engine that keeps the precision it was exported in."""
+def _build(module, example, input_names, opset, onnx_path, output_names=("out",), scales=None):
+    """Export a network to ONNX and build a TensorRT engine that keeps the precision it was exported in.
+    With `scales`, the convolutions they name run in 8 bit (quantize.py)."""
     import tensorrt as trt
 
     torch.onnx.export(module, example, str(onnx_path), input_names=input_names, output_names=list(output_names),
                       opset_version=opset, dynamo=False)
+    if scales is not None:
+        from . import quantize
+
+        quantize.quantize_onnx(onnx_path, onnx_path, scales)
     logger = trt.Logger(trt.Logger.ERROR)
     builder = trt.Builder(logger)
     network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.STRONGLY_TYPED))
@@ -146,6 +151,48 @@ def to_tensorrt(warping, generator, cache_dir):
                                                          ["feature", "kp_source", "kp_driving"], 20, onnx), cache_dir, key)
         generator_plan = _plan("generator", lambda onnx: _build(generator.eval(), (warped,), ["feature"], 17, onnx),
                                cache_dir, key)
+    return TensorRTNetwork(warp_plan, as_dict="out"), TensorRTNetwork(generator_plan)
+
+
+def to_tensorrt_int8(warping, generator, cache_dir):
+    """As to_tensorrt, with the generator's SPADE layers and the warping network's hourglass in 8 bit (quantize.py).
+
+    Raises if TensorRT or the ranges file is missing, a layer is not found, or a conversion fails; the caller then
+    uses to_tensorrt.
+    """
+    import tensorrt as trt
+
+    from . import quantize
+
+    scales = quantize.load_scales()
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    weights = sum(p.numel() for p in generator.parameters()) + sum(p.numel() for p in warping.parameters())
+    plain_key = hashlib.md5(f"{trt.__version__}|{torch.cuda.get_device_name(0)}|{weights}|{OPTIMIZATION_LEVEL}".encode()).hexdigest()[:10]
+    key = hashlib.md5(f"{plain_key}|{quantize.key()}".encode()).hexdigest()[:10]
+
+    feature = torch.zeros(1, 32, 16, 64, 64, dtype=torch.float16, device="cuda")
+    kp_source = torch.rand(1, 21, 3, dtype=torch.float16, device="cuda") * 0.2
+    kp_driving = kp_source * 1.01
+    with torch.no_grad():
+        warp_only = _WarpedOnly(warping).eval()
+        warped = warp_only(feature, kp_source, kp_driving)
+        # A network without ranges is left in 16 bit.
+        if scales["warping"]:
+            warp_plan = _plan("warping-int8", lambda onnx: _build(warp_only, (feature, kp_source, kp_driving),
+                                                                  ["feature", "kp_source", "kp_driving"], 20, onnx,
+                                                                  scales=scales["warping"]), cache_dir, key)
+        else:
+            warp_plan = _plan("warping", lambda onnx: _build(warp_only, (feature, kp_source, kp_driving),
+                                                             ["feature", "kp_source", "kp_driving"], 20, onnx), cache_dir, plain_key)
+        if scales["generator"]:
+            # Opset 19 is the first whose 8-bit quantization takes 16-bit numbers.
+            generator_plan = _plan("generator-int8", lambda onnx: _build(quantize.fold_spectral_norm(generator).eval(), (warped,),
+                                                                         ["feature"], 19, onnx, scales=scales["generator"]),
+                                   cache_dir, key)
+        else:
+            generator_plan = _plan("generator", lambda onnx: _build(generator.eval(), (warped,), ["feature"], 17, onnx),
+                                   cache_dir, plain_key)
     return TensorRTNetwork(warp_plan, as_dict="out"), TensorRTNetwork(generator_plan)
 
 
