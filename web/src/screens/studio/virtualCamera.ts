@@ -14,7 +14,11 @@ export function cameraLine(camera: VirtualCamera | null | undefined): CameraLine
   if (!camera) return null // an engine that has no virtual camera: nothing to say
   if (!camera.on) {
     if (camera.reason) return { tone: 'critical', state: 'Not available', text: camera.reason }
-    return { tone: 'neutral', state: 'Off', text: 'Meeting apps cannot see your picture. Switch this on, then choose the camera in the meeting app.' }
+    return {
+      tone: 'neutral',
+      state: 'Off',
+      text: 'Meeting apps cannot see your picture. Switch this on first, then choose the camera in the meeting app: a meeting keeps the frame rate it finds when it opens the camera.',
+    }
   }
   const name = camera.device ?? 'the virtual camera'
   if (camera.showing === 'session') {
@@ -23,6 +27,6 @@ export function cameraLine(camera: VirtualCamera | null | undefined): CameraLine
   return {
     tone: 'accent',
     state: 'Ready',
-    text: `Choose "${name}" as the camera in your meeting app. It shows a plain card until a camera session is running.`,
+    text: `Choose "${name}" as the camera in your meeting app. It shows a plain card until a camera session is running. If the meeting had it open before this was on, turn the meeting's camera off and on once.`,
   }
 }

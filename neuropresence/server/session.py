@@ -15,9 +15,10 @@ from ..capture import TrackStatus
 from ..capture.crop import square_face_crop
 from ..consent import liveness
 from ..consent.disclosure import mark
-from ..pipeline import Pipeline, at_rest
+from ..pipeline import Pipeline, at_rest, gap_of, lip_gap
 from ..targets import TARGETS
 from .metrics import MetricsWindow
+from .mouth import MouthWatch
 from .pacing import MotionClock
 from .watchdog import DelayWatchdog
 
@@ -163,6 +164,10 @@ class LiveSession:
         self._metrics = MetricsWindow()
         self._draw_seconds = 0.0  # a running average of how long one frame takes to draw
         self._cycle_seconds = 0.0  # how long from one frame drawn to the next: the drawing, or the pace if longer
+        self.mouth, self._mouth_lock = MouthWatch(), threading.Lock()  # does the output's mouth follow the person's?
+        self._engine = None  # the engine drawing this session, for a repair of its neutral mouth
+        # The longest time between two frames, kept with the figures (each two seconds) and in the log (each thirty).
+        self._last_finished, self._longest_gap, self._longest_logged = None, 0.0, 0.0
         self._next_draw = None  # when the next frame is due while the drawing is paced
         self.pace_fps = None  # a rate to hold the drawing to, set by a study or a test; otherwise the runtime says
         self._made = 0  # how many frames have been made, so that a reader can wait for the next one
@@ -226,6 +231,9 @@ class LiveSession:
             self.uses_enrolment = uses_enrolment
             self.voice = voice
             self._kept_at, self._used_camera, self._used_voice = None, False, False
+            self._last_finished, self._longest_gap, self._longest_logged = None, 0.0, 0.0
+            with self._mouth_lock:
+                self.mouth.reset()
             database = getattr(self._rt, "db", None)
             kind = "voice" if voice else "camera" if uses_enrolment else "sample"
             self.record_id = database.start_session(kind, label) if database is not None else None
@@ -403,6 +411,20 @@ class LiveSession:
             database.end_session(self.record_id, outcome, message, frames=self._metrics.total_frames,
                                  virtual_camera=self._used_camera, voice_in_step=self._used_voice)
 
+    def note_output_mouth(self, landmarks):
+        """The output's lips as the identity check reads them twice a second, against the camera's. If they have not
+        followed for a while, the neutral mouth is put right and the event list says so (mouth.py)."""
+        if not self.uses_enrolment or self.voice or self.state is not SessionState.RUNNING:
+            return
+        with self._mouth_lock:
+            what = self.mouth.output(time.perf_counter(), gap_of(landmarks))
+        if what is None:
+            return
+        if self._engine is not None:
+            self._engine.repair_mouth(what)
+        stuck = "stood open while yours was closed" if what == "open" else "stayed shut while you spoke"
+        self._rt.events.add("warning", f"The picture's mouth {stuck}; it was brought back.")
+
     def _keep_figures(self, now):
         """Every few seconds, the session's figures into the database, for its charts later."""
         database = getattr(self._rt, "db", None)
@@ -419,8 +441,12 @@ class LiveSession:
         monitor = getattr(self._rt, "identity", None)
         if monitor is not None:
             identity = monitor.snapshot().get("csim")
+        with self._mouth_lock:
+            lips = [None if gap is None else round(float(gap), 4) for gap in (self.mouth.camera_gap, self.mouth.output_gap)]
+        gap, self._longest_gap = self._longest_gap, 0.0
         database.add_figures(self.record_id, fps=m["fps"], delay_ms=m["end_to_end_ms"], render_ms=m["render_ms"],
-                             identity=identity, live_share=m["live_share"])
+                             identity=identity, live_share=m["live_share"], lips_camera=lips[0], lips_output=lips[1],
+                             longest_gap_ms=round(gap * 1000, 1) if gap > 0 else None)
 
     def _check_consent(self, feed, tracker, engine):
         """Before anything is animated: is a living person at the camera, and is it the person the
@@ -527,6 +553,7 @@ class LiveSession:
 
     def _loop(self, feed, pipeline):
         rt = self._rt
+        self._engine = pipeline.engine
         pair_id, status = self._pair_id, None
         held, neutrals = rt.engine_holds, pipeline.neutral_taken
         newest, tracking_over = _Newest(), threading.Event()
@@ -604,6 +631,10 @@ class LiveSession:
                 rt.events.add("info", "Neutral pose taken from the camera. Movement is measured from how you sit now.")
             finished = time.perf_counter()
             self._draw_seconds = 0.8 * self._draw_seconds + 0.2 * (finished - drawing)  # how long the GPU's turn takes
+            if self._last_finished is not None:
+                gap = finished - self._last_finished
+                self._longest_gap, self._longest_logged = max(self._longest_gap, gap), max(self._longest_logged, gap)
+            self._last_finished = finished
             # How old the movement in the picture is, which is not always how old the camera frame is.
             shown = item.captured_at if result.motion_at is None else result.motion_at
             delay_ms = (finished - shown) * 1000
@@ -622,6 +653,9 @@ class LiveSession:
                 status = result.status
             pair_id += 1
             track = result.track
+            if track.ok and self.uses_enrolment and not self.voice:
+                with self._mouth_lock:
+                    self.mouth.camera(finished, lip_gap(track))
             # Tracked even while the still picture is shown, so the identity monitor can tell when to resume.
             self.resting_since = (self.resting_since or finished) if track.ok and at_rest(track) else None
             tracking = {"status": result.status.value, "pose_deg": None, "mouth_open": None}
@@ -638,7 +672,8 @@ class LiveSession:
     def _log_figures(self, now):
         """Every FIGURES_EVERY_SECONDS, one line in the log with how the session is running: frames drawn a second,
         the delay, the render time, the share of camera frames skipped and of frames reenacted, and what the
-        virtual camera sent: frames a second in all, and how many of them were new pictures."""
+        virtual camera sent: frames a second in all, and how many of them were new pictures; and the longest time
+        between two frames, which an average hides and which is what a frozen moment in a call is."""
         camera = getattr(self._rt, "virtual_camera", None)
         counts = (camera.sent, camera.fresh) if camera is not None and camera.on else None
         if self._figures_at is None:
@@ -658,6 +693,8 @@ class LiveSession:
             span = now - then
             line += (f"; virtual camera {(counts[0] - before[0]) / span:.1f} frames a second, "
                      f"{(counts[1] - before[1]) / span:.1f} of them new")
+        line += f"; longest gap between frames {1000 * self._longest_logged:.0f} ms"
+        self._longest_logged = 0.0
         log.info(line)
 
     def _watch_delay(self, delay_ms, finished, drawn):

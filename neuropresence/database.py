@@ -29,7 +29,7 @@ import time
 from concurrent.futures import Future
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MIGRATIONS = {
     1: """
@@ -97,6 +97,13 @@ MIGRATIONS = {
         value       TEXT NOT NULL,             -- JSON
         updated_at  REAL NOT NULL
     );
+    """,
+    # 22 November 2026: how open the lips are at the camera and in the output, to see whether the mouth follows; and
+    # the longest time between two frames, which an average hides.
+    2: """
+    ALTER TABLE session_figures ADD COLUMN lips_camera REAL;
+    ALTER TABLE session_figures ADD COLUMN lips_output REAL;
+    ALTER TABLE session_figures ADD COLUMN longest_gap_ms REAL;
     """,
 }
 
@@ -221,11 +228,13 @@ class Database:
             "INSERT INTO sessions (started_at, kind, input_label) VALUES (?, ?, ?)", (at, kind, input_label)).lastrowid,
             wait=True)
 
-    def add_figures(self, session_id, fps=None, delay_ms=None, render_ms=None, identity=None, live_share=None):
+    def add_figures(self, session_id, fps=None, delay_ms=None, render_ms=None, identity=None, live_share=None,
+                    lips_camera=None, lips_output=None, longest_gap_ms=None):
         at = self._clock()
         self._write(lambda c: c.execute(
-            "INSERT OR REPLACE INTO session_figures (session_id, at, fps, delay_ms, render_ms, identity, live_share) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)", (session_id, at, fps, delay_ms, render_ms, identity, live_share)))
+            "INSERT OR REPLACE INTO session_figures (session_id, at, fps, delay_ms, render_ms, identity, live_share, "
+            "lips_camera, lips_output, longest_gap_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (session_id, at, fps, delay_ms, render_ms, identity, live_share, lips_camera, lips_output, longest_gap_ms)))
 
     def end_session(self, session_id, outcome, message="", frames=0, virtual_camera=False, voice_in_step=False):
         at = self._clock()
@@ -266,7 +275,8 @@ class Database:
             return None
         session = found[0]
         session["figures"] = self._read(
-            "SELECT at, fps, delay_ms, render_ms, identity, live_share FROM session_figures WHERE session_id = ? ORDER BY at",
+            "SELECT at, fps, delay_ms, render_ms, identity, live_share, lips_camera, lips_output, longest_gap_ms "
+            "FROM session_figures WHERE session_id = ? ORDER BY at",
             (session_id,))
         session["events"] = self._read("SELECT at, level, message FROM events WHERE session_id = ? ORDER BY at, id", (session_id,))
         session["checks"] = self._read(

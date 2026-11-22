@@ -48,9 +48,8 @@ DEFAULTS = (
     Feature(
         "even_delivery",
         "Even delivery",
-        "While the virtual camera is on, draw at its rate, 20 frames a second, so a meeting shows every frame once and "
-        "for the same time. Without this it gets them at about 22 a second on a camera read 20 times a second, and "
-        "skips one now and then.",
+        "While the virtual camera is on, draw at its rate, 22 frames a second, so a meeting shows every frame once and "
+        "for the same time. Without this the drawing runs ahead of the camera now and then, and a frame is skipped.",
         True,
     ),
     Feature(

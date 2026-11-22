@@ -138,3 +138,28 @@ def test_writes_after_close_are_dropped_quietly(tmp_path):
     database.close()
     database.add_event("info", "late")  # the app is shutting down: nothing to do, nothing to raise
     assert database.start_session("camera", "Camera 0") is None
+
+
+def test_a_file_from_the_first_version_gains_the_lips_and_keeps_its_figures(tmp_path):
+    """The database is upgraded in place, so a history kept by an older engine is not lost."""
+    import sqlite3
+
+    from neuropresence.database import MIGRATIONS, SCHEMA_VERSION
+
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript("BEGIN;" + MIGRATIONS[1] + "PRAGMA user_version = 1; COMMIT;")
+    old.execute("INSERT INTO sessions (id, started_at, ended_at, kind, input_label, outcome) VALUES (7, 100, 200, 'camera', 'Camo', 'stopped')")
+    old.execute("INSERT INTO session_figures (session_id, at, fps) VALUES (7, 110, 20.5)")
+    old.commit()
+    old.close()
+    db = Database(path)
+    try:
+        assert db._reader.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        figures = db.session(7)["figures"]
+        assert figures[0]["fps"] == 20.5 and figures[0]["lips_camera"] is None and figures[0]["lips_output"] is None
+        db.add_figures(7, fps=19.0, lips_camera=0.01, lips_output=0.02)
+        db.flush()
+        assert db.session(7)["figures"][-1]["lips_output"] == 0.02
+    finally:
+        db.close()

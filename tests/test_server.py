@@ -1781,7 +1781,7 @@ def picture_in(sent, like=FRAME):
 
 def test_the_virtual_camera_is_off_until_it_is_switched_on(parts):
     assert status(parts)["virtual_camera"] == {"on": False, "device": None, "reason": None, "showing": "nothing",
-                                               "size": [1280, 720], "fps": 20}
+                                               "size": [1280, 720], "fps": 22}
     reply = parts["client"].post("/api/virtual-camera", json={"on": True})
     assert reply.status_code == 200 and reply.json()["on"] is True and reply.json()["device"] == "Test Camera"
     assert any("Virtual camera turned on" in message for message in events(parts))
@@ -1844,9 +1844,9 @@ def test_while_the_meeting_is_sent_the_session_the_drawing_is_held_to_the_camera
     assert runtime.output_pace() is None  # the virtual camera is off: drawn as fast as the card allows
     assert statistics.median(frame_gaps(runtime.session, 10)) < 0.03
     client.post("/api/virtual-camera", json={"on": True})
-    assert runtime.output_pace() == 20
+    assert runtime.output_pace() == 22
     gaps = frame_gaps(runtime.session, 12)
-    assert 0.045 < statistics.median(gaps) < 0.055 and max(gaps[1:]) < 0.08
+    assert 0.040 < statistics.median(gaps) < 0.052 and max(gaps[1:]) < 0.08
     client.patch("/api/features/even_delivery", json={"enabled": False})
     assert runtime.output_pace() is None
     assert statistics.median(frame_gaps(runtime.session, 10)) < 0.03
@@ -1864,14 +1864,14 @@ def test_the_virtual_camera_sends_each_new_frame_of_the_session_as_soon_as_it_is
     fresh, sent = runtime.virtual_camera.fresh, camera.sent
     time.sleep(1.0)
     made = runtime.virtual_camera.fresh - fresh
-    assert 17 <= made <= 22  # about 20 frames in a second, at the camera's rate
+    assert 19 <= made <= 24  # about 22 frames in a second, at the camera's rate
     assert camera.sent - sent <= made + 1  # each sent once: nothing sent again in between
 
 
 def test_the_studio_stream_sends_each_frame_of_the_session_as_soon_as_it_is_made(parts):
     """Not on a 10 ms look, which on Windows lasts a timer tick of 15.6 ms and left frames 0 to 17 ms late."""
     runtime, client = parts["runtime"], parts["client"]
-    client.post("/api/virtual-camera", json={"on": True})  # the drawing held to 20 frames a second
+    client.post("/api/virtual-camera", json={"on": True})  # the drawing held to 22 frames a second
     start(parts)
     with client.websocket_connect("/api/stream") as socket:
         ids, gaps, last = [], [], None
@@ -1885,7 +1885,80 @@ def test_the_studio_stream_sends_each_frame_of_the_session_as_soon_as_it_is_made
                 last = now
     assert len(set(ids)) == len(ids)  # no frame twice
     assert sum(b - a for a, b in zip(ids, ids[1:])) <= len(ids) + 1  # and hardly any skipped
-    assert 0.045 < statistics.median(gaps[2:]) < 0.055  # they arrive at the rate they are made
+    assert 0.040 < statistics.median(gaps[2:]) < 0.052  # they arrive at the rate they are made
+
+
+def test_no_frames_are_sent_to_a_page_whose_tab_is_hidden(parts):
+    """Behind a meeting nobody sees the monitors; packing and sending them costs the computer the drawing needs."""
+    start(parts, "sample:d0")
+    with parts["client"].websocket_connect("/api/stream") as socket:
+        def messages(count):
+            out = []
+            while len(out) < count:
+                message = socket.receive()
+                out.append("frame" if message.get("bytes") else "status")
+            return out
+
+        assert "frame" in messages(30)  # seen: frames and status
+        socket.send_text(json.dumps({"frames": False}))
+        messages(3)  # what was already on its way
+        assert set(messages(6)) == {"status"}  # hidden: status only
+        socket.send_text("not json")  # ignored: the page can still ask for frames afterwards
+        socket.send_text(json.dumps({"frames": True}))
+        assert "frame" in messages(60)
+
+
+def test_frames_come_back_to_a_page_whose_tab_is_seen_again(parts):
+    start(parts, "sample:d0")
+    with parts["client"].websocket_connect("/api/stream") as socket:
+        socket.send_text(json.dumps({"frames": False}))
+        time.sleep(0.6)
+        socket.send_text(json.dumps({"frames": True}))
+        kinds = []
+        while len(kinds) < 60 and "frame" not in kinds[10:]:
+            kinds.append("frame" if socket.receive().get("bytes") else "status")
+        assert "frame" in kinds
+
+
+def mouth_points(gap):
+    """Face landmarks whose lips are `gap` of the distance between the eyes apart."""
+    points = np.zeros((478, 2))
+    points[33], points[263] = (0.0, 0.0), (100.0, 0.0)
+    points[13], points[14] = (50.0, 60.0), (50.0, 60.0 + 100.0 * gap)
+    return points
+
+
+def test_a_mouth_that_stands_open_while_the_person_is_silent_is_put_right_and_said(parts):
+    start(parts)
+    session, repaired = parts["runtime"].session, []
+    session._engine.repair_mouth = repaired.append
+    now = time.perf_counter()
+    with session._mouth_lock:  # the last seconds: the person's lips together the whole time
+        session.mouth.reset()
+        for step in range(60):
+            session.mouth.camera(now - 3.0 + step * 0.05, 0.004)
+    for _ in range(2):
+        session.note_output_mouth(mouth_points(0.09))
+    assert repaired == []  # a moment open is not yet a stuck mouth
+    session.note_output_mouth(mouth_points(0.09))
+    assert repaired == ["open"]
+    assert any("stood open while yours was closed" in message for message in events(parts))
+    session.note_output_mouth(None)  # no face found in the output: nothing to compare
+
+
+def test_the_lips_at_the_camera_and_in_the_output_are_kept_with_the_figures(parts, monkeypatch):
+    from neuropresence.server import session as session_module
+
+    monkeypatch.setattr(session_module, "KEEP_FIGURES_SECONDS", 0.05)
+    start(parts)
+    session = parts["runtime"].session
+    with session._mouth_lock:
+        session.mouth.camera_gap, session.mouth.output_gap = 0.0123, 0.0456
+    assert wait_for(lambda: [f for f in parts["runtime"].db.session(session.record_id)["figures"] if f["lips_output"] is not None])
+    parts["client"].post("/api/session/stop")
+    figures = parts["runtime"].db.session(session.record_id)["figures"]
+    kept = [f for f in figures if f["lips_output"] is not None]
+    assert kept and kept[-1]["lips_output"] == 0.0456
 
 
 def test_a_sample_clip_is_not_sent_to_the_meeting(parts):
@@ -1917,6 +1990,24 @@ def test_a_missing_camera_driver_is_said_in_words(parts):
     reply = parts["client"].post("/api/virtual-camera", json={"on": True})
     assert reply.status_code == 409 and "Install OBS Studio" in reply.json()["detail"]
     assert status(parts)["virtual_camera"]["on"] is False
+
+
+def test_the_virtual_camera_comes_back_on_if_it_was_on_when_the_engine_stopped(parts):
+    """So it is on, at its own rate, before a meeting opens it: a meeting keeps the rate it first finds."""
+    client, runtime = parts["client"], parts["runtime"]
+    client.post("/api/virtual-camera", json={"on": True})
+    runtime.shutdown()
+    again = make_runtime(parts["tmp"], parts)
+    try:
+        assert again.virtual_camera.on is True and again.virtual_camera.snapshot()["showing"] in ("card", "nothing")
+        again.switch_virtual_camera(False)
+    finally:
+        again.shutdown()
+    last = make_runtime(parts["tmp"], parts)
+    try:
+        assert last.virtual_camera.on is False  # switched off, it stays off
+    finally:
+        last.shutdown()
 
 
 def test_the_virtual_camera_is_let_go_when_the_engine_shuts_down(parts):
@@ -1962,7 +2053,7 @@ def test_the_voice_is_held_back_only_while_the_meeting_sees_the_user(parts):
     assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms(), abs=5)
     parts["client"].post("/api/virtual-camera", json={"on": True})
     # The meeting application picks frames up at the camera's rate: half an interval later, on average.
-    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms() + 500 / 20, abs=5)
+    assert runtime.picture_delay() == pytest.approx(runtime.session.delay_ms() + 500 / 22, abs=5)
 
 
 def test_the_virtual_microphone_is_let_go_when_the_engine_shuts_down(parts):

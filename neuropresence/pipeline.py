@@ -47,13 +47,17 @@ LEAD_SECONDS = 0.010
 MAX_BETWEEN_SECONDS = 0.25
 
 
-def lip_gap(track):
-    """How far apart the lips are, over the distance between the eyes. None when it cannot be read."""
-    points = getattr(track, "landmarks", None)
-    if not track.ok or points is None or len(points) <= max(EYE_OUTER):
+def gap_of(points):
+    """How far apart the lips are in a face's landmarks, over the distance between the eyes. None when it cannot be read."""
+    if points is None or len(points) <= max(EYE_OUTER):
         return None
     eyes = float(np.linalg.norm(points[EYE_OUTER[0]] - points[EYE_OUTER[1]]))
     return float(np.linalg.norm(points[UPPER_LIP] - points[LOWER_LIP])) / eyes if eyes > 0 else None
+
+
+def lip_gap(track):
+    """How far apart the lips are, over the distance between the eyes. None when it cannot be read."""
+    return gap_of(getattr(track, "landmarks", None)) if track.ok else None
 
 
 def at_rest(track):

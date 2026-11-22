@@ -13,7 +13,7 @@ Nothing of the user is sent before the consent check has passed. Outside a runni
 the camera shows a plain card. If it showed the enrolled picture instead, anyone at the computer
 could put that picture into a meeting without answering the liveness prompt.
 
-The device has one size and one rate for as long as it is open, as a webcam has: 1280 x 720 at 20
+The device has one size and one rate for as long as it is open, as a webcam has: 1280 x 720 at 22
 frames a second. An upright picture is set in the middle with bars beside it.
 
 Why 20, and why each frame is sent as it is finished (21 November 2026, scripts/study_meeting_cadence.py,
@@ -25,9 +25,18 @@ Virtual Camera's filter then picks frames up at the camera's rate on a clock of 
 it in short and long steps (16 ms of step error), and each frame waited 32 ms on average after it was finished.
 Now 3.0 and 0.8% are held long, the step error is 6.7 and 2.0 ms, and the wait is 25 ms. Now each frame is sent once, as soon as it is
 finished, and the camera is opened at the rate the drawing is held to while it is on (session.py: the
-"even_delivery" switch): 20, what the engine reaches during a call in Meet and Zoom (20.0 to 20.2 measured on
-23 October). Each frame is then picked up once, for the same 50 ms. On Linux v4l2loopback hands each frame
-written to the reader, so there the frame sent as it is finished is the whole of it.
+"even_delivery" switch): 22 since 22 November 2026. It was 20, what the engine reached during a call (20.0 to 20.2
+on 23 October), until a Meet call on 22 November drew 17 to 18: the card is at its power limit and a call, the Live
+Studio page and a screen recorder all take from it. Since then the heaviest layers of the networks run in 8 bit and
+the studio holds its decoration still in a meeting, and a test call with both draws 23.6 a second where it drew 19.5.
+Each frame is then picked up once, for the same 45 ms. Checked on the device itself: at 22 drawn on a camera at 22
+no frame is held long, at 21.5 drawn 2.2% are, at 20 drawn 7.7%. On Linux v4l2loopback hands each frame written to
+the reader, so there the frame sent as it is finished is the whole of it.
+
+Checked on the device itself (scripts/study_virtual_camera.py): read back as a meeting application reads it,
+41 and 38% of the frames were held long before, 0 and 2.1% now. It also found that a reader keeps the rate it
+was offered when it opened the camera, and that with no writer OBS offers 30: the camera has to be on before a
+meeting opens it, so the engine switches it back on at start if it was on when it stopped (runtime.py).
 
 Meeting applications crop the camera picture to fill their tiles. A wide tile takes off the top and
 bottom: Google Meet's main tile was 1.97 to 1 in a call on 18 October 2026, and cut the disclosure
@@ -46,7 +55,7 @@ import cv2
 import numpy as np
 
 SIZE = (1280, 720)  # width, height
-FPS = 20
+FPS = 22
 KEEPALIVE_SECONDS = 0.5  # with no new frame for this long, the last one is sent again
 SAFE_HEIGHT_SHARE = 0.84  # the picture stays within this much of the height: whole in a tile up to 2.1 to 1
 

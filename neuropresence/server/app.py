@@ -297,6 +297,24 @@ def create_app(runtime=None, web_dist=WEB_DIST):
         await socket.accept()
         loop = asyncio.get_running_loop()
         last_frame, last_event, next_status, seen = None, 0, 0.0, None
+        wanted = {"frames": True}
+
+        async def listen():
+            """What the page asks for. {"frames": false} while its tab is hidden (a meeting in front of it): then no
+            pictures are packed and sent for nobody, which costs the computer the drawing needs. Status goes on."""
+            try:
+                while True:
+                    text = await socket.receive_text()
+                    try:
+                        message = json.loads(text)
+                    except ValueError:
+                        continue  # not for here
+                    if isinstance(message, dict) and isinstance(message.get("frames"), bool):
+                        wanted["frames"] = message["frames"]
+            except (WebSocketDisconnect, RuntimeError, KeyError):
+                pass  # the tab closed
+
+        listener = asyncio.create_task(listen())
         try:
             while True:
                 now = loop.time()
@@ -313,7 +331,9 @@ def create_app(runtime=None, web_dist=WEB_DIST):
                             last_event = events[-1]["id"]
                         await socket.send_text(json.dumps({"status": status, "events": events}))
                 pair = runtime.latest_pair()
-                if pair is not None and (pair.kind, pair.id) != last_frame:
+                if not wanted["frames"]:
+                    await asyncio.sleep(max(0.02, next_status - loop.time()))
+                elif pair is not None and (pair.kind, pair.id) != last_frame:
                     last_frame = (pair.kind, pair.id)
                     overlay = pair.kind == "live" and runtime.features.enabled("tracking_overlay")
                     await socket.send_bytes(await asyncio.to_thread(pack_frame, pair, overlay))
@@ -323,6 +343,8 @@ def create_app(runtime=None, web_dist=WEB_DIST):
                     seen = await asyncio.to_thread(runtime.wait_for_frame, seen, wait)
         except (WebSocketDisconnect, RuntimeError):
             pass  # the browser tab closed
+        finally:
+            listener.cancel()
 
     # ------------------------------------------------------------ the web app
 

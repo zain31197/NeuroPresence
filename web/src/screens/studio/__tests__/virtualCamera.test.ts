@@ -8,7 +8,7 @@ const camera = (patch: Partial<VirtualCamera>): VirtualCamera => ({
   reason: null,
   showing: 'nothing',
   size: [1280, 720],
-  fps: 30,
+  fps: 22,
   ...patch,
 })
 
@@ -22,6 +22,7 @@ describe('cameraLine', () => {
     const line = cameraLine(camera({}))
     expect(line?.state).toBe('Off')
     expect(line?.text).toContain('cannot see your picture')
+    expect(line?.text).toContain('Switch this on first')  // a meeting keeps the rate it found when it opened the camera
   })
 
   it('gives the reason when it could not be switched on', () => {
@@ -32,7 +33,10 @@ describe('cameraLine', () => {
   it('names the camera to choose, and says that it shows a card until a session runs', () => {
     const line = cameraLine(camera({ on: true, device: 'OBS Virtual Camera', showing: 'card' }))
     expect(line?.state).toBe('Ready')
-    expect(line?.text).toBe('Choose "OBS Virtual Camera" as the camera in your meeting app. It shows a plain card until a camera session is running.')
+    expect(line?.text).toBe(
+      'Choose "OBS Virtual Camera" as the camera in your meeting app. It shows a plain card until a camera session is running. ' +
+        "If the meeting had it open before this was on, turn the meeting's camera off and on once.",
+    )
   })
 
   it('says so when the output is in the meeting', () => {

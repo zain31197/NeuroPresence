@@ -23,6 +23,7 @@ class IdentityScorer:
     def __init__(self, embedder=None, tracker=None):
         self._embedder = embedder or ArcFaceEmbedder()
         self._tracker = tracker  # made on first use, when landmarks are not supplied
+        self.last_landmarks = None  # the 478 points of the last face that was embedded (the output's, for the lips)
 
     def embed(self, image_bgr, landmarks=None):
         """Embed the face in the image. Returns None unless exactly one face is found.
@@ -37,6 +38,7 @@ class IdentityScorer:
             if not track.ok:
                 return None
             landmarks = track.landmarks
+        self.last_landmarks = landmarks
         return self._embedder.embed(align_face(image_bgr, five_points(landmarks)))
 
     @staticmethod

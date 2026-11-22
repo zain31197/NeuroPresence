@@ -90,10 +90,10 @@ def test_the_card_shows_nothing_of_the_user():
 
 def test_it_is_off_until_switched_on_and_opens_the_device_at_one_size_and_rate():
     cam, device, opened = camera(lambda: None, fps=FPS)
-    assert cam.snapshot() == {"on": False, "device": None, "reason": None, "showing": "nothing", "size": [1280, 720], "fps": 20}
+    assert cam.snapshot() == {"on": False, "device": None, "reason": None, "showing": "nothing", "size": [1280, 720], "fps": 22}
     assert opened == [] and device.frames == []
     state = cam.switch(True)
-    assert opened == [(1280, 720, 20)]  # the rate the drawing is held to while it is on, so each frame is picked up once
+    assert opened == [(1280, 720, 22)]  # the rate the drawing is held to while it is on, so each frame is picked up once
     assert state["on"] is True and state["device"] == "Test Camera" and state["reason"] is None
     cam.switch(True)  # already on: the device is not opened twice
     assert len(opened) == 1

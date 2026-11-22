@@ -294,6 +294,8 @@ class IdentityMonitor:
                     continue
                 embedding = scorer.embed(pair.output)
                 score = None if embedding is None else scorer.similarity(source_embedding, embedding)
+                if embedding is not None:
+                    session.note_output_mouth(getattr(scorer, "last_landmarks", None))
                 self._set(available=True, csim=None if score is None else round(score, 3), reason=None)
             except Exception as err:
                 self._set(available=False, csim=None, reason=f"Identity scoring failed: {err}")
@@ -414,6 +416,11 @@ class Runtime:
         # What a meeting application sees when it selects the virtual camera (virtual_camera.py).
         # Each frame is sent as soon as it is finished (the camera waits on the session for it).
         self.virtual_camera = VirtualCamera(self.meeting_picture, opener=camera_opener, wait=self.session.wait_for_frame)
+        # A meeting application keeps the rate the camera offered when it opened it, and with no writer OBS offers 30
+        # (scripts/study_virtual_camera.py). So the camera comes back on if it was on when the engine last stopped:
+        # then it is on, at 22, before a meeting opens it. It shows only the plain card until a camera session runs.
+        if self.db.settings("virtual_camera.").get("virtual_camera.on") is True:
+            self.virtual_camera.switch(True)
         # The voice for meeting applications, held back to stay in step with that picture (virtual_microphone.py).
         self.virtual_microphone = VirtualMicrophone(self.picture_delay, devices=sound_devices, opener=sound_opener,
                                                     settings=Path(data_dir) / "virtual_microphone.json")
@@ -948,7 +955,7 @@ class Runtime:
 
         The session's delay from camera to output, and, with the virtual camera on, half of the camera's
         interval on average: each frame is sent as it is finished, and the meeting application picks frames
-        up at the camera's rate (25 ms at 20 a second; 26.7 measured, results/meeting_cadence_study.json).
+        up at the camera's rate (23 ms at 22 a second; 26.7 measured at 20, results/meeting_cadence_study.json).
         """
         if self.meeting_picture() is None:
             return None
@@ -973,6 +980,7 @@ class Runtime:
         state = self.virtual_camera.switch(on)
         if on and not state["on"]:
             raise SessionError(state["reason"] or "The virtual camera could not be switched on.")
+        self.db.set_setting("virtual_camera.on", bool(on))  # remembered, so it is on before a meeting opens it next time
         self.events.add("info", f"Virtual camera turned on: meeting applications list it as \"{state['device']}\"."
                         if on else "Virtual camera turned off.")
         return state
