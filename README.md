@@ -252,9 +252,13 @@ python scripts/study_identity_guard.py         # the identity score in normal us
 python scripts/study_delay.py                  # delay and frame rate of a live session, alone and beside GPU load
 python scripts/study_liveness.py --stand-in    # what can pass the liveness prompt and the face match (about 15 minutes)
 python scripts/study_pacing.py                 # how evenly the movement is shown, with and without even motion (about 6 minutes)
+python scripts/rehearse_demo.py               # the demo's failure paths on the real engine, with a stand-in (about 3 minutes)
+python scripts/rehearse_demo.py --soak 30     # one camera session of half an hour, watched for anything that creeps
 python -m pytest                               # engine and server tests
 cd web && npm test                             # front-end tests
 ```
+
+The demonstration itself, what to show in what order and what to do when something goes wrong, is in [docs/DEMO_RUN_SHEET.md](docs/DEMO_RUN_SHEET.md); `rehearse_demo.py` runs each of its failure paths before the day.
 
 The same tests run on GitHub on every push and pull request (`.github/workflows/tests.yml`): the engine and server tests on a clean Linux machine and a clean Windows machine, and the web app's type check, tests and build. Those machines have no graphics card and no downloaded models, so the tests that need either skip themselves and say why; the rest must pass. That also checks that a fresh copy of the repository installs from `requirements.txt` alone.
 

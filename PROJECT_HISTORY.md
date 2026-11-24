@@ -1027,6 +1027,20 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 
 **Then, asked by Zain:** what if a person already has an account? On a computer without one the sign-up page offered no way to sign in, and the sign-in page led back to it. Now every sign-up page offers signing in, an email that already has an account is answered with a way to sign in, the email typed goes along from page to page, and on a computer without an account the sign-in page says that an account stays on the computer it was made on and how to bring it over: by copying the `data` folder with the engine closed on both. Checked in a browser in 17 steps, and the copy by signing in on one (face, pictures and sessions there, file intact).
 
+### 24 November 2026: the demo rehearsed, beyond the happy path
+
+**Approved by Zain** as the next step toward the final on 9 December: rehearse what the panel will try beyond the happy path, a soak of half an hour with accounts on, and a run sheet.
+
+**Built.**
+- `scripts/rehearse_demo.py`: the real engine, tracker, face match, consent check, identity guard, delay watchdog, accounts and database, with a stand-in at the camera (the sample clip d6 answering the prompt, as in `study_liveness.py`), staged as a webcam shows a person. Eleven cases: a photograph held up, a session started, someone else sitting down, a covered mouth, the camera gone for 5 s and for good, the card taken by another program, signing out mid-session, five wrong passwords, a second account, and the engine killed mid-session and started again. Each says what it expected and what happened (`results/demo_rehearsal.json`). Nothing of `data/` is used and no camera or microphone is opened.
+- `--soak 30`: one camera session of half an hour served on port 8011 with the virtual camera on, a browser keeping the Live Studio open; one line a minute of frame rate, delay, longest gap, frames reaching the meeting, the engine's memory and threads, the card's memory (`results/demo_soak.json`).
+- `docs/DEMO_RUN_SHEET.md`: the day before, the ten minutes in the room, a 12 minute script that shows the failure paths on purpose, what to do when each thing goes wrong, and what not to claim.
+- The message when the camera is gone for good now says what to do: "The camera stopped sending pictures and did not come back. Check its cable or app, then start the session again."
+
+**Measured.** The rehearsal: 11 of 11 as expected (the still picture 3.3 s after someone else sat down; the watchdog held the picture at 157 ms under the whole card and resumed after). Its first runs failed two cases, both faults of the rehearsal itself: it looked for the mark on the frame as the meeting gets it, fitted to 1280 x 720, where it is elsewhere; and it asked the restarted engine without the browser's cookie. The soak: 22.0 frames a second and 82 to 83 ms in every one of 30 minutes, 21.7 to 22.1 reaching the meeting, no still picture, the longest gap 131 ms (beside a test run) and otherwise 118 ms at most, the engine's memory and threads flat, the card's memory 27 MB more after half an hour.
+
+**Not done:** the same on the demo laptop, which is the run sheet's first task; anything a stand-in cannot be, which the run sheet marks to check by hand.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1107,6 +1121,8 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 | After an account was deleted the app went to the sign-in page | The engine's "signed out" on the live connection came before the reply | The app knows it is deleting before it asks (22 November 2026) |
 | The tries at a password were counted by time, and one made in the same instant as a success was not counted | Two rows with the same time have no order | Counted by the order they were written in (22 November 2026) |
 | Someone with an account elsewhere could not get past "Create the first account" | The sign-in page led back to sign-up on a computer without an account | Both pages lead to each other, and the sign-in page says how to bring an account over (22 November 2026) |
+| The rehearsal said the session never went live | It looked for the mark on the meeting's frame, which is the output fitted to 1280 x 720, so the mark is elsewhere | The mark is checked on the output, and the meeting's frame against the plain card (24 November 2026) |
+| A session ended by a camera that is gone said only "The camera stopped delivering frames." | | It says to check the cable or app and start again (24 November 2026) |
 
 ## Open items
 
