@@ -12,7 +12,7 @@ from ..consent import liveness
 from ..consent.check import THE_FACE_CHANGED
 from ..enrolment import make_candidate, make_pose_candidate, prepare
 from ..enrolment.checks import outline_for
-from .session import FramePair, SessionError, SessionState
+from .session import CAMERA_GONE, FramePair, SessionError, SessionState
 
 READY_SECONDS = 0.4  # the checks must hold this long before a picture can be taken
 BURST_SECONDS = 0.5  # from the first good frame, the best frame of this long is kept
@@ -160,7 +160,7 @@ class EnrolmentPreview:
             item = feed.read(after_index=last, timeout=0.5)
             if item is None:
                 if feed.ended:
-                    raise SessionError("The camera stopped delivering frames.")
+                    raise SessionError(CAMERA_GONE)
                 continue
             last = item.index
             frame = prepare(item.image)

@@ -33,6 +33,9 @@ MAX_FRONTAL_ANGLE_DEG = 20.0
 WATCHDOG_AFTER_SECONDS = 2.0
 # A camera silent this long is pointed out while the feed reconnects to it (capture/feed.py).
 CAMERA_QUIET_SECONDS = 1.0
+# A camera that has given nothing for capture/feed.py's GIVE_UP_SECONDS, despite being opened again: gone, not quiet.
+CAMERA_GONE = ("The camera stopped sending pictures and did not come back. Check its cable or app, "
+               "then start the session again.")
 # How often a running session writes its figures to the log (logs/server.log). The Meet recording of 9 November
 # 2026 showed 9 new pictures a second where the engine draws about 21, and nothing said where the rest were lost:
 # the drawing, the virtual camera, or the meeting application. With these lines the log tells.
@@ -464,7 +467,7 @@ class LiveSession:
             item = feed.read(after_index=last, timeout=0.5)
             if item is None:
                 if feed.ended:
-                    raise SessionError("The camera stopped delivering frames.")
+                    raise SessionError(CAMERA_GONE)
                 continue
             last = item.index
             track = tracker.process(item.image)
@@ -566,7 +569,7 @@ class LiveSession:
                     item = feed.read(after_index=last, timeout=0.5)
                     if item is None:
                         if feed.ended:
-                            raise SessionError("The camera stopped delivering frames.")
+                            raise SessionError(CAMERA_GONE)
                         # The feed opens a silent camera again by itself (capture/feed.py); say so meanwhile.
                         if not quiet and getattr(feed, "silent_seconds", 0.0) >= CAMERA_QUIET_SECONDS:
                             quiet = True
