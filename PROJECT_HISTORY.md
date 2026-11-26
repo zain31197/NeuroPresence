@@ -1059,6 +1059,22 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 
 **Not done:** two real people swapping at a real camera; the sample clips are studio footage, and a webcam in poor light scores lower.
 
+### 27 November 2026: a covered mouth
+
+**Approved by Zain** after the proposal: the panel will cover the mouth, and the picture's mouth was drawn smeared until the identity guard noticed, which it did in about half the runs (9 October).
+
+**Seen first.** With a hand drawn over the stand-in's mouth on every frame, the picture's mouth became a lipless blob of skin, and its likeness to the picture fell to 0.80, 0.70 at worst. The lip opening the tracker reads from the output said nothing: it reads a blob as closed lips.
+
+**How a cover is told** (`neuropresence/capture/cover.py`). Lips are redder than the cheeks beside them. On each tracked frame the median of a* (CIE Lab, green to red) inside the band between the outer and inner lip lines, less its median on both cheeks, is compared with what is usual for the person: learned in the first second and followed as the light changes. A reading more than 65% below it (or three times above it, as a red cup on pale lips) and well beyond how much the readings wander, for four frames in a row, is a cover; six frames back near it, and it is gone. When the person's lips are hardly redder than their cheeks, or wander as much as they differ, it says it cannot tell and stays off. 0.3 ms a frame, on the tracking thread.
+
+Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's two recordings and twelve sample clips): the whole inside of the lip line gave 2 to 8 s of false alarms on six clips, since an open mouth shows teeth and tongue; the band of the lips alone, in floating point, left one clip with 1.5 s, a face whose lips wander as much as they differ from the skin; measuring that wander all along, and asking a cover to stand out of it, left 0.33 s in 168 s, on a clip where the lips are pressed together. Final figures: hands, flat covers and a white cup 24 of 24 each after 0.1 s; fingers over half the mouth 22 of 24; a red cup 8 of 24; a hand on the chin never called a cover; on Zain's recordings no false alarm and every cover found after 0.2 s. Two of the fourteen faces it cannot tell, and leaves alone.
+
+**What is done about it.** The engine eases the picture's lip keypoints to the neutral pose's within 0.08 s while the mouth is covered, and back within 0.2 s after; the head, the eyes and the brows go on moving. The neutral pose does not follow a covered mouth, the lips are not anchored on it, the mouth watch does not read it, a fresh neutral pose is not taken from it however long it is waited for, and the identity monitor does not count it as rest. The event list says so once a minute at most. A switch, "Covered mouth", on by default; the Live Studio shows "Covered" beside the mouth signal.
+
+**On the real engine** (the stand-in, talking, a hand over its mouth four times for 3 s, the switch off and then on), with the version before the wander was measured all along, which makes no difference for that face: switch off, likeness 0.82 while covered, 0.71 at worst, and the blob; switch on, the mouth held for 95% of the covers, likeness 0.88, 0.79 at worst, and a closed mouth. A repeat with the final version shared the card with another program from the second half on and is not counted; it is to be run again on a free card.
+
+**Not done:** a real hand at a real camera; the session repeated on a free card; the rehearsal with its new hand drawn on every frame.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1069,6 +1085,8 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 | The meeting pictures are in the database, the face signature is a file (22 November 2026) | Pictures belong with the rows that speak of them and are deleted with them; "Forget my face" must remove the signature outright, which deleting a file does |
 | A consent check outlives the session it opened (22 November 2026) | Deleting a session must not clear the limit on retries |
 | The consent watch compares twice a second but still needs three misses in a row (27 November 2026) | The pace was what made someone else visible for 3 s; one bad frame of the right person must never be enough to hold |
+| A covered mouth is told from the colour of the lips against the person's own, not from a hand detector (27 November 2026) | It needs no new model or download, costs 0.3 ms, and a hand, a cup or a sleeve all take the lips' colour away; where the lips cannot be told from the skin it stays off, so the worst case is the behaviour from before |
+| While the mouth is covered the picture's mouth is held closed, not the still picture (27 November 2026) | People cough and rest a hand on the face in meetings; the rest of the face is still theirs and still moving |
 | SQLite for the database, not PostgreSQL (21 November 2026) | One person on one computer, offline: SQLite is part of Python and is one file, so the demo laptop and Kubuntu install nothing; PostgreSQL would add a server and a password to every machine for no gain at this size |
 | Windows and Kubuntu both supported | Team members own different machines; the proposal names Kubuntu |
 | LivePortrait fetched by a setup script at a pinned commit; weights not in the repository | Reproducible, and the weights carry their own licence |
@@ -1142,6 +1160,7 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 | Someone with an account elsewhere could not get past "Create the first account" | The sign-in page led back to sign-up on a computer without an account | Both pages lead to each other, and the sign-in page says how to bring an account over (22 November 2026) |
 | The rehearsal said the session never went live | It looked for the mark on the meeting's frame, which is the output fitted to 1280 x 720, so the mark is elsewhere | The mark is checked on the output, and the meeting's frame against the plain card (24 November 2026) |
 | A session ended by a camera that is gone said only "The camera stopped delivering frames." | | It says to check the cable or app and start again (24 November 2026) |
+| A hand over the mouth was drawn as a smeared mouth until the guard noticed, in about half the runs | The mouth was driven from what the camera showed, the hand included | The camera's lips are checked on every frame, and while they are covered the picture's mouth is held closed (27 November 2026) |
 
 ## Open items
 
@@ -1155,8 +1174,10 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 - Someone else sitting down during a session drives the picture for about one and a half seconds (1.9 at most in six tries) before the still picture goes up. Measured with sample clips; not yet with two people at a real camera.
 - The mark is small when a meeting application shows the picture small. In Meet's main tile (598 pixels high) it was about 30 pixels high and readable; in a small grid tile it would be under 10. Not yet looked at in a grid of several people.
 - The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
-- A covered mouth is caught in only about half the runs, because its scores sit on the level, and until the guard acts the mouth is drawn smeared.
-- A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. The step-down rule repairs the one case seen (a covered mouth); others may exist.
+- A covered mouth is now found from the camera's own picture (27 November 2026), but only drawn covers have been tried. A real hand at a real camera, in the demonstration room's light, has to be checked; a red cup over red lips is not found.
+- The session on the real engine with the final version of the cover detector, switch off against on, is still to be repeated on a free card (its last run shared the card with another program).
+- A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. A covered mouth is no longer taken (27 November 2026); other things in front of the face may be.
+- The consent test "another person cannot start a session" failed once on 27 November 2026, while another program held the card and the computer was loaded: the prompt had begun before the face match refused. It passed five times out of five alone.
 - Settled on 20 November 2026: after an identity fallback the picture now resumes by itself once the person is at rest. Not yet watched in a real call.
 - The delay watchdog has been tried against an artificial GPU load, not against a meeting application.
 - The pipeline has been run on one team member's face only, and never on Kubuntu.

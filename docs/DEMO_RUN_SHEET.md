@@ -33,7 +33,7 @@ Every failure path below was run on the real engine before the demo (`python scr
 | 3 | **Live Studio**: Start session on the camera | Two actions at random so that a photo or a recording does not pass; the face is matched all the way through | The prompt, then the live picture, marked "AI reenacted", 20 to 22 frames a second, about 80 to 100 ms |
 | 5 | The meeting on the second device | The meeting sees it as an ordinary camera; the mark travels with every frame | The animated picture in Meet or Teams |
 | 6 | **Someone else sits down** (a teammate) | The camera face is compared twice a second | The still picture within about a second and a half; live again about a second after the presenter is back |
-| 7 | **Cover the mouth** with a hand | The guard watches the output's likeness | A fresh neutral pose, or the still picture, then back |
+| 7 | **Cover the mouth** with a hand | The camera's lips are checked on every frame; a hand takes their colour away | The picture keeps a closed mouth while the hand is there and the head goes on moving; the Live Studio says "Covered" |
 | 8 | **Pull the camera's cable** for five seconds, then put it back | A phone camera drops frames; the session waits instead of ending | "Reconnecting", then "The camera is back" |
 | 9 | Stop. Start again and **hold up the printed photograph** | | Refused, with the reason in words; the meeting never got a picture of anyone |
 | 10 | **Sessions**, **Security**, **Your data** | Every session with its figures; every check; the database drawn from the file itself, eleven tables, every row the person's own | The ER diagram on screen |
@@ -81,7 +81,7 @@ On the PC (RTX 5050 desktop), 27 November 2026, with the consent watch at twice 
 | Another account on the computer | None of the first person's sessions; opening one by its number: not found |
 | The engine killed mid-session | After the restart: still signed in, the session kept as "interrupted", the virtual camera on, a new session ran |
 
-**Check by hand**, since a stand-in cannot: a real person passing the prompt in the room's light; a real hand over the mouth; a real cable pulled; the meeting application's own picture.
+**Check by hand**, since a stand-in cannot: a real person passing the prompt in the room's light; a real hand over the mouth (the Live Studio should say "Covered" beside the mouth within a fraction of a second, and the picture keep a closed mouth; if it does not in the room's light, the "Covered mouth" switch can be left as it is, since it then does nothing); a real cable pulled; the meeting application's own picture.
 
 ## Half an hour without a break
 

@@ -253,6 +253,7 @@ python scripts/study_delay.py                  # delay and frame rate of a live 
 python scripts/study_liveness.py --stand-in    # what can pass the liveness prompt and the face match (about 15 minutes)
 python scripts/study_pacing.py                 # how evenly the movement is shown, with and without even motion (about 6 minutes)
 python scripts/study_consent_watch.py         # how soon someone else at the camera brings the still picture (about 15 minutes)
+python scripts/study_mouth_cover.py           # whether a covered mouth is told from an uncovered one (about 5 minutes; --live: a session too)
 python scripts/rehearse_demo.py               # the demo's failure paths on the real engine, with a stand-in (about 3 minutes)
 python scripts/rehearse_demo.py --soak 30     # one camera session of half an hour, watched for anything that creeps
 python -m pytest                               # engine and server tests
@@ -341,6 +342,21 @@ Single frames cannot be judged: 9% of normal frames are below the 0.80 the proje
 The same table shows what the natural head range is worth: with it off, a head pushed 45° brings the match down to 0.55; with it on, it stays at 0.85.
 
 Run in a real session, with the mouth covered in a sample clip, the guard took a fresh neutral pose 3.5 s after the cover appeared, and the match returned to 0.91. That showed a fault in the first version: the cover had become part of the neutral pose, so the output was off once the cover was gone (0.80 where it had been 0.86). A fresh neutral pose that helped is now watched, and when the match steps down again the neutral pose is taken once more; in the same run it then returned to 0.86.
+
+**A covered mouth** (`neuropresence/capture/cover.py`, the "Covered mouth" switch). A hand over the mouth used to be drawn as a smeared, lipless mouth until the guard noticed, which it did in about half the runs. Now the camera's mouth is checked on every frame: lips are redder than the cheeks beside them, by an amount learned for the person at the start of the session and followed as the light changes, and a hand or a cup takes that difference away or changes it far. While the mouth is covered the picture's mouth eases to the neutral pose's, closed, the head and eyes go on moving, and the cover is kept out of the neutral pose, the lip anchoring and the mouth watch. The Live Studio says "Covered" beside the mouth signal. It costs 0.3 ms a frame on the CPU.
+
+`python scripts/study_mouth_cover.py` measured it (`results/mouth_cover_study.json`) on Zain's two camera recordings and the twelve sample clips, with covers drawn over the lower face: a hand, a flat skin coloured patch, a white cup, a red cup, fingers over half the mouth, and a hand on the chin below the lips, which is not a cover:
+
+| | Result |
+|---|---|
+| Uncovered, 168 s of 14 people | Called covered for 0.33 s in all, on one clip where the lips are pressed together |
+| People whose lips cannot be told from their skin in their light | 2 of 14: for them it stays off, and nothing changes from before |
+| A hand, a flat patch, a white cup | 24 of 24 each, after 0.1 s (Zain's recordings: 0.2 s) |
+| Fingers over half the mouth | 22 of 24 |
+| A red cup | 8 of 24: on red lips it is the same colour as the lips |
+| A hand on the chin, lips showing | Never called a cover, on Zain's recordings or any clip but the one above |
+
+The covers are drawn, not filmed; a real hand at a real camera is on the demo run sheet to check by hand.
 
 **Delay.** `python scripts/study_delay.py` runs a live session on a sample clip and keeps the GPU busy from a second process (`results/delay_study.json`). The load is artificial; it stands in for a meeting application and is not one.
 
