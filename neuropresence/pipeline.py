@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from .capture import TrackResult, TrackStatus
+from .capture.cover import MouthCover
 from .capture.crop import square_face_crop
 from .capture.steady import SteadyCrop
 from .consent.disclosure import mark
@@ -84,6 +85,7 @@ class FrameResult:
     crop_window: tuple | None = None  # where that crop was cut from the camera frame, as (x, y, side)
     track: TrackResult | None = None  # what the tracker found in this frame
     motion_at: float | None = None  # the moment the movement shown is of, if it is not the frame's own
+    mouth_covered: bool = False  # was the mouth covered at the camera (capture/cover.py)
 
 
 class Pipeline:
@@ -110,6 +112,8 @@ class Pipeline:
         self._still_of = self._still = None  # the enrolled frame with the mark on it, and which frame it was made from
         self._before = None  # the reading of the movement in the frame before, as (when it was taken, reading)
         self._neutral_deadline = None  # set while waiting to see the person at rest
+        self.watch_cover = True  # hold the picture's mouth closed while the camera's is covered
+        self.cover = MouthCover()
         self.neutral_taken = 0  # how many times a neutral pose has been taken from the camera
 
     def wait_for_neutral(self, seconds=None):
@@ -131,6 +135,7 @@ class Pipeline:
         if not track.ok:
             self._crop.reset()
             return None
+        covered = self._covered(frame_bgr, track, at)  # on this thread too: it is CPU work, about a millisecond
         window = None
         if self.steady_crop and track.landmarks is not None:
             face, window = self._crop(frame_bgr, track.landmarks, at, self.crop_scale)
@@ -140,7 +145,15 @@ class Pipeline:
         # The reading of the movement is not done here although the engine could (engine.read): it needs
         # the GPU, so on another thread it only queues behind the frame being drawn. Tried on 8 October
         # 2026: 1.6 frames a second more, but 35 ms more delay from camera to output.
-        return face, window, None
+        return face, window, None, covered
+
+    def _covered(self, frame_bgr, track, at):
+        """Is the mouth covered in this frame? Followed on every tracked frame, so the person's usual lips are known
+        before a cover comes; always False with the switch off."""
+        if not track.ok or track.landmarks is None:
+            return False
+        covered = self.cover.update(frame_bgr, track.landmarks, at)
+        return covered and self.watch_cover
 
     def _movement(self, face, at, motion_at):
         """The movement to draw, and the moment it is of.
@@ -184,16 +197,18 @@ class Pipeline:
         live = track.ok and reenact
         window = motion = None
         ahead = prepared is not None  # the crop and the reading were done before this call
+        covered = prepared[3] if ahead else self._covered(frame_bgr, track, at)
         if live:
             if ahead:
-                face, window, motion = prepared
+                face, window, motion = prepared[:3]
             elif self.steady_crop and track.landmarks is not None:
                 face, window = self._crop(frame_bgr, track.landmarks, at, self.crop_scale)
             else:
                 self._crop.reset()
                 face = square_face_crop(frame_bgr, track.bbox, scale=self.crop_scale)
             if self._neutral_deadline is not None:
-                if at_rest(track) or time.perf_counter() >= self._neutral_deadline:
+                # Never from a covered mouth, however long it is waited for: the cover would become the neutral pose.
+                if not covered and (at_rest(track) or time.perf_counter() >= self._neutral_deadline):
                     self.engine.set_reference(face)
                     self._neutral_deadline = None
                     self.neutral_taken += 1
@@ -208,7 +223,8 @@ class Pipeline:
             given = {} if motion is None else {"motion": motion}
             self.engine.resting = at_rest(track)  # at rest, the neutral pose follows the person (engine.py)
             gap = lip_gap(track)
-            self.engine.lips_closed = gap is not None and gap <= LIPS_CLOSED_GAP
+            self.engine.lips_closed = gap is not None and gap <= LIPS_CLOSED_GAP and not covered
+            self.engine.mouth_covered = covered
             output = self.engine.drive(face, at=at if shown_at is None else shown_at, steady=self.steady_keypoints,
                                        limit=self.natural_range, **given)
             timing.update(self.engine.last_timing_ms)
@@ -224,7 +240,8 @@ class Pipeline:
             output = None
         output = self._settle(output, at)
         timing["total"] = (time.perf_counter() - start) * 1000
-        return FrameResult(output, track.status, live, timing, face, crop_window=window, track=track, motion_at=shown_at)
+        return FrameResult(output, track.status, live, timing, face, crop_window=window, track=track, motion_at=shown_at,
+                           mouth_covered=covered)
 
     def _settle(self, live_output, at):
         """Hold and fade between the live output and the still picture, so the two never snap."""

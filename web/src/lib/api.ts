@@ -20,6 +20,10 @@ export interface Tracking {
   status: TrackStatus
   pose_deg: [number, number, number] | null
   mouth_open: number | null
+  /** A hand or a cup over the mouth at the camera: the picture's mouth is held closed (capture/cover.py). */
+  mouth_covered?: boolean
+  /** Whether a cover can be told from the lips for this person in this light at all. */
+  cover_usable?: boolean
 }
 
 export interface Session {

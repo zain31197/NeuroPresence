@@ -68,6 +68,14 @@ DEFAULTS = (
         True,
     ),
     Feature(
+        "mouth_cover",
+        "Covered mouth",
+        "When a hand or a cup covers your mouth at the camera, hold the picture's mouth closed instead of drawing "
+        "what the camera cannot see, and keep the cover out of the neutral pose. When your lips are hard to tell "
+        "from your skin in the room's light it stays out of the way.",
+        True,
+    ),
+    Feature(
         "delay_watchdog",
         "Delay watchdog",
         "Show the still picture while the delay from camera to output stays above its limit, so that lips that "

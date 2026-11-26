@@ -424,8 +424,8 @@ def test_status_when_nothing_has_happened(parts):
     assert {f["key"]: f["enabled"] for f in found["features"]} == {"reenactment": True, "steady_crop": True,
                                                                 "steady_keypoints": True, "even_motion": True,
                                                                 "even_delivery": True, "natural_range": True,
-                                                                "identity_guard": True, "delay_watchdog": True,
-                                                                "tracking_overlay": False}
+                                                                "identity_guard": True, "mouth_cover": True,
+                                                                "delay_watchdog": True, "tracking_overlay": False}
     assert found["session"]["holds"] == {"identity": False, "delay": False, "consent": False}
     assert found["session"]["consent"] is None
     assert found["identity"]["guard"]["state"] == "steady" and found["identity"]["guard"]["enabled"] is True
@@ -1052,7 +1052,9 @@ def test_a_camera_session_animates_the_enrolled_picture(parts):
     assert session["metrics"]["stages_ms"] == {"tracker": 1.0, "motion": 2.0, "render": 3.0, "compose": 1.0}
     assert session["metrics"]["dropped_share"] == pytest.approx(0.5, abs=0.1)
     assert session["metrics"]["live_share"] == 1.0
-    assert session["tracking"] == {"status": "ok", "pose_deg": [0.0, 0.0, 0.0], "mouth_open": 0.25}
+    # The fake tracker gives no face mesh, so a cover cannot be told: nothing is called covered.
+    assert session["tracking"] == {"status": "ok", "pose_deg": [0.0, 0.0, 0.0], "mouth_open": 0.25,
+                                   "mouth_covered": False, "cover_usable": False}
     assert found["gpu"]["name"] == "Test GPU"
     # The neutral pose is the live face at the camera, taken once when the session began: not the picture's own.
     assert parts["engines"][0].neutral_faces == [(256, 256, 3)]

@@ -33,6 +33,7 @@ MAX_FRONTAL_ANGLE_DEG = 20.0
 WATCHDOG_AFTER_SECONDS = 2.0
 # A camera silent this long is pointed out while the feed reconnects to it (capture/feed.py).
 CAMERA_QUIET_SECONDS = 1.0
+COVER_SAID_SECONDS = 60.0  # a hand over the mouth is said once a minute at most: coughs come in a row
 # A camera that has given nothing for capture/feed.py's GIVE_UP_SECONDS, despite being opened again: gone, not quiet.
 CAMERA_GONE = ("The camera stopped sending pictures and did not come back. Check its cable or app, "
                "then start the session again.")
@@ -168,6 +169,7 @@ class LiveSession:
         self._draw_seconds = 0.0  # a running average of how long one frame takes to draw
         self._cycle_seconds = 0.0  # how long from one frame drawn to the next: the drawing, or the pace if longer
         self.mouth, self._mouth_lock = MouthWatch(), threading.Lock()  # does the output's mouth follow the person's?
+        self._covered_before, self._covered_said = False, float("-inf")  # the last frame's cover, and when it was said
         self._engine = None  # the engine drawing this session, for a repair of its neutral mouth
         # The longest time between two frames, kept with the figures (each two seconds) and in the log (each thirty).
         self._last_finished, self._longest_gap, self._longest_logged = None, 0.0, 0.0
@@ -618,6 +620,7 @@ class LiveSession:
                 pipeline.steady_crop = rt.features.enabled("steady_crop")
                 pipeline.steady_keypoints = rt.features.enabled("steady_keypoints")
                 pipeline.natural_range = rt.features.enabled("natural_range")
+                pipeline.watch_cover = rt.features.enabled("mouth_cover")
                 if self._anchor.is_set():
                     self._anchor.clear()
                     pipeline.wait_for_neutral()
@@ -658,11 +661,14 @@ class LiveSession:
             pair_id += 1
             track = result.track
             if track.ok and self.uses_enrolment and not self.voice:
-                with self._mouth_lock:
-                    self.mouth.camera(finished, lip_gap(track))
+                with self._mouth_lock:  # a covered mouth says nothing of whether the lips move
+                    self.mouth.camera(finished, None if result.mouth_covered else lip_gap(track))
+            self._say_covered(result.mouth_covered, finished)
             # Tracked even while the still picture is shown, so the identity monitor can tell when to resume.
-            self.resting_since = (self.resting_since or finished) if track.ok and at_rest(track) else None
-            tracking = {"status": result.status.value, "pose_deg": None, "mouth_open": None}
+            resting = track.ok and at_rest(track) and not result.mouth_covered
+            self.resting_since = (self.resting_since or finished) if resting else None
+            tracking = {"status": result.status.value, "pose_deg": None, "mouth_open": None,
+                        "mouth_covered": result.mouth_covered, "cover_usable": pipeline.cover.usable}
             if track.ok:
                 tracking["pose_deg"] = [round(float(angle), 1) for angle in track.pose_deg]
                 tracking["mouth_open"] = round(float(track.blendshapes.get("jawOpen", 0.0)), 3)
@@ -672,6 +678,14 @@ class LiveSession:
                                        crop_window=result.crop_window)
                 self._frame_made()
                 self._tracking = tracking
+
+    def _say_covered(self, covered, now):
+        """Say in the event list when the mouth is first found covered, at most once every COVER_SAID_SECONDS."""
+        if covered and not self._covered_before and now - self._covered_said >= COVER_SAID_SECONDS:
+            self._covered_said = now
+            self._rt.events.add("info", "Your mouth is covered at the camera. The picture's mouth is held closed until "
+                                         "it is uncovered.")
+        self._covered_before = covered
 
     def _log_figures(self, now):
         """Every FIGURES_EVERY_SECONDS, one line in the log with how the session is running: frames drawn a second,

@@ -18,11 +18,18 @@ export function TrackingPanel() {
   const tracking = status?.session.tracking
   const pose = tracking?.pose_deg ?? null
   const mouth = tracking?.mouth_open ?? null
+  const covered = tracking?.mouth_covered ?? false
 
   const signals = [
     { label: 'Head turn', about: 'Left and right', now: pose ? degrees(pose[0]) : null, values: history.map((sample) => sample.yaw), format: degrees },
     { label: 'Head nod', about: 'Up and down', now: pose ? degrees(pose[1]) : null, values: history.map((sample) => sample.pitch), format: degrees },
-    { label: 'Mouth opening', about: 'From closed, 0, to wide open, 1', now: mouth !== null ? share(mouth) : null, values: history.map((sample) => sample.mouth), format: share },
+    {
+      label: 'Mouth opening',
+      about: covered ? 'Covered at the camera: the picture holds its mouth closed' : 'From closed, 0, to wide open, 1',
+      now: covered ? 'Covered' : mouth !== null ? share(mouth) : null,
+      values: history.map((sample) => sample.mouth),
+      format: share,
+    },
   ]
 
   return (

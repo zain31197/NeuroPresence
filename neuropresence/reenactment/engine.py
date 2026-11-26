@@ -67,6 +67,9 @@ POSTURE_SETTLED = 0.25  # the easing stops once the head is back within this sha
 # picture and at the camera, since a meeting picture is enrolled with its mouth closed. So each
 # time the lips are seen closed, the mouth of the neutral pose is brought to that reading.
 LIP_KEYPOINTS = [6, 12, 14, 17, 19, 20]  # of the model's 21 keypoints, the ones that carry the mouth
+# While the camera's mouth is covered (capture/cover.py) the picture's mouth eases to the neutral pose's, closed,
+# and back when it is uncovered: quickly in, so the cover is hardly drawn, and a little slower out.
+COVER_IN_SECONDS, COVER_OUT_SECONDS = 0.08, 0.2
 LIP_ANCHOR_SECONDS = 0.35  # how quickly: within one closing of the lips between words
 # The lips must have been closed this long before the neutral mouth follows them: a pause, not the short
 # closings between syllables. Without it (until 9 November 2026), on Zain's speech recording through the live
@@ -210,6 +213,8 @@ class ReenactmentEngine:
         self.lip_gain = LIP_GAIN
         self.anchor_lips = False  # the picture's mouth is closed: closed lips at the camera are the same expression
         self.lips_closed = False  # set by the pipeline for each frame: are the lips closed in it?
+        self.mouth_covered = False  # set by the pipeline for each frame: is the mouth covered at the camera?
+        self._cover_share, self._cover_at = 0.0, None  # how far the picture's mouth is held at the neutral one
         self._lips_at = None
         self._rest_since = self._rest_at = None
         self._paste = None
@@ -531,6 +536,9 @@ class ReenactmentEngine:
         """While the lips are closed at the camera, bring the mouth of the neutral pose to how it reads now."""
         now = time.perf_counter() if at is None else at
         last, self._lips_at = getattr(self, "_lips_at", None), now
+        if getattr(self, "mouth_covered", False):  # what the camera shows of the mouth is the cover: nothing to follow
+            self._lips_closed_since = None
+            return
         self._repair_lips(driving, now, last)
         if not (self.anchor_lips and self.lips_closed):
             self._lips_closed_since = None
@@ -553,6 +561,10 @@ class ReenactmentEngine:
         if not self.resting:
             self._rest_since = None
             return
+        # A covered mouth is not part of how the person looks at rest: on 9 October 2026 a cover taken into the
+        # neutral pose left the picture's mouth off once it was taken away.
+        covered = getattr(self, "mouth_covered", False)
+        keys = ("pitch", "yaw", "roll", "t", "scale") if covered else ("pitch", "yaw", "roll", "t", "scale", "exp")
         if getattr(self, "_rest_since", None) is None:
             self._rest_since = now
         if last is None or now - self._rest_since < REST_HOLD_SECONDS:
@@ -560,7 +572,7 @@ class ReenactmentEngine:
         elapsed = min(max(now - last, 0.0), 0.5)
         rest = self._reference["info"]
         moved = dict(rest)
-        for key in ("pitch", "yaw", "roll", "t", "scale", "exp"):
+        for key in keys:
             if key in rest and key in driving:
                 share = 1.0 - math.exp(-elapsed / (REST_EXPRESSION_SECONDS if key == "exp" else REST_SECONDS))
                 moved[key] = rest[key] + (driving[key] - rest[key]) * share
@@ -690,9 +702,10 @@ class ReenactmentEngine:
             size = 1.0 + soft_limit(size - 1.0, *self.scale_range)
         rotation_new = (rotation @ ref["rotation"].permute(0, 2, 1)) @ s["rotation"]
         expression = driving["exp"] - ref["info"]["exp"]
-        if self.lip_gain != 1.0:
+        held = self._covering(at)
+        if self.lip_gain != 1.0 or held > 0.0:
             expression = expression.clone()
-            expression[:, LIP_KEYPOINTS] *= self.lip_gain
+            expression[:, LIP_KEYPOINTS] *= self.lip_gain * (1.0 - held)
         expression_new = s["info"]["exp"] + expression
         scale_new = s["info"]["scale"] * size
         shift_new = s["info"]["t"] + (driving["t"] - ref["info"]["t"])
@@ -724,6 +737,22 @@ class ReenactmentEngine:
             "compose": (time.perf_counter() - render_done) * 1000,
         }
         return frame
+
+    def _covering(self, at):
+        """How far the picture's mouth is held at the neutral pose's now: 1 while the camera's mouth has been covered
+        for a moment, 0 while it has been uncovered, eased between."""
+        now = time.perf_counter() if at is None else at
+        covered, before = getattr(self, "mouth_covered", False), getattr(self, "_cover_at", None)
+        elapsed = 0.0 if before is None else min(max(now - before, 0.0), 0.5)
+        self._cover_at = now
+        self._cover_share = getattr(self, "_cover_share", 0.0)
+        goal = 1.0 if covered else 0.0
+        if self._cover_share != goal:
+            ease = COVER_IN_SECONDS if covered else COVER_OUT_SECONDS
+            self._cover_share += (goal - self._cover_share) * (1.0 - math.exp(-elapsed / ease))
+            if abs(goal - self._cover_share) < 0.01:
+                self._cover_share = goal
+        return self._cover_share
 
     @staticmethod
     def _now():
