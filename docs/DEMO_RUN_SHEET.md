@@ -32,7 +32,7 @@ Every failure path below was run on the real engine before the demo (`python scr
 | 1 | Sign in, then **Enrolment** | Verified face, five poses, the meeting picture, accepted only if it is the same face. **Your pictures**: the library | The picture library in the database |
 | 3 | **Live Studio**: Start session on the camera | Two actions at random so that a photo or a recording does not pass; the face is matched all the way through | The prompt, then the live picture, marked "AI reenacted", 20 to 22 frames a second, about 80 to 100 ms |
 | 5 | The meeting on the second device | The meeting sees it as an ordinary camera; the mark travels with every frame | The animated picture in Meet or Teams |
-| 6 | **Someone else sits down** (a teammate) | The camera face is compared once a second | The still picture within about 3 seconds; live again when the presenter is back |
+| 6 | **Someone else sits down** (a teammate) | The camera face is compared twice a second | The still picture within about a second and a half; live again about a second after the presenter is back |
 | 7 | **Cover the mouth** with a hand | The guard watches the output's likeness | A fresh neutral pose, or the still picture, then back |
 | 8 | **Pull the camera's cable** for five seconds, then put it back | A phone camera drops frames; the session waits instead of ending | "Reconnecting", then "The camera is back" |
 | 9 | Stop. Start again and **hold up the printed photograph** | | Refused, with the reason in words; the meeting never got a picture of anyone |
@@ -65,16 +65,16 @@ The voice mode (camera off) is shown only if asked: it needs Ditto installed on 
 
 ## Rehearsal results
 
-On the PC (RTX 5050 desktop), 24 November 2026: **11 of 11 as expected**, in 3 minutes. The stand-in is the sample clip d6; someone else is another sample clip.
+On the PC (RTX 5050 desktop), 27 November 2026, with the consent watch at twice a second: **11 of 11 as expected**, in 3 minutes (also 11 of 11 on 24 November, before that change). The stand-in is the sample clip d6; someone else is another sample clip.
 
 | Case | What the app did |
 |---|---|
-| A photograph held up | Refused at the liveness check ("No blink was seen within 5 seconds."); the meeting got no frame of the person |
-| The person starts a session | Live 11 s after Start, 22.0 frames a second, 79 ms, face match 1.0; the output marked |
-| Someone else sits down | Still picture after 3.3 s; live again 1.5 s after the person was back |
-| The mouth is covered | The guard took a fresh neutral pose and the match came back; no still picture was needed |
+| A photograph held up | Refused at the liveness check ("Your head did not turn to your right within 5 seconds."); the meeting got no frame of the person |
+| The person starts a session | Live 10 s after Start, 22.0 frames a second, 82 ms, face match 1.0; the output marked |
+| Someone else sits down | Still picture after 1.75 s (3.3 s on 24 November, with the watch at once a second); live again 0.75 s after the person was back |
+| The mouth is covered | The guard saw the match dip and it came back; no still picture was needed (on 24 November it took a fresh neutral pose) |
 | The camera drops out for 5 s | "Reconnecting", then "The camera is back"; the session went on |
-| Another program takes the whole card | Worst delay 157 ms, frame rate down to 11: the still picture was shown, and the picture resumed by itself after |
+| Another program takes the whole card | Frame rate down to 11. On 24 November the delay reached 157 ms, the still picture was shown, and the picture resumed by itself; on 27 November it peaked at 149 ms, just under the limit, and none was needed |
 | Signed out during a session | The session stopped, the meeting got the plain card, the API refused everything |
 | The camera is pulled out for good | The session ended after 15 s, saying to check the cable and start again |
 | Five wrong passwords | The right password refused too: "Try again in 15 minutes." |

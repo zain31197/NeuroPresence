@@ -1041,6 +1041,24 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 
 **Not done:** the same on the demo laptop, which is the run sheet's first task; anything a stand-in cannot be, which the run sheet marks to check by hand.
 
+### 27 November 2026: someone else at the camera is caught in a second and a half
+
+**Approved by Zain** ("continue" after the proposal): in the rehearsal someone else drove the picture for 3.3 s before the still picture went up, long enough for the panel to see it.
+
+**Why it took that long.** The consent watch compared the camera face once a second and held after three comparisons in a row that did not match. On the sample clips one comparison already decides: over 1,474 faces of 12 people the same person never scored below 0.49 against their own face, and nobody above 0.23 against someone else's (the limit is 0.35, `results/liveness_study.json`). The wait was the pace, not doubt.
+
+**Measured** (`scripts/study_consent_watch.py`, `results/consent_watch_study.json`; real engine, tracker and face match, the stand-in of the rehearsal; six sit-downs a setting, then the right person's head held turned 40 degrees to each side for 8 s and two minutes of talking):
+
+| Watch | Still picture after (median, longest) | Live again | False still pictures | Frame rate |
+|---|---|---|---|---|
+| Once a second, 3 misses (as built) | 2.8 s, 3.4 s | 2.1 s | none | 25.3 |
+| Twice a second, 3 misses (chosen) | 1.5 s, 1.9 s | 1.1 s | none | 25.2 |
+| Twice a second, 2 misses | 0.9 s, 1.3 s | 1.1 s | none | 25.0 |
+
+**Built.** The watch compares twice a second, and still holds only after three comparisons in a row: two would be quicker, but on a webcam a blink or a blurred frame can spoil one reading. A test keeps the two together within 1.5 s. The rehearsal now registers the turns to each side from the stand-in actually turned, as a person does at enrolment, and can hold any one picture at the camera. Rehearsed again: 11 of 11, someone else held after 1.75 s and live again 0.75 s after the person was back.
+
+**Not done:** two real people swapping at a real camera; the sample clips are studio footage, and a webcam in poor light scores lower.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1050,6 +1068,7 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 | One account uses the engine at a time (22 November 2026) | One camera, one graphics card, one virtual camera: two people's faces in one engine is the fault the whole consent part exists to prevent |
 | The meeting pictures are in the database, the face signature is a file (22 November 2026) | Pictures belong with the rows that speak of them and are deleted with them; "Forget my face" must remove the signature outright, which deleting a file does |
 | A consent check outlives the session it opened (22 November 2026) | Deleting a session must not clear the limit on retries |
+| The consent watch compares twice a second but still needs three misses in a row (27 November 2026) | The pace was what made someone else visible for 3 s; one bad frame of the right person must never be enough to hold |
 | SQLite for the database, not PostgreSQL (21 November 2026) | One person on one computer, offline: SQLite is part of Python and is one file, so the demo laptop and Kubuntu install nothing; PostgreSQL would add a server and a password to every machine for no gain at this size |
 | Windows and Kubuntu both supported | Team members own different machines; the proposal names Kubuntu |
 | LivePortrait fetched by a setup script at a pinned commit; weights not in the repository | Reproducible, and the weights carry their own licence |
@@ -1133,7 +1152,7 @@ Two more things it found. **A reader keeps the rate it was offered when it opene
 - No person has passed the liveness prompt at a real camera. The one trial so far ended on a missed action, which is why an action now has five seconds and a second go. Whether 35 degrees and an open mouth of 0.60 suit real faces, and how often a real user is refused, all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
 - A recording made on purpose passes the prompt about one attempt in seven. Since 20 November 2026 repeated attempts are limited (three free, then waits doubling from a minute), which slows such a recording from under two minutes to about a quarter of an hour but does not stop it. A live reenactment fed in as the camera passes like a person.
 - How much a face narrows as it turns separates a tilted photograph from a head in the sample material. It needs real heads turned to 35 degrees and beyond before it can be made a rule.
-- Someone else sitting down during a session drives the picture for two to three seconds before the still picture goes up.
+- Someone else sitting down during a session drives the picture for about one and a half seconds (1.9 at most in six tries) before the still picture goes up. Measured with sample clips; not yet with two people at a real camera.
 - The mark is small when a meeting application shows the picture small. In Meet's main tile (598 pixels high) it was about 30 pixels high and readable; in a small grid tile it would be under 10. Not yet looked at in a grid of several people.
 - The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
 - A covered mouth is caught in only about half the runs, because its scores sit on the level, and until the guard acts the mouth is drawn smeared.

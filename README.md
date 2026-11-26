@@ -108,7 +108,7 @@ Supervisor: Muhammad Aamir Gulzar
 | 1–2 Capture, tracking, driving signal | Working, with the crop and keypoints steadied (`neuropresence/capture`, `neuropresence/capture/steady.py`) |
 | 3 Reenactment | Working at about 22 frames a second live, with the movement shown in even steps (`neuropresence/reenactment`, `neuropresence/pipeline.py`, `neuropresence/server/pacing.py`) |
 | 4 Identity preservation | Working: the output is scored against the enrolled picture twice a second; a drop that lasts takes a fresh neutral pose, and if that does not help the still picture is shown until you sit at rest again or resume (`neuropresence/identity/guard.py`). A delay watchdog shows the still picture while the output arrives too late (`neuropresence/server/watchdog.py`) |
-| 5 Consent and disclosure | Working: before a face is verified and before every camera session, two actions chosen at random are asked for and the face is matched all the way through (`neuropresence/consent/liveness.py`, `check.py`); during a session the camera face is compared once a second; every output frame carries the label "AI reenacted" (`neuropresence/consent/disclosure.py`) |
+| 5 Consent and disclosure | Working: before a face is verified and before every camera session, two actions chosen at random are asked for and the face is matched all the way through (`neuropresence/consent/liveness.py`, `check.py`); during a session the camera face is compared twice a second; every output frame carries the label "AI reenacted" (`neuropresence/consent/disclosure.py`) |
 | 6 Virtual camera | Working on Windows with OBS Virtual Camera, and the voice held back to match it through VB-Audio Virtual Cable; used in Google Meet, Zoom and Microsoft Teams; not yet tried on Kubuntu |
 | Evaluation | Benchmark of speed, identity and temporal stability (`scripts/benchmark.py`, `neuropresence/evaluation`) |
 | Web app | Landing page, sign-in, and the studio: Overview, Enrolment, Live Studio, Sessions, Security, Your data, Account, Benchmarks and System (`web/`, `neuropresence/server`) |
@@ -252,6 +252,7 @@ python scripts/study_identity_guard.py         # the identity score in normal us
 python scripts/study_delay.py                  # delay and frame rate of a live session, alone and beside GPU load
 python scripts/study_liveness.py --stand-in    # what can pass the liveness prompt and the face match (about 15 minutes)
 python scripts/study_pacing.py                 # how evenly the movement is shown, with and without even motion (about 6 minutes)
+python scripts/study_consent_watch.py         # how soon someone else at the camera brings the still picture (about 15 minutes)
 python scripts/rehearse_demo.py               # the demo's failure paths on the real engine, with a stand-in (about 3 minutes)
 python scripts/rehearse_demo.py --soak 30     # one camera session of half an hour, watched for anything that creeps
 python -m pytest                               # engine and server tests
@@ -388,7 +389,7 @@ A session alone ran at 20.8 to 21.0 frames a second and 80 to 81 ms with the wat
 - A recording made for the purpose, holding every action, passes about one attempt in seven. Repeated attempts are limited (`neuropresence/consent/attempts.py`): three checks that do not pass cost nothing, then each further one makes the next check wait, one minute, then two, four and so on up to a quarter of an hour, and a check that passes forgets them. Against such a recording the expected time goes from under two minutes to about a quarter of an hour. That slows it; it does not stop it. The counts are kept in the database, so a restart of the engine does not clear them.
 - A face that is itself animated live and fed in as the camera answers the prompt as a person does. The stand-in used here is exactly that. The prompt stops photographs and recordings, not that.
 - The turn limit of 35° has 2.5° to spare in the hardest case measured. A second measure was looked at, how much a face narrows as it turns, which separates a tilted photograph from a head in the sample material (short of what its turn says by 0.14 or more, against 0.10 at most); it is not used, because the sample clips hold no head turned further than 18° to set it on.
-- Someone else who sits down during a session drives the picture for two to three seconds, until three readings a second apart have not matched.
+- Someone else who sits down during a session drives the picture for about one and a half seconds (1.9 at most in six tries), until three readings half a second apart have not matched (`scripts/study_consent_watch.py`).
 - The app runs on the user's own computer. These checks stand in the way of misuse through the app; they do not bind someone who changes the program.
 
 ## Project history
