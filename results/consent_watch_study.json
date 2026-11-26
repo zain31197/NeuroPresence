@@ -1,0 +1,130 @@
+{
+  "date": "2026-11-27T02:09:31",
+  "machine": {
+    "system": "Windows-11-10.0.26300-SP0",
+    "gpu": "NVIDIA GeForce RTX 5050"
+  },
+  "same_person_limit": 0.35,
+  "paces": [
+    {
+      "pace": "as built",
+      "watch_seconds": 1.0,
+      "misses_to_hold": 3,
+      "matches_to_release": 2,
+      "someone_else": {
+        "times": 6,
+        "held": 6,
+        "seconds_to_still": [
+          3.37,
+          2.67,
+          2.77,
+          2.82,
+          2.97,
+          2.67
+        ],
+        "median_s": 2.795,
+        "longest_s": 3.37
+      },
+      "back_again": {
+        "seconds_to_live": [
+          2.06,
+          2.06,
+          2.11,
+          2.11,
+          2.06,
+          2.06
+        ],
+        "median_s": 2.06
+      },
+      "false_still_seconds": {
+        "turned_left_40": 0.0,
+        "turned_right_40": 0.0,
+        "talking_120": 0.0
+      },
+      "fps_while_talking": {
+        "median": 25.29,
+        "lowest": 22.93
+      }
+    },
+    {
+      "pace": "twice a second",
+      "watch_seconds": 0.5,
+      "misses_to_hold": 3,
+      "matches_to_release": 2,
+      "someone_else": {
+        "times": 6,
+        "held": 6,
+        "seconds_to_still": [
+          1.51,
+          1.46,
+          1.51,
+          1.91,
+          1.51,
+          1.51
+        ],
+        "median_s": 1.51,
+        "longest_s": 1.91
+      },
+      "back_again": {
+        "seconds_to_live": [
+          1.06,
+          1.06,
+          1.11,
+          1.06,
+          1.06,
+          1.11
+        ],
+        "median_s": 1.06
+      },
+      "false_still_seconds": {
+        "turned_left_40": 0.0,
+        "turned_right_40": 0.0,
+        "talking_120": 0.0
+      },
+      "fps_while_talking": {
+        "median": 25.16,
+        "lowest": 22.27
+      }
+    },
+    {
+      "pace": "twice a second, two misses",
+      "watch_seconds": 0.5,
+      "misses_to_hold": 2,
+      "matches_to_release": 2,
+      "someone_else": {
+        "times": 6,
+        "held": 6,
+        "seconds_to_still": [
+          1.16,
+          1.31,
+          0.85,
+          0.96,
+          0.91,
+          0.8
+        ],
+        "median_s": 0.935,
+        "longest_s": 1.31
+      },
+      "back_again": {
+        "seconds_to_live": [
+          1.06,
+          1.06,
+          1.06,
+          1.06,
+          1.11,
+          1.06
+        ],
+        "median_s": 1.06
+      },
+      "false_still_seconds": {
+        "turned_left_40": 0.0,
+        "turned_right_40": 0.0,
+        "talking_120": 0.0
+      },
+      "fps_while_talking": {
+        "median": 25.02,
+        "lowest": 21.8
+      }
+    }
+  ]
+}

@@ -112,6 +112,8 @@ class Director:
 
     def frame(self, now):
         scene = self.scene
+        if isinstance(scene, np.ndarray):  # one picture held, such as a head turned and kept there
+            return scene
         if scene == "silent":
             return None
         if scene == "photo":
@@ -231,15 +233,29 @@ def make_runtime(data_dir, director_box, cameras):
                    sound_opener=lambda *args: None)
 
 
-def enrol(rt, rest):
+def turned_to(stand_in, degrees):
+    """The stand-in's head turned as near to `degrees` as the engine drew it (left is positive), staged."""
+    return stage(min(stand_in.turned, key=lambda pair: abs(pair[0] - degrees))[1])
+
+
+def enrol(rt, rest, stand_in=None):
     """The stand-in's face verified, its five poses registered and its picture enrolled, as the Enrolment screen
-    leaves them: the signatures through the store, the picture through the upload's own checks."""
+    leaves them: the signatures through the store, the picture through the upload's own checks. The turns to each
+    side are registered from the stand-in turned by 30 degrees, as a person turns for them; up and down, which the
+    stand-in cannot do, from the face at rest."""
+    scorer = rt.scorer()
     with FaceTracker(video=False) as tracker:
         track = tracker.process(rest)
-    signature = rt.scorer().embed(rest, track.landmarks)
-    rt.store.save_identity(signature, [])
-    for pose, angle in zip(POSE_KEYS, (0.0, 30.0, -30.0, 15.0, -15.0)):
-        rt.store.save_pose(pose, signature, angle, [])
+        signature = scorer.embed(rest, track.landmarks)
+        rt.store.save_identity(signature, [])
+        for pose, angle in zip(POSE_KEYS, (0.0, 30.0, -30.0, 15.0, -15.0)):
+            pose_signature = signature
+            if stand_in is not None and pose in ("left", "right"):
+                frame = turned_to(stand_in, angle)
+                seen = tracker.process(frame)
+                if seen.ok:
+                    pose_signature = scorer.embed(frame, seen.landmarks)
+            rt.store.save_pose(pose, pose_signature, angle, [])
     rt.face = rt.store.load_identity()
     rt.check_upload(rest, "rehearsal")
     candidate = rt.candidate
@@ -308,7 +324,7 @@ def set_up(data_dir):
         rt.engine_holds = None  # the stand-in used the engine; the enrolled picture goes back in at the session's start
     talking = [stage(f) for f in frames_of(DRIVING / f"{STAND_IN}.mp4")]
     rest = stage(stand_in.rest)
-    signature = enrol(rt, rest)
+    signature = enrol(rt, rest, stand_in)
     scorer = rt.scorer()
     other = None
     for name in OTHERS:  # someone who is clearly not the stand-in
