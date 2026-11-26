@@ -1,0 +1,1228 @@
+{
+  "date": "2026-11-27T03:22:59",
+  "machine": "Windows-11-10.0.26300-SP0",
+  "seconds": 12.0,
+  "windows_s": [
+    [
+      4.0,
+      6.0
+    ],
+    [
+      8.0,
+      10.0
+    ]
+  ],
+  "clips": {
+    "zain": {
+      "fps": 15.0,
+      "usable": true,
+      "redness_median": 6.3,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 1.2,
+            "share_of_cover": 0.4,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "zain_speech": {
+      "fps": 15.0,
+      "usable": true,
+      "redness_median": 5.3,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          },
+          {
+            "after_s": 0.2,
+            "share_of_cover": 0.9,
+            "released_after_s": 0.33
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d0": {
+      "fps": 25.0,
+      "usable": true,
+      "redness_median": 4.9,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d3": {
+      "fps": 30.0,
+      "usable": false,
+      "redness_median": 2.6,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      }
+    },
+    "d6": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 8.3,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d9": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 9.3,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.17,
+            "share_of_cover": 0.917,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.13
+          },
+          {
+            "after_s": 0.43,
+            "share_of_cover": 0.783,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d10": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 13.5,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d11": {
+      "fps": 25.0,
+      "usable": true,
+      "redness_median": 10.7,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.32,
+            "share_of_cover": 0.84,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.48,
+            "share_of_cover": 0.76,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.44,
+            "share_of_cover": 0.78,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.44,
+            "share_of_cover": 0.78,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d12": {
+      "fps": 25.0,
+      "usable": false,
+      "redness_median": -0.1,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      }
+    },
+    "d13": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 7.1,
+      "uncovered": {
+        "false_s": 0.33,
+        "longest_false_s": 0.33,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.4
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.4
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.4
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.4
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.4,
+        "longest_false_s": 0.4,
+        "windows": [],
+        "called_covered_s": 0.4
+      }
+    },
+    "d14": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 23.5,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d18": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 8.0,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.5
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.5
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.5
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.5
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d19": {
+      "fps": 30.0,
+      "usable": true,
+      "redness_median": 3.5,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          },
+          {
+            "after_s": 0.1,
+            "share_of_cover": 0.95,
+            "released_after_s": 0.17
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    },
+    "d20": {
+      "fps": 25.0,
+      "usable": true,
+      "redness_median": 8.0,
+      "uncovered": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": []
+      },
+      "flat": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "hand": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "red_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          },
+          {
+            "after_s": null,
+            "share_of_cover": 0.0,
+            "released_after_s": 0.0
+          }
+        ]
+      },
+      "white_cup": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "half": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          },
+          {
+            "after_s": 0.12,
+            "share_of_cover": 0.94,
+            "released_after_s": 0.2
+          }
+        ]
+      },
+      "chin": {
+        "false_s": 0.0,
+        "longest_false_s": 0.0,
+        "windows": [],
+        "called_covered_s": 0.0
+      }
+    }
+  },
+  "summary": {
+    "clips": 14,
+    "usable": 12,
+    "false_alarm_s_uncovered": 0.33,
+    "uncovered_seconds": 168.0,
+    "covers": {
+      "flat": {
+        "caught": 24,
+        "of": 24,
+        "median_after_s": 0.1,
+        "false_s": 0.0
+      },
+      "hand": {
+        "caught": 24,
+        "of": 24,
+        "median_after_s": 0.1,
+        "false_s": 0.0
+      },
+      "red_cup": {
+        "caught": 8,
+        "of": 24,
+        "median_after_s": 0.16,
+        "false_s": 0.0
+      },
+      "white_cup": {
+        "caught": 24,
+        "of": 24,
+        "median_after_s": 0.1,
+        "false_s": 0.0
+      },
+      "half": {
+        "caught": 22,
+        "of": 24,
+        "median_after_s": 0.11,
+        "false_s": 0.0
+      }
+    },
+    "chin_called_covered_s": 0.4
+  }
+}

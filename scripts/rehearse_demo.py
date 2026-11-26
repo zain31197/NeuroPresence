@@ -86,19 +86,23 @@ def frames_of(path):
     return frames
 
 
-def covered(image):
-    """The picture with a hand-coloured shape over the mouth and chin, as a hand held over it."""
+HAND_FRAMES = 150  # of the talking clip, with a hand drawn over the mouth: five seconds, played round
+
+
+def covered(frames):
+    """The talking frames with a hand over the mouth, as scripts/study_mouth_cover.py draws one: the person's own
+    skin with the creases between the fingers, following the face from frame to frame."""
+    from study_mouth_cover import cover
+
+    hands = []
     with FaceTracker(video=False) as tracker:
-        track = tracker.process(image)
-    if not track.ok:
+        for frame in frames[:HAND_FRAMES]:
+            track = tracker.process(frame)
+            if track.ok:
+                hands.append(cover(frame, np.asarray(track.landmarks, dtype=np.float32)[:, :2], "hand"))
+    if not hands:
         raise ValueError("no face to cover")
-    points = track.landmarks
-    x, y, w, h = track.bbox
-    skin = np.median(image[int(points[1][1]) - 5:int(points[1][1]) + 5, int(points[1][0]) - 5:int(points[1][0]) + 5].reshape(-1, 3), axis=0)
-    hand = image.copy()
-    top = int((points[2][1] + points[13][1]) / 2)
-    cv2.rectangle(hand, (int(x - 0.05 * w), top), (int(x + 1.05 * w), int(y + 1.08 * h)), tuple(int(c * 0.92) for c in skin), -1)
-    return hand
+    return hands
 
 
 class Director:
@@ -118,9 +122,9 @@ class Director:
             return None
         if scene == "photo":
             return self.photo
-        if scene == "cover":
-            return self.cover
         self._i += 1
+        if scene == "cover":
+            return self.cover[self._i % len(self.cover)]
         if scene == "other":
             return self.other[self._i % len(self.other)]
         consent = self.rt.session.snapshot().get("consent") or {}
@@ -334,7 +338,7 @@ def set_up(data_dir):
         if track.ok and scorer.similarity(signature, scorer.embed(frames[0], track.landmarks)) < SAME_PERSON_CSIM / 2:
             other = frames
             break
-    director = Director(rt, stand_in, talking, other, rest, covered(rest))
+    director = Director(rt, stand_in, talking, other, rest, covered(talking))
     box[0] = director
     return rt, client, director, cameras
 
