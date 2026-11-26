@@ -12,7 +12,7 @@ held up for the match while someone else does the moving. Measured on 10 October
 face of the same person fell below 0.49 in 1,474 frames of the sample clips, through blinks,
 talking and turns; scored against another person's first frame, none rose above 0.23.
 
-After the session has started the camera face is still compared once a second (ConsentWatch): the
+After the session has started the camera face is still compared twice a second (ConsentWatch): the
 person who passed the check may get up and someone else sit down.
 """
 
@@ -145,8 +145,14 @@ class ConsentCheck:
 
 # ---------------------------------------------------------- during a session
 
-WATCH_SECONDS = 1.0  # how often the camera face is compared during a session
-MISSES_TO_HOLD = 3  # this many in a row that do not match: the still picture is shown
+# How often the camera face is compared during a session. Once a second until 27 November 2026, which let someone
+# else drive the picture for 2.8 s (3.4 at most); twice a second it is 1.5 s (1.9 at most), with no still picture
+# for the right person turned 40 degrees or talking for two minutes, and the frame rate as before
+# (scripts/study_consent_watch.py, results/consent_watch_study.json). Each comparison costs the CPU about 50 ms.
+WATCH_SECONDS = 0.5
+# This many in a row that do not match: the still picture is shown. Two would be quicker again (0.9 s), but on a
+# webcam a blink or a blurred frame can spoil one reading, and three in a row cannot be one bad frame.
+MISSES_TO_HOLD = 3
 MATCHES_TO_RELEASE = 2  # this many in a row that match again: the live picture returns
 
 

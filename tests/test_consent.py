@@ -163,6 +163,14 @@ def test_another_person_at_the_camera_is_held_back_after_three_readings():
     assert ConsentWatch().sample(0.35) is None  # exactly at the limit is the same person
 
 
+def test_someone_else_is_caught_within_a_second_and_a_half_of_readings():
+    from neuropresence.consent import check
+
+    # Measured on 27 November 2026 (scripts/study_consent_watch.py): 1.5 s from sitting down to the still picture.
+    assert check.WATCH_SECONDS * check.MISSES_TO_HOLD <= 1.5
+    assert check.MISSES_TO_HOLD >= 3  # never on one or two bad frames of the right person
+
+
 # ------------------------------------------------------------------- the mark
 
 

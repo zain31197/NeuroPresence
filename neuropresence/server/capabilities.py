@@ -55,7 +55,7 @@ STAGES = [
         "status": "working",
         "note": "Before a face is verified and before every camera session, two actions chosen at random are asked "
                 "for, and the face is matched all the way through; after three that do not pass, the next has to wait. "
-                "During the session the camera face is compared once a second. Every output frame carries the label "
+                "During the session the camera face is compared twice a second. Every output frame carries the label "
                 "\"AI reenacted\".",
     },
     {

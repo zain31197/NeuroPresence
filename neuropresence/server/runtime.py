@@ -92,7 +92,7 @@ class IdentityMonitor:
     does not help. The still picture then stays until the person resumes, or it resumes by itself once
     the person is at rest (AUTO_RESUME_SECONDS).
 
-    The same thread keeps the consent watch (consent/check.py): once a second the face in the camera
+    The same thread keeps the consent watch (consent/check.py): twice a second the face in the camera
     picture is compared with the signatures registered for the user, and while it is someone else's
     the still picture is shown.
     """
@@ -216,7 +216,7 @@ class IdentityMonitor:
         return enabled
 
     def _watch_camera(self, session, scorer, pair):
-        """Once a second: is the person at the camera still the one the picture belongs to?"""
+        """Every WATCH_SECONDS: is the person at the camera still the one the picture belongs to?"""
         if (pair is None or pair.kind != "live" or pair.landmarks is None or not session.uses_enrolment
                 or session.state is not SessionState.RUNNING):
             return
