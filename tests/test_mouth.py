@@ -62,6 +62,16 @@ def test_it_is_not_repaired_again_before_a_while_has_passed():
     assert len(times) >= 2 and all(b - a >= REST_SECONDS - 0.6 for a, b in zip(times, times[1:]))
 
 
+def test_while_the_person_s_lips_are_not_read_nothing_is_compared():
+    # Talking, then a hand over the mouth for ten seconds: the camera gives no lips, the picture's mouth is held
+    # closed. The talking before the hand says nothing about the mouth behind it.
+    watch = MouthWatch()
+    assert run(watch, 4.0, talking, lambda t: 0.06) == []
+    assert run(watch, 10.0, lambda t: None, lambda t: 0.004, start=4.0) == []
+    # Uncovered and talking again, the picture's mouth still shut: found, from the fresh readings alone.
+    assert [what for _, what in run(watch, 8.0, talking, lambda t: 0.004, start=14.0)] == ["shut"]
+
+
 def test_missing_readings_are_left_out():
     watch = MouthWatch()
     assert watch.output(0.0, None) is None and watch.camera(0.0, None) is None

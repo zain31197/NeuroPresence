@@ -21,6 +21,10 @@ SAMPLES_OPEN = 3  # output readings in a row (1.5 s) with the mouth open while t
 SAMPLES_SHUT = 8  # output readings in a row (4 s) with the mouth together while the camera's speaks
 WINDOW_SECONDS = 3.0  # how far back the camera's own lips are looked at
 REST_SECONDS = 8.0  # between two repairs, so one that did not help is not repeated at once
+# The person's lips last read longer ago than this: covered by a hand (capture/cover.py), or the face lost. There is
+# nothing to compare the output with, and the readings from before say nothing about now: on 27 November 2026 a
+# hand held over a talking mouth for 10 s was taken for a mouth that stayed shut while its owner spoke.
+STALE_SECONDS = 0.5
 
 
 class MouthWatch:
@@ -52,6 +56,9 @@ class MouthWatch:
         if gap is None:
             return None
         self.output_gap = gap
+        if not self._camera or at - self._camera[-1][0] > STALE_SECONDS:
+            self._output.clear()  # the output's run counts only beside fresh readings of the person
+            return None
         self._output.append(gap)
         if self._last_repair is not None and at - self._last_repair < REST_SECONDS:
             return None
