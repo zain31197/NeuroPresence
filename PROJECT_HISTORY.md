@@ -1071,9 +1071,11 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 
 **What is done about it.** The engine eases the picture's lip keypoints to the neutral pose's within 0.08 s while the mouth is covered, and back within 0.2 s after; the head, the eyes and the brows go on moving. The neutral pose does not follow a covered mouth, the lips are not anchored on it, the mouth watch does not read it, a fresh neutral pose is not taken from it however long it is waited for, and the identity monitor does not count it as rest. The event list says so once a minute at most. A switch, "Covered mouth", on by default; the Live Studio shows "Covered" beside the mouth signal.
 
-**On the real engine** (the stand-in, talking, a hand over its mouth four times for 3 s, the switch off and then on), with the version before the wander was measured all along, which makes no difference for that face: switch off, likeness 0.82 while covered, 0.71 at worst, and the blob; switch on, the mouth held for 95% of the covers, likeness 0.88, 0.79 at worst, and a closed mouth. A repeat with the final version shared the card with another program from the second half on and is not counted; it is to be run again on a free card.
+**On the real engine** (the stand-in, talking, a hand over its mouth four times for 3 s, the switch off and then on; `--live`, the final version, on a free card): switch off, likeness 0.80 while covered, 0.70 at worst, and the blob; switch on, the mouth held for 93% of the covers, likeness 0.90, 0.75 at worst, and a closed mouth. No still picture either way; 24.0 and 24.5 frames a second (the detector runs both ways, only its answer is used or not). A run before it shared the card with another program from its second half on and is not counted.
 
-**Not done:** a real hand at a real camera; the session repeated on a free card; the rehearsal with its new hand drawn on every frame.
+**Found by the rehearsal**, with a hand drawn on every frame: the mouth watch (`server/mouth.py`) said "The picture's mouth stayed shut while you spoke; it was brought back" during a cover of 10 s. With no new readings of the person's lips it had kept the talking from before the hand, and compared the held-closed picture with it. It now compares nothing while the person's lips have not been read for half a second, and starts its count again; a test holds it (without the fix it repairs 7.5 s into the cover). Rehearsed again: 11 of 11, the mouth found covered after 0.25 s and held for 97% of the time, the guard steady, nothing repaired.
+
+**Not done:** a real hand at a real camera.
 
 ## Decisions and their reasons
 
@@ -1161,6 +1163,7 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 | The rehearsal said the session never went live | It looked for the mark on the meeting's frame, which is the output fitted to 1280 x 720, so the mark is elsewhere | The mark is checked on the output, and the meeting's frame against the plain card (24 November 2026) |
 | A session ended by a camera that is gone said only "The camera stopped delivering frames." | | It says to check the cable or app and start again (24 November 2026) |
 | A hand over the mouth was drawn as a smeared mouth until the guard noticed, in about half the runs | The mouth was driven from what the camera showed, the hand included | The camera's lips are checked on every frame, and while they are covered the picture's mouth is held closed (27 November 2026) |
+| During a cover the mouth watch repaired a mouth that was held closed on purpose | It kept the talking read before the hand and compared the picture with it | It compares nothing while the person's lips have not been read for half a second (27 November 2026) |
 
 ## Open items
 
@@ -1175,7 +1178,6 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 - The mark is small when a meeting application shows the picture small. In Meet's main tile (598 pixels high) it was about 30 pixels high and readable; in a small grid tile it would be under 10. Not yet looked at in a grid of several people.
 - The identity limits were set on short studio clips. A session of many minutes on a real camera has not been scored, and the level of 0.75 has to be checked on the team's own recordings.
 - A covered mouth is now found from the camera's own picture (27 November 2026), but only drawn covers have been tried. A real hand at a real camera, in the demonstration room's light, has to be checked; a red cup over red lips is not found.
-- The session on the real engine with the final version of the cover detector, switch off against on, is still to be repeated on a free card (its last run shared the card with another program).
 - A fresh neutral pose taken by the guard is taken from whatever the camera shows at that moment. A covered mouth is no longer taken (27 November 2026); other things in front of the face may be.
 - The consent test "another person cannot start a session" failed once on 27 November 2026, while another program held the card and the computer was loaded: the prompt had begun before the face match refused. It passed five times out of five alone.
 - Settled on 20 November 2026: after an identity fallback the picture now resumes by itself once the person is at rest. Not yet watched in a real call.

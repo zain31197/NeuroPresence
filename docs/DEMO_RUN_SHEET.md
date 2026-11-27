@@ -65,16 +65,16 @@ The voice mode (camera off) is shown only if asked: it needs Ditto installed on 
 
 ## Rehearsal results
 
-On the PC (RTX 5050 desktop), 27 November 2026, with the consent watch at twice a second: **11 of 11 as expected**, in 3 minutes (also 11 of 11 on 24 November, before that change). The stand-in is the sample clip d6; someone else is another sample clip.
+On the PC (RTX 5050 desktop), the latest run on 27 November 2026, with the consent watch at twice a second and a covered mouth held closed: **11 of 11 as expected**, in 3 minutes (also 11 of 11 on 24 November and earlier on 27 November, before those changes). The stand-in is the sample clip d6; someone else is another sample clip; the hand is drawn over the stand-in's mouth on every frame.
 
 | Case | What the app did |
 |---|---|
 | A photograph held up | Refused at the liveness check ("Your head did not turn to your right within 5 seconds."); the meeting got no frame of the person |
-| The person starts a session | Live 10 s after Start, 22.0 frames a second, 82 ms, face match 1.0; the output marked |
-| Someone else sits down | Still picture after 1.75 s (3.3 s on 24 November, with the watch at once a second); live again 0.75 s after the person was back |
-| The mouth is covered | The guard saw the match dip and it came back; no still picture was needed (on 24 November it took a fresh neutral pose) |
+| The person starts a session | Live 11 s after Start, 22.0 frames a second, 87 ms, face match 1.0; the output marked |
+| Someone else sits down | Still picture after 2.0 s (1.5 s typically in `study_consent_watch.py`; 3.3 s on 24 November, with the watch at once a second); live again 1.0 s after the person was back |
+| The mouth is covered | Found covered 0.25 s after the hand came, the picture's mouth held closed for 97% of the time and the picture live throughout; the guard steady, nothing repaired (on 24 November, before this was built, the guard took a fresh neutral pose) |
 | The camera drops out for 5 s | "Reconnecting", then "The camera is back"; the session went on |
-| Another program takes the whole card | Frame rate down to 11. On 24 November the delay reached 157 ms, the still picture was shown, and the picture resumed by itself; on 27 November it peaked at 149 ms, just under the limit, and none was needed |
+| Another program takes the whole card | Frame rate down to 10 or 11. On 24 November the delay reached 157 ms, the still picture was shown, and the picture resumed by itself; in the runs of 27 November it peaked at 143 to 149 ms, just under the limit, and none was needed |
 | Signed out during a session | The session stopped, the meeting got the plain card, the API refused everything |
 | The camera is pulled out for good | The session ended after 15 s, saying to check the cable and start again |
 | Five wrong passwords | The right password refused too: "Try again in 15 minutes." |

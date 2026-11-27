@@ -356,7 +356,7 @@ Run in a real session, with the mouth covered in a sample clip, the guard took a
 | A red cup | 8 of 24: on red lips it is the same colour as the lips |
 | A hand on the chin, lips showing | Never called a cover, on Zain's recordings or any clip but the one above |
 
-The covers are drawn, not filmed; a real hand at a real camera is on the demo run sheet to check by hand.
+In a session on the real engine (`--live`), with a hand drawn over a talking face, the picture's mouth was held closed for 93% of the covers and its likeness to the picture stayed at 0.90 (0.75 at worst), against a smeared, lipless mouth and 0.80 (0.70) with the switch off; the still picture was not needed either way. The covers are drawn, not filmed; a real hand at a real camera is on the demo run sheet to check by hand.
 
 **Delay.** `python scripts/study_delay.py` runs a live session on a sample clip and keeps the GPU busy from a second process (`results/delay_study.json`). The load is artificial; it stands in for a meeting application and is not one.
 
