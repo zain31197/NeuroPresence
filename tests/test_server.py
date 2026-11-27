@@ -524,6 +524,18 @@ def test_the_system_screen_runs_the_checks_through_the_engines_own_devices(parts
     assert report["failed"] == sum(c["level"] == "fail" for c in checks.values()) and report["ready"] == (report["failed"] == 0)
 
 
+def test_the_system_screen_checks_the_enrolment_of_whoever_is_signed_in(parts):
+    # A second account keeps its face in data/users/<id>. Until 27 November 2026 the System screen looked one folder
+    # up from it, found nothing there, and said that nobody was enrolled.
+    client = parts["client"]
+    client.post("/api/account/sign-out")
+    sign_up(client, email="sana@example.com", name="Sana")
+    assert parts["runtime"].store.folder.name != "enrolment"  # the second account's own folder
+    report = client.get("/api/system", params={"internet": "false"}).json()
+    enrolment = next(check for group in report["groups"] for check in group["checks"] if check["name"] == "Enrolment")
+    assert enrolment["detail"] == "Sana has no meeting picture enrolled"
+
+
 def test_a_camera_is_tested_only_while_nothing_else_has_it(parts):
     client = parts["client"]
     result = client.post("/api/system/camera", json={"input": "camera:0"}).json()

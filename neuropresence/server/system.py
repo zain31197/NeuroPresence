@@ -58,7 +58,9 @@ def system_report(runtime, internet=True):
                      preflight.resources_check],
         "models": [lambda: preflight.files_check(), lambda: _engine(runtime)],
         "meeting": [lambda: _virtual_camera(runtime), lambda: _virtual_microphone(runtime)],
-        "you": [lambda: preflight.enrolment_check(runtime.store.folder.parent)],
+        # The signed-in account's own folder: data/enrolment for the first account, data/users/<id> for the others.
+        "you": [lambda: preflight.enrolment_check(None, folder=runtime.store.folder,
+                                                  name=runtime.user["name"] if runtime.user else None)],
         "network": [preflight.internet_check] if internet else [],
     }
     started = time.perf_counter()
