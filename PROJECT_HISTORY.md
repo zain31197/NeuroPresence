@@ -29,7 +29,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Lag behind the driving face | 0.07 frames | none |
 | Flicker, against real video | 0.74 times (0.89) | at most 1 time |
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
-| Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
+| Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; at a real camera 2 of 2 recorded (Zain, 22 November 2026), no acceptance rate yet | at least 95% |
 
 Tests: 605 for the engine and server, 85 for the web app, all passing (27 November 2026).
 
@@ -1089,6 +1089,14 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 
 **Not done:** the run on the laptop, which is the run sheet's first task for the day before.
 
+### 28 November 2026: the first start on Zain's own data, rehearsed on a copy
+
+**Why.** The first time Zain starts the engine since accounts, his first sign-up takes over what is on his computer. That had only been tried on seeded scratch data.
+
+**Done**, on a copy of his `data` folder in a scratch folder; the original was not opened by the engine and is unchanged. His database was already at schema 3: he had started the engine on 22 November while accounts were being built, and the upgrade had gone through (integrity ok). The first sign-up, through the web app's own form, took over everything: the verified face with its five poses, the meeting picture of 21 October (now the first picture of the library, in use, match 0.81), both sessions with their 235 readings, events and checks, his tracking overlay switch, and the virtual camera remembered as on; no row was left without an owner. The Overview, Sessions and Enrolment screens showed all of it. The copy was deleted afterwards.
+
+**Found in it.** Both checks recorded since the database began were passed by Zain at his own camera on 22 November (the face matched at 0.57 and 0.80 at the lowest), so the notes that said no person had passed the prompt at a real camera were corrected. In the second session (2.7 minutes, 22.0 frames a second, 88 ms) the picture's mouth followed his: correlation 0.98 between his lips and the picture's, never open while his were closed nor the other way; but he was mostly silent, so it says nothing yet about the mouth that stuck in the Meet call.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1184,7 +1192,7 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 - The picture's mouth stood open for ten seconds and stayed shut in two places in a Meet call on 22 November; the cause is not known. The mouth is now watched and put right, and the lips at the camera and in the output are kept side by side: look at them after the next call.
 - In a call the engine is expected to draw 21 to 22 frames a second with the 8-bit layers and the calm studio; only the test call has been measured.
 - The 8-bit layers raise tremble to 1.06 and flicker to 0.87 of real video, against 1.03 and 0.81 in 16 bit (targets: at most 1). The generator's main convolutions and a lighter network are what is left for more speed.
-- No person has passed the liveness prompt at a real camera. The one trial so far ended on a missed action, which is why an action now has five seconds and a second go. Whether 35 degrees and an open mouth of 0.60 suit real faces, and how often a real user is refused, all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
+- Zain passed it at his own camera twice on 22 November 2026, the face matched all the way through at 0.57 and 0.80 at the lowest: the only two checks recorded since the database began on 21 November (found on 28 November 2026 in his database, read from a copy). The first trial, on 12 October, ended on a missed action, which is why an action now has five seconds and a second go. Two passes are not an acceptance rate. Whether 35 degrees and an open mouth of 0.60 suit real faces, and how often a real user is refused, all have to be found on the team's own cameras; the proposal's target is at least 95% of true attempts accepted.
 - A recording made on purpose passes the prompt about one attempt in seven. Since 20 November 2026 repeated attempts are limited (three free, then waits doubling from a minute), which slows such a recording from under two minutes to about a quarter of an hour but does not stop it. A live reenactment fed in as the camera passes like a person.
 - How much a face narrows as it turns separates a tilted photograph from a head in the sample material. It needs real heads turned to 35 degrees and beyond before it can be made a rule.
 - Someone else sitting down during a session drives the picture for about one and a half seconds (1.9 at most in six tries) before the still picture goes up. Measured with sample clips; not yet with two people at a real camera.
