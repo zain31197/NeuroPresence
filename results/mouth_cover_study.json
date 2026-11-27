@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-27T03:22:59",
+  "date": "2026-11-27T22:18:33",
   "machine": "Windows-11-10.0.26300-SP0",
   "seconds": 12.0,
   "windows_s": [
@@ -1224,5 +1224,98 @@
       }
     },
     "chin_called_covered_s": 0.4
+  },
+  "live": {
+    "switch off": {
+      "covered": {
+        "readings": 60,
+        "called_covered": 0.0,
+        "lips_median": 0.0046,
+        "lips_highest": 0.0078,
+        "lips_spread": 0.0014,
+        "identity_median": 0.798,
+        "identity_lowest": 0.696,
+        "still_picture_share": 0.0,
+        "guard_states": [
+          "dipping",
+          "steady"
+        ],
+        "held_for": {
+          "identity": 0.0,
+          "delay": 0.0,
+          "consent": 0.0
+        },
+        "fps_median": 24.5,
+        "consent_held": false
+      },
+      "uncovered": {
+        "readings": 76,
+        "called_covered": 0.0,
+        "lips_median": 0.1966,
+        "lips_highest": 0.4763,
+        "lips_spread": 0.1089,
+        "identity_median": 0.831,
+        "identity_lowest": 0.717,
+        "still_picture_share": 0.0,
+        "guard_states": [
+          "dipping",
+          "steady"
+        ],
+        "held_for": {
+          "identity": 0.0,
+          "delay": 0.0,
+          "consent": 0.0
+        },
+        "fps_median": 24.5,
+        "consent_held": false
+      },
+      "events": []
+    },
+    "switch on": {
+      "covered": {
+        "readings": 60,
+        "called_covered": 0.933,
+        "lips_median": 0.0069,
+        "lips_highest": 0.0141,
+        "lips_spread": 0.0028,
+        "identity_median": 0.901,
+        "identity_lowest": 0.752,
+        "still_picture_share": 0.0,
+        "guard_states": [
+          "steady"
+        ],
+        "held_for": {
+          "identity": 0.0,
+          "delay": 0.0,
+          "consent": 0.0
+        },
+        "fps_median": 24.0,
+        "consent_held": false
+      },
+      "uncovered": {
+        "readings": 76,
+        "called_covered": 0.053,
+        "lips_median": 0.1674,
+        "lips_highest": 0.4403,
+        "lips_spread": 0.1146,
+        "identity_median": 0.826,
+        "identity_lowest": 0.719,
+        "still_picture_share": 0.0,
+        "guard_states": [
+          "dipping",
+          "steady"
+        ],
+        "held_for": {
+          "identity": 0.0,
+          "delay": 0.0,
+          "consent": 0.0
+        },
+        "fps_median": 24.1,
+        "consent_held": false
+      },
+      "events": [
+        "Your mouth is covered at the camera. The picture's mouth is held closed until it is uncovered."
+      ]
+    }
   }
 }

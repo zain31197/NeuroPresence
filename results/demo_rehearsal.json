@@ -1,11 +1,11 @@
 {
-  "date": "2026-11-27T02:13:47",
+  "date": "2026-11-27T22:29:50",
   "machine": {
     "system": "Windows-11-10.0.26300-SP0",
     "gpu": "NVIDIA GeForce RTX 5050"
   },
   "stand_in": "d6",
-  "minutes": 3.1,
+  "minutes": 3.0,
   "passed": 11,
   "cases": 11,
   "results": [
@@ -21,17 +21,17 @@
       "case": "The person starts a session",
       "expected": "the prompt is answered, the picture goes live, the meeting gets it marked",
       "as_expected": true,
-      "seconds_to_live": 10.0,
-      "fps": 21.98,
-      "delay_ms": 82.3,
+      "seconds_to_live": 11.2,
+      "fps": 21.96,
+      "delay_ms": 86.5,
       "match": 1.0
     },
     {
       "case": "Someone else sits down, then the person returns",
       "expected": "the still picture within about 3 s; live again once the person is back",
       "as_expected": true,
-      "still_after_s": 1.75,
-      "live_again_after_s": 0.75,
+      "still_after_s": 2.0,
+      "live_again_after_s": 1.0,
       "seen": [
         {
           "t": 0.0,
@@ -41,9 +41,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.3,
-          "fps": 21.98,
+          "delay_ms": 86.5,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -54,9 +55,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.0,
-          "fps": 22.01,
+          "delay_ms": 86.1,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -67,9 +69,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.9,
-          "fps": 21.98,
+          "delay_ms": 85.7,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -80,9 +83,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 83.4,
-          "fps": 21.65,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.7,
+          "fps": 21.94,
           "showing": "session"
         },
         {
@@ -93,9 +97,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 83.3,
-          "fps": 21.86,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.3,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -106,9 +111,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 83.3,
-          "fps": 22.03,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.2,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -119,9 +125,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 83.3,
-          "fps": 21.98,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.1,
+          "fps": 22.04,
           "showing": "session"
         },
         {
@@ -130,11 +137,12 @@
           "holds": {
             "identity": false,
             "delay": false,
-            "consent": true
+            "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 80.0,
-          "fps": 22.45,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.0,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -145,9 +153,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 73.8,
-          "fps": 22.45,
+          "delay_ms": 80.5,
+          "fps": 22.46,
           "showing": "session"
         },
         {
@@ -158,9 +167,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 68.2,
-          "fps": 22.45,
+          "delay_ms": 75.1,
+          "fps": 22.44,
           "showing": "session"
         },
         {
@@ -171,9 +181,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 61.9,
-          "fps": 22.93,
+          "delay_ms": 67.8,
+          "fps": 22.46,
           "showing": "session"
         },
         {
@@ -184,9 +195,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 54.1,
-          "fps": 22.77,
+          "delay_ms": 62.4,
+          "fps": 22.49,
           "showing": "session"
         },
         {
@@ -197,9 +209,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 48.2,
-          "fps": 22.52,
+          "delay_ms": 55.1,
+          "fps": 22.44,
           "showing": "session"
         },
         {
@@ -210,9 +223,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 42.4,
-          "fps": 22.47,
+          "delay_ms": 49.9,
+          "fps": 22.49,
           "showing": "session"
         },
         {
@@ -223,9 +237,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 36.4,
-          "fps": 22.44,
+          "delay_ms": 42.4,
+          "fps": 22.46,
           "showing": "session"
         },
         {
@@ -236,9 +251,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.9,
-          "fps": 22.0,
+          "delay_ms": 37.2,
+          "fps": 22.46,
           "showing": "session"
         },
         {
@@ -249,9 +265,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.9,
-          "fps": 22.01,
+          "delay_ms": 33.0,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -262,9 +279,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.9,
-          "fps": 21.99,
+          "delay_ms": 33.0,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -275,8 +293,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.9,
+          "delay_ms": 33.0,
           "fps": 22.0,
           "showing": "session"
         },
@@ -288,6 +307,7 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 32.9,
           "fps": 22.0,
@@ -301,9 +321,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
-          "fps": 22.0,
+          "delay_ms": 32.9,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -314,6 +335,7 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 33.0,
           "fps": 22.0,
@@ -327,6 +349,7 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 33.0,
           "fps": 22.0,
@@ -340,8 +363,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.9,
+          "delay_ms": 33.0,
           "fps": 22.0,
           "showing": "session"
         },
@@ -353,8 +377,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
+          "delay_ms": 32.9,
           "fps": 22.0,
           "showing": "session"
         },
@@ -366,9 +391,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
-          "fps": 22.02,
+          "delay_ms": 32.9,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -379,8 +405,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
+          "delay_ms": 32.9,
           "fps": 22.0,
           "showing": "session"
         },
@@ -392,9 +419,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 33.0,
-          "fps": 22.04,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -405,22 +433,24 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 33.0,
-          "fps": 21.98,
+          "fps": 22.0,
           "showing": "session"
         },
         {
-          "t": 7.26,
+          "t": 7.27,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.7,
-          "fps": 22.0,
+          "delay_ms": 32.9,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -431,8 +461,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.7,
+          "delay_ms": 32.9,
           "fps": 22.0,
           "showing": "session"
         },
@@ -444,8 +475,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.7,
+          "delay_ms": 33.0,
           "fps": 22.0,
           "showing": "session"
         },
@@ -457,8 +489,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.7,
+          "delay_ms": 33.0,
           "fps": 22.0,
           "showing": "session"
         },
@@ -470,8 +503,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.7,
+          "delay_ms": 33.0,
           "fps": 22.0,
           "showing": "session"
         },
@@ -483,9 +517,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 34.4,
-          "fps": 22.0,
+          "delay_ms": 33.8,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -496,8 +531,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 34.4,
+          "delay_ms": 33.8,
           "fps": 22.0,
           "showing": "session"
         },
@@ -509,9 +545,10 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 34.3,
-          "fps": 22.0,
+          "delay_ms": 33.8,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -522,8 +559,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.6,
+          "delay_ms": 33.8,
           "fps": 22.0,
           "showing": "session"
         },
@@ -535,8 +573,9 @@
             "delay": false,
             "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.6,
+          "delay_ms": 33.8,
           "fps": 22.0,
           "showing": "session"
         },
@@ -546,11 +585,12 @@
           "holds": {
             "identity": false,
             "delay": false,
-            "consent": false
+            "consent": true
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.7,
-          "fps": 22.0,
+          "delay_ms": 33.8,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -561,8 +601,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.9,
+          "delay_ms": 34.0,
           "fps": 22.0,
           "showing": "session"
         },
@@ -574,9 +615,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
-          "fps": 22.0,
+          "delay_ms": 41.6,
+          "fps": 20.34,
           "showing": "session"
         },
         {
@@ -587,9 +629,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
-          "fps": 22.0,
+          "delay_ms": 48.4,
+          "fps": 20.28,
           "showing": "session"
         },
         {
@@ -600,9 +643,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
-          "fps": 22.0,
+          "delay_ms": 53.9,
+          "fps": 20.35,
           "showing": "session"
         },
         {
@@ -613,9 +657,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 33.0,
-          "fps": 22.0,
+          "delay_ms": 61.5,
+          "fps": 20.36,
           "showing": "session"
         },
         {
@@ -626,9 +671,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 32.6,
-          "fps": 22.0,
+          "delay_ms": 68.1,
+          "fps": 20.32,
           "showing": "session"
         },
         {
@@ -639,9 +685,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 41.3,
-          "fps": 20.5,
+          "delay_ms": 74.8,
+          "fps": 20.36,
           "showing": "session"
         },
         {
@@ -652,9 +699,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 48.5,
-          "fps": 20.54,
+          "delay_ms": 81.7,
+          "fps": 20.32,
           "showing": "session"
         },
         {
@@ -665,9 +713,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 55.1,
-          "fps": 20.54,
+          "delay_ms": 86.6,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -678,9 +727,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 62.4,
-          "fps": 20.53,
+          "delay_ms": 82.5,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -691,9 +741,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 68.0,
-          "fps": 20.47,
+          "delay_ms": 82.7,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -704,9 +755,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 75.2,
-          "fps": 20.55,
+          "delay_ms": 82.9,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -717,9 +769,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 80.9,
-          "fps": 20.54,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 83.3,
+          "fps": 22.05,
           "showing": "session"
         },
         {
@@ -730,9 +783,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 86.0,
-          "fps": 22.05,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 83.4,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -743,9 +797,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 82.0,
-          "fps": 22.04,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 83.8,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -756,9 +811,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 82.2,
-          "fps": 22.01,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 84.0,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -769,9 +825,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 82.1,
-          "fps": 22.01,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 84.3,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -782,9 +839,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.3,
-          "fps": 21.94,
+          "delay_ms": 84.6,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -795,9 +853,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.4,
-          "fps": 21.99,
+          "delay_ms": 84.6,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -808,9 +867,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.8,
-          "fps": 21.97,
+          "delay_ms": 84.6,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -821,9 +881,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.1,
-          "fps": 22.02,
+          "delay_ms": 84.5,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -834,9 +895,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.1,
-          "fps": 22.02,
+          "delay_ms": 84.3,
+          "fps": 21.97,
           "showing": "session"
         },
         {
@@ -847,9 +909,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.2,
-          "fps": 22.0,
+          "delay_ms": 84.2,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -860,9 +923,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.2,
-          "fps": 21.97,
+          "delay_ms": 84.0,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -873,9 +937,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.4,
-          "fps": 21.99,
+          "delay_ms": 83.9,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -886,9 +951,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.4,
-          "fps": 21.98,
+          "delay_ms": 83.5,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -899,8 +965,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.5,
+          "delay_ms": 83.4,
           "fps": 21.99,
           "showing": "session"
         },
@@ -912,9 +979,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 83.6,
-          "fps": 22.01,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 83.2,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -925,9 +993,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 83.5,
-          "fps": 21.99,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 83.2,
+          "fps": 21.97,
           "showing": "session"
         },
         {
@@ -938,9 +1007,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.5,
-          "fps": 22.0,
+          "delay_ms": 83.1,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -951,8 +1021,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.7,
+          "delay_ms": 83.1,
           "fps": 21.99,
           "showing": "session"
         },
@@ -964,9 +1035,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.7,
-          "fps": 22.04,
+          "delay_ms": 83.3,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -977,9 +1049,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.8,
-          "fps": 22.02,
+          "delay_ms": 83.1,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -990,9 +1063,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.7,
-          "fps": 22.03,
+          "delay_ms": 83.3,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -1003,9 +1077,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.6,
-          "fps": 21.99,
+          "delay_ms": 83.1,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -1016,9 +1091,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.3,
-          "fps": 22.0,
+          "delay_ms": 83.1,
+          "fps": 21.97,
           "showing": "session"
         },
         {
@@ -1029,9 +1105,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.0,
-          "fps": 21.98,
+          "delay_ms": 83.3,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -1042,9 +1119,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.0,
-          "fps": 21.97,
+          "delay_ms": 83.3,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -1055,9 +1133,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.7,
-          "fps": 21.99,
+          "delay_ms": 83.7,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -1068,9 +1147,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.5,
-          "fps": 22.02,
+          "delay_ms": 83.7,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -1081,9 +1161,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.1,
-          "fps": 22.01,
+          "delay_ms": 84.0,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -1094,9 +1175,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.9,
-          "fps": 22.02,
+          "delay_ms": 84.1,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1107,9 +1189,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.5,
-          "fps": 22.04,
+          "delay_ms": 84.3,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1120,9 +1203,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.4,
-          "fps": 21.99,
+          "delay_ms": 84.8,
+          "fps": 22.05,
           "showing": "session"
         },
         {
@@ -1133,9 +1217,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.2,
-          "fps": 22.02,
+          "delay_ms": 84.8,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1146,35 +1231,38 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.0,
-          "fps": 22.0,
+          "delay_ms": 85.1,
+          "fps": 22.05,
           "showing": "session"
         },
         {
-          "t": 12.53,
+          "t": 12.52,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 80.8,
-          "fps": 22.01,
+          "delay_ms": 84.8,
+          "fps": 21.99,
           "showing": "session"
         },
         {
-          "t": 12.78,
+          "t": 12.77,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 80.8,
-          "fps": 22.0,
+          "delay_ms": 85.0,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -1185,9 +1273,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "dipping",
-          "delay_ms": 80.7,
-          "fps": 21.98,
+          "delay_ms": 85.1,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -1198,8 +1287,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "dipping",
-          "delay_ms": 80.7,
+          "delay_ms": 85.1,
           "fps": 22.0,
           "showing": "session"
         },
@@ -1211,9 +1301,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "dipping",
-          "delay_ms": 80.8,
-          "fps": 22.01,
+          "delay_ms": 85.3,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -1224,9 +1315,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 80.8,
-          "fps": 22.01,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.2,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1237,9 +1329,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 80.9,
-          "fps": 22.01,
+          "delay_ms": 85.3,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1250,9 +1343,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 80.8,
-          "fps": 22.02,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.1,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1263,9 +1357,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 81.0,
-          "fps": 22.0,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.0,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -1276,23 +1371,26 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 80.9,
-          "fps": 21.98,
+          "delay_ms": 84.8,
+          "fps": 22.04,
           "showing": "session"
         }
       ]
     },
     {
       "case": "The mouth is covered with a hand",
-      "expected": "the guard reacts (a fresh neutral pose or the still picture), and the picture recovers after",
+      "expected": "found covered, the picture's mouth held closed and live; nothing repaired or held back; live after",
       "as_expected": true,
+      "covered_after_s": 0.25,
+      "covered_share": 0.97,
       "guard_states": [
-        "dipping",
         "steady"
       ],
-      "still_after_s": null,
-      "events": [],
+      "events": [
+        "Your mouth is covered at the camera. The picture's mouth is held closed until it is uncovered."
+      ],
       "seen": [
         {
           "t": 0.0,
@@ -1302,9 +1400,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 81.0,
-          "fps": 21.98,
+          "delay_ms": 84.6,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -1315,9 +1414,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 81.1,
-          "fps": 22.03,
+          "delay_ms": 84.7,
+          "fps": 21.97,
           "showing": "session"
         },
         {
@@ -1328,9 +1428,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 81.2,
-          "fps": 22.02,
+          "delay_ms": 84.3,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -1341,636 +1442,125 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 81.3,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 1.0,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "dipping",
-          "delay_ms": 81.7,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 1.25,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "dipping",
-          "delay_ms": 81.9,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 1.5,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 82.3,
-          "fps": 21.98,
-          "showing": "session"
-        },
-        {
-          "t": 1.75,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 82.8,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 2.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 83.0,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 2.26,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 83.4,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 2.51,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 83.6,
-          "fps": 21.97,
-          "showing": "session"
-        },
-        {
-          "t": 2.76,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.2,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 3.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.97,
-          "showing": "session"
-        },
-        {
-          "t": 3.26,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 3.51,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.7,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 3.76,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.7,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 4.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.8,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 4.26,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 85.0,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 4.51,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 85.0,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 4.76,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.8,
-          "fps": 22.04,
-          "showing": "session"
-        },
-        {
-          "t": 5.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.8,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 5.26,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 22.07,
-          "showing": "session"
-        },
-        {
-          "t": 5.51,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 5.76,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.7,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 6.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 22.02,
-          "showing": "session"
-        },
-        {
-          "t": 6.27,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 6.52,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.4,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 6.77,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.4,
-          "fps": 22.03,
-          "showing": "session"
-        },
-        {
-          "t": 7.02,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 22.03,
-          "showing": "session"
-        },
-        {
-          "t": 7.27,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.5,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 7.52,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 7.77,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 22.03,
-          "showing": "session"
-        },
-        {
-          "t": 8.02,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.5,
-          "fps": 21.96,
-          "showing": "session"
-        },
-        {
-          "t": 8.27,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 8.52,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.5,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 8.77,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.5,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 9.02,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 22.04,
-          "showing": "session"
-        },
-        {
-          "t": 9.27,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.5,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 9.52,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 9.77,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.6,
-          "fps": 21.97,
-          "showing": "session"
-        },
-        {
-          "t": 0.0,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.4,
-          "fps": 22.04,
-          "showing": "session"
-        },
-        {
-          "t": 0.25,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 0.5,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 0.75,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.4,
-          "fps": 22.0,
-          "showing": "session"
-        },
-        {
-          "t": 1.0,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.98,
-          "showing": "session"
-        },
-        {
-          "t": 1.25,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.2,
-          "fps": 21.98,
-          "showing": "session"
-        },
-        {
-          "t": 1.5,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.99,
-          "showing": "session"
-        },
-        {
-          "t": 1.75,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 84.1,
-          "fps": 22.01,
-          "showing": "session"
-        },
-        {
-          "t": 2.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
-          "guard": "steady",
-          "delay_ms": 83.9,
-          "fps": 22.03,
-          "showing": "session"
-        },
-        {
-          "t": 2.26,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
+          "covered": true,
           "guard": "steady",
           "delay_ms": 84.0,
-          "fps": 22.02,
+          "fps": 21.97,
           "showing": "session"
         },
         {
-          "t": 2.51,
+          "t": 1.0,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 83.9,
-          "fps": 22.02,
-          "showing": "session"
-        },
-        {
-          "t": 2.76,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
+          "covered": true,
           "guard": "steady",
           "delay_ms": 83.7,
           "fps": 22.0,
           "showing": "session"
         },
         {
+          "t": 1.25,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.5,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 1.5,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.4,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 1.75,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.3,
+          "fps": 21.97,
+          "showing": "session"
+        },
+        {
+          "t": 2.0,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.3,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 2.26,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.9,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 2.51,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.8,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 2.76,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.0,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
           "t": 3.01,
           "state": "running",
           "holds": {
@@ -1978,9 +1568,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.8,
-          "fps": 21.97,
+          "delay_ms": 83.0,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -1991,9 +1582,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.9,
-          "fps": 22.03,
+          "delay_ms": 83.1,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -2004,8 +1596,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.9,
+          "delay_ms": 82.9,
           "fps": 22.01,
           "showing": "session"
         },
@@ -2017,9 +1610,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.8,
-          "fps": 22.02,
+          "delay_ms": 82.9,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -2030,9 +1624,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 83.9,
-          "fps": 22.0,
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.8,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -2043,9 +1638,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 83.9,
-          "fps": 22.0,
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.9,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -2056,9 +1652,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 84.1,
-          "fps": 21.97,
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.1,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2069,9 +1666,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 84.2,
-          "fps": 22.04,
+          "delay_ms": 83.0,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2082,9 +1680,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 84.0,
-          "fps": 22.02,
+          "delay_ms": 83.1,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -2095,9 +1694,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 84.1,
-          "fps": 22.04,
+          "delay_ms": 82.9,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2108,9 +1708,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 84.0,
-          "fps": 21.97,
+          "delay_ms": 83.1,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2121,9 +1722,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 84.1,
-          "fps": 21.96,
+          "delay_ms": 83.0,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -2134,9 +1736,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.9,
-          "fps": 22.01,
+          "delay_ms": 83.0,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2147,34 +1750,37 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.7,
+          "delay_ms": 83.0,
           "fps": 22.03,
           "showing": "session"
         },
         {
-          "t": 6.52,
+          "t": 6.51,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.5,
-          "fps": 22.03,
+          "delay_ms": 82.8,
+          "fps": 22.01,
           "showing": "session"
         },
         {
-          "t": 6.77,
+          "t": 6.76,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.4,
+          "delay_ms": 82.8,
           "fps": 22.01,
           "showing": "session"
         },
@@ -2186,9 +1792,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.3,
-          "fps": 22.02,
+          "delay_ms": 82.7,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -2199,9 +1806,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.0,
-          "fps": 21.99,
+          "delay_ms": 82.8,
+          "fps": 21.93,
           "showing": "session"
         },
         {
@@ -2212,9 +1820,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.2,
-          "fps": 21.99,
+          "delay_ms": 82.7,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -2225,8 +1834,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
           "guard": "steady",
-          "delay_ms": 83.1,
+          "delay_ms": 82.7,
           "fps": 22.0,
           "showing": "session"
         },
@@ -2238,8 +1848,569 @@
             "delay": false,
             "consent": false
           },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.7,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 8.27,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.7,
+          "fps": 21.91,
+          "showing": "session"
+        },
+        {
+          "t": 8.52,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.8,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 8.77,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 82.9,
+          "fps": 21.99,
+          "showing": "session"
+        },
+        {
+          "t": 9.02,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
           "guard": "steady",
           "delay_ms": 83.4,
+          "fps": 21.82,
+          "showing": "session"
+        },
+        {
+          "t": 9.27,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.6,
+          "fps": 21.95,
+          "showing": "session"
+        },
+        {
+          "t": 9.52,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 83.9,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 9.77,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 84.3,
+          "fps": 21.97,
+          "showing": "session"
+        },
+        {
+          "t": 0.0,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 84.4,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 0.25,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": true,
+          "guard": "steady",
+          "delay_ms": 84.6,
+          "fps": 21.94,
+          "showing": "session"
+        },
+        {
+          "t": 0.5,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 84.9,
+          "fps": 21.98,
+          "showing": "session"
+        },
+        {
+          "t": 0.75,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.0,
+          "fps": 21.99,
+          "showing": "session"
+        },
+        {
+          "t": 1.01,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.0,
+          "fps": 22.1,
+          "showing": "session"
+        },
+        {
+          "t": 1.26,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.0,
+          "fps": 22.04,
+          "showing": "session"
+        },
+        {
+          "t": 1.51,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.3,
+          "fps": 21.9,
+          "showing": "session"
+        },
+        {
+          "t": 1.76,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.4,
+          "fps": 21.97,
+          "showing": "session"
+        },
+        {
+          "t": 2.01,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 85.9,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
+          "t": 2.26,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.1,
+          "fps": 22.06,
+          "showing": "session"
+        },
+        {
+          "t": 2.51,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.2,
+          "fps": 22.02,
+          "showing": "session"
+        },
+        {
+          "t": 2.76,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.5,
+          "fps": 21.97,
+          "showing": "session"
+        },
+        {
+          "t": 3.01,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.4,
+          "fps": 22.02,
+          "showing": "session"
+        },
+        {
+          "t": 3.26,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.5,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
+          "t": 3.51,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.4,
+          "fps": 22.05,
+          "showing": "session"
+        },
+        {
+          "t": 3.76,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.2,
+          "fps": 22.04,
+          "showing": "session"
+        },
+        {
+          "t": 4.01,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.1,
+          "fps": 22.06,
+          "showing": "session"
+        },
+        {
+          "t": 4.26,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.4,
+          "fps": 21.9,
+          "showing": "session"
+        },
+        {
+          "t": 4.51,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.5,
+          "fps": 21.99,
+          "showing": "session"
+        },
+        {
+          "t": 4.76,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.3,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
+          "t": 5.01,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.4,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 5.26,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 86.3,
+          "fps": 21.97,
+          "showing": "session"
+        },
+        {
+          "t": 5.51,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 86.4,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
+          "t": 5.77,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.6,
+          "fps": 22.03,
+          "showing": "session"
+        },
+        {
+          "t": 6.02,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.4,
+          "fps": 21.99,
+          "showing": "session"
+        },
+        {
+          "t": 6.27,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.2,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 6.52,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.0,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
+          "t": 6.77,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.0,
+          "fps": 22.0,
+          "showing": "session"
+        },
+        {
+          "t": 7.02,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.2,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 7.27,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.1,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 7.52,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.3,
+          "fps": 21.92,
+          "showing": "session"
+        },
+        {
+          "t": 7.77,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.2,
+          "fps": 22.01,
+          "showing": "session"
+        },
+        {
+          "t": 8.02,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 86.2,
           "fps": 21.99,
           "showing": "session"
         },
@@ -2251,9 +2422,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.5,
-          "fps": 22.02,
+          "delay_ms": 86.1,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -2264,9 +2436,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.8,
-          "fps": 22.0,
+          "delay_ms": 86.1,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -2277,9 +2450,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.8,
-          "fps": 22.0,
+          "delay_ms": 86.1,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -2290,9 +2464,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.9,
-          "fps": 21.99,
+          "delay_ms": 86.0,
+          "fps": 22.02,
           "showing": "session"
         },
         {
@@ -2303,9 +2478,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.1,
-          "fps": 22.02,
+          "delay_ms": 86.1,
+          "fps": 21.95,
           "showing": "session"
         },
         {
@@ -2316,9 +2492,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.0,
-          "fps": 22.0,
+          "delay_ms": 85.8,
+          "fps": 22.03,
           "showing": "session"
         },
         {
@@ -2329,9 +2506,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.2,
-          "fps": 22.02,
+          "delay_ms": 85.8,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2342,9 +2520,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.2,
-          "fps": 22.06,
+          "delay_ms": 85.8,
+          "fps": 22.08,
           "showing": "session"
         },
         {
@@ -2355,22 +2534,24 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.3,
+          "delay_ms": 85.7,
           "fps": 22.01,
           "showing": "session"
         },
         {
-          "t": 10.52,
+          "t": 10.53,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.97,
+          "delay_ms": 85.8,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -2381,8 +2562,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.3,
+          "delay_ms": 85.6,
           "fps": 22.0,
           "showing": "session"
         },
@@ -2394,9 +2576,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.2,
-          "fps": 22.01,
+          "delay_ms": 85.7,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2407,9 +2590,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.3,
-          "fps": 21.99,
+          "delay_ms": 85.4,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -2420,9 +2604,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.1,
-          "fps": 22.01,
+          "delay_ms": 85.4,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2433,8 +2618,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.1,
+          "delay_ms": 85.6,
           "fps": 22.03,
           "showing": "session"
         }
@@ -2453,9 +2639,9 @@
       "case": "Another program takes the graphics card",
       "expected": "if the delay passes 150 ms the still picture is shown, and it resumes after",
       "as_expected": true,
-      "worst_delay_ms": 149.4,
+      "worst_delay_ms": 142.7,
       "delay_hold": false,
-      "lowest_fps": 10.82,
+      "lowest_fps": 10.47,
       "events": [],
       "seen": [
         {
@@ -2466,9 +2652,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.2,
-          "fps": 22.01,
+          "delay_ms": 83.6,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2479,9 +2666,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.6,
-          "fps": 21.96,
+          "delay_ms": 83.6,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -2492,9 +2680,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.7,
-          "fps": 22.01,
+          "delay_ms": 83.5,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2505,9 +2694,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.5,
-          "fps": 22.0,
+          "delay_ms": 83.4,
+          "fps": 21.92,
           "showing": "session"
         },
         {
@@ -2518,9 +2708,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.8,
-          "fps": 22.02,
+          "delay_ms": 83.5,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -2531,8 +2722,9 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.7,
+          "delay_ms": 83.7,
           "fps": 21.99,
           "showing": "session"
         },
@@ -2544,9 +2736,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 85.9,
-          "fps": 21.97,
+          "delay_ms": 83.8,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -2557,9 +2750,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 86.4,
-          "fps": 21.92,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 84.3,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -2570,9 +2764,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 86.3,
-          "fps": 21.99,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 84.6,
+          "fps": 21.97,
           "showing": "session"
         },
         {
@@ -2583,9 +2778,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 86.2,
-          "fps": 21.93,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 85.4,
+          "fps": 21.73,
           "showing": "session"
         },
         {
@@ -2596,9 +2792,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 96.2,
-          "fps": 19.1,
+          "delay_ms": 95.0,
+          "fps": 18.41,
           "showing": "session"
         },
         {
@@ -2609,9 +2806,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 105.9,
-          "fps": 16.39,
+          "delay_ms": 105.5,
+          "fps": 15.58,
           "showing": "session"
         },
         {
@@ -2622,9 +2820,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 121.5,
-          "fps": 13.55,
+          "fps": 12.64,
           "showing": "session"
         },
         {
@@ -2635,9 +2834,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 142.1,
-          "fps": 11.21,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 139.4,
+          "fps": 10.65,
           "showing": "session"
         },
         {
@@ -2648,9 +2848,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 141.0,
-          "fps": 11.29,
+          "delay_ms": 138.4,
+          "fps": 10.73,
           "showing": "session"
         },
         {
@@ -2661,9 +2862,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 144.0,
-          "fps": 11.25,
+          "delay_ms": 139.6,
+          "fps": 10.76,
           "showing": "session"
         },
         {
@@ -2674,9 +2876,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 147.3,
-          "fps": 11.23,
+          "delay_ms": 139.6,
+          "fps": 10.77,
           "showing": "session"
         },
         {
@@ -2687,9 +2890,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 149.2,
-          "fps": 11.07,
+          "delay_ms": 141.4,
+          "fps": 10.78,
           "showing": "session"
         },
         {
@@ -2700,9 +2904,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 149.4,
-          "fps": 11.09,
+          "delay_ms": 142.2,
+          "fps": 10.71,
           "showing": "session"
         },
         {
@@ -2713,9 +2918,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 147.2,
-          "fps": 11.09,
+          "delay_ms": 142.7,
+          "fps": 10.61,
           "showing": "session"
         },
         {
@@ -2726,9 +2932,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 144.9,
-          "fps": 11.07,
+          "delay_ms": 142.5,
+          "fps": 10.59,
           "showing": "session"
         },
         {
@@ -2739,9 +2946,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 143.5,
-          "fps": 11.03,
+          "delay_ms": 140.9,
+          "fps": 10.59,
           "showing": "session"
         },
         {
@@ -2752,9 +2960,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 142.1,
-          "fps": 10.98,
+          "delay_ms": 139.3,
+          "fps": 10.61,
           "showing": "session"
         },
         {
@@ -2765,9 +2974,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 141.8,
-          "fps": 10.85,
+          "delay_ms": 137.7,
+          "fps": 10.72,
           "showing": "session"
         },
         {
@@ -2778,9 +2988,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 141.1,
-          "fps": 10.82,
+          "delay_ms": 137.9,
+          "fps": 10.72,
           "showing": "session"
         },
         {
@@ -2791,9 +3002,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 139.7,
-          "fps": 10.9,
+          "delay_ms": 139.6,
+          "fps": 10.62,
           "showing": "session"
         },
         {
@@ -2804,9 +3016,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 138.5,
-          "fps": 10.97,
+          "delay_ms": 140.2,
+          "fps": 10.58,
           "showing": "session"
         },
         {
@@ -2817,22 +3030,24 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 137.4,
-          "fps": 11.02,
+          "delay_ms": 141.2,
+          "fps": 10.5,
           "showing": "session"
         },
         {
-          "t": 14.01,
+          "t": 14.02,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 136.6,
-          "fps": 11.07,
+          "delay_ms": 140.4,
+          "fps": 10.5,
           "showing": "session"
         },
         {
@@ -2843,9 +3058,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 135.6,
-          "fps": 11.07,
+          "delay_ms": 139.8,
+          "fps": 10.61,
           "showing": "session"
         },
         {
@@ -2856,9 +3072,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 135.9,
-          "fps": 10.94,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 139.0,
+          "fps": 10.66,
           "showing": "session"
         },
         {
@@ -2869,9 +3086,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 135.8,
-          "fps": 10.89,
+          "delay_ms": 138.6,
+          "fps": 10.65,
           "showing": "session"
         },
         {
@@ -2882,9 +3100,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 134.6,
-          "fps": 10.98,
+          "delay_ms": 139.8,
+          "fps": 10.54,
           "showing": "session"
         },
         {
@@ -2895,9 +3114,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 135.2,
-          "fps": 10.91,
+          "delay_ms": 139.5,
+          "fps": 10.54,
           "showing": "session"
         },
         {
@@ -2908,9 +3128,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 134.9,
-          "fps": 11.04,
+          "delay_ms": 139.8,
+          "fps": 10.5,
           "showing": "session"
         },
         {
@@ -2921,9 +3142,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 135.1,
-          "fps": 11.09,
+          "delay_ms": 138.8,
+          "fps": 10.66,
           "showing": "session"
         },
         {
@@ -2934,9 +3156,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 136.1,
-          "fps": 11.11,
+          "delay_ms": 138.4,
+          "fps": 10.68,
           "showing": "session"
         },
         {
@@ -2947,9 +3170,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 136.6,
-          "fps": 11.17,
+          "delay_ms": 138.9,
+          "fps": 10.59,
           "showing": "session"
         },
         {
@@ -2960,9 +3184,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 137.1,
-          "fps": 11.06,
+          "delay_ms": 138.8,
+          "fps": 10.57,
           "showing": "session"
         },
         {
@@ -2973,9 +3198,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 137.1,
-          "fps": 11.04,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 139.3,
+          "fps": 10.5,
           "showing": "session"
         },
         {
@@ -2986,9 +3212,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 137.3,
-          "fps": 11.02,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 139.5,
+          "fps": 10.47,
           "showing": "session"
         },
         {
@@ -2999,9 +3226,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 137.4,
-          "fps": 11.02,
+          "delay_ms": 139.4,
+          "fps": 10.48,
           "showing": "session"
         },
         {
@@ -3012,9 +3240,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 136.4,
-          "fps": 11.06,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 138.5,
+          "fps": 10.59,
           "showing": "session"
         },
         {
@@ -3025,9 +3254,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 136.3,
-          "fps": 11.12,
+          "covered": false,
+          "guard": "dipping",
+          "delay_ms": 138.4,
+          "fps": 10.63,
           "showing": "session"
         },
         {
@@ -3038,9 +3268,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 113.0,
-          "fps": 13.23,
+          "delay_ms": 116.7,
+          "fps": 12.0,
           "showing": "session"
         },
         {
@@ -3051,9 +3282,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 99.2,
-          "fps": 16.17,
+          "delay_ms": 100.5,
+          "fps": 14.94,
           "showing": "session"
         },
         {
@@ -3064,9 +3296,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 90.2,
-          "fps": 18.95,
+          "delay_ms": 90.3,
+          "fps": 17.77,
           "showing": "session"
         },
         {
@@ -3077,9 +3310,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.9,
-          "fps": 21.45,
+          "delay_ms": 82.2,
+          "fps": 20.47,
           "showing": "session"
         },
         {
@@ -3090,9 +3324,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.4,
-          "fps": 21.98,
+          "delay_ms": 82.4,
+          "fps": 22.06,
           "showing": "session"
         },
         {
@@ -3103,9 +3338,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 84.1,
-          "fps": 22.0,
+          "delay_ms": 82.6,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -3116,9 +3352,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 83.9,
-          "fps": 22.0,
+          "delay_ms": 82.9,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -3129,35 +3366,38 @@
             "delay": false,
             "consent": false
           },
-          "guard": "steady",
-          "delay_ms": 83.4,
-          "fps": 22.02,
-          "showing": "session"
-        },
-        {
-          "t": 4.01,
-          "state": "running",
-          "holds": {
-            "identity": false,
-            "delay": false,
-            "consent": false
-          },
+          "covered": false,
           "guard": "steady",
           "delay_ms": 83.1,
-          "fps": 22.01,
+          "fps": 22.03,
           "showing": "session"
         },
         {
-          "t": 4.51,
+          "t": 4.0,
           "state": "running",
           "holds": {
             "identity": false,
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.5,
-          "fps": 22.01,
+          "delay_ms": 83.1,
+          "fps": 22.05,
+          "showing": "session"
+        },
+        {
+          "t": 4.5,
+          "state": "running",
+          "holds": {
+            "identity": false,
+            "delay": false,
+            "consent": false
+          },
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 83.2,
+          "fps": 21.98,
           "showing": "session"
         },
         {
@@ -3168,9 +3408,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.2,
-          "fps": 21.99,
+          "delay_ms": 83.3,
+          "fps": 21.96,
           "showing": "session"
         },
         {
@@ -3181,9 +3422,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 82.0,
-          "fps": 21.96,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 83.3,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -3194,9 +3436,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.0,
-          "fps": 21.97,
+          "delay_ms": 83.2,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -3207,9 +3450,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.1,
-          "fps": 22.01,
+          "delay_ms": 83.2,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -3220,9 +3464,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 82.0,
-          "fps": 22.0,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 82.9,
+          "fps": 22.01,
           "showing": "session"
         },
         {
@@ -3233,9 +3478,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.2,
-          "fps": 22.03,
+          "delay_ms": 82.8,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -3246,9 +3492,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.1,
-          "fps": 22.01,
+          "delay_ms": 82.7,
+          "fps": 21.99,
           "showing": "session"
         },
         {
@@ -3259,9 +3506,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.3,
-          "fps": 21.99,
+          "delay_ms": 82.7,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -3272,9 +3520,10 @@
             "delay": false,
             "consent": false
           },
+          "covered": false,
           "guard": "steady",
-          "delay_ms": 82.3,
-          "fps": 22.03,
+          "delay_ms": 82.7,
+          "fps": 22.0,
           "showing": "session"
         },
         {
@@ -3285,9 +3534,10 @@
             "delay": false,
             "consent": false
           },
-          "guard": "dipping",
-          "delay_ms": 82.4,
-          "fps": 22.01,
+          "covered": false,
+          "guard": "steady",
+          "delay_ms": 82.9,
+          "fps": 21.97,
           "showing": "session"
         }
       ]
@@ -3303,7 +3553,7 @@
       "case": "The camera is pulled out",
       "expected": "the session ends after 15 s without a picture, and says why",
       "as_expected": true,
-      "after_s": 15.1,
+      "after_s": 15.0,
       "message": "The camera stopped sending pictures and did not come back. Check its cable or app, then start the session again."
     },
     {

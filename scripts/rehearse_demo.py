@@ -287,6 +287,7 @@ def watch(rt, seconds, every=0.25):
         guard = rt.identity.snapshot().get("guard", {})
         metrics = s.get("metrics") or {}
         seen.append({"t": round(time.perf_counter() - start, 2), "state": s["state"], "holds": s["holds"],
+                     "covered": bool((s.get("tracking") or {}).get("mouth_covered")),
                      "guard": guard.get("state"), "delay_ms": metrics.get("end_to_end_ms"), "fps": metrics.get("fps"),
                      "showing": rt.virtual_camera.snapshot()["showing"]})
         time.sleep(every)
@@ -398,11 +399,14 @@ def rehearse(data_dir):
     director.scene = "me"
     back = watch(rt, 12)
     states = sorted({e["guard"] for e in seen if e["guard"]})
-    record("The mouth is covered with a hand", "the guard reacts (a fresh neutral pose or the still picture), and the picture recovers after",
-           (any(e["guard"] in ("anchoring", "fallback", "dipping") for e in seen) or any(e["holds"]["identity"] for e in seen))
+    said = events_since(rt, last)
+    record("The mouth is covered with a hand", "found covered, the picture's mouth held closed and live; nothing repaired or held back; "
+           "live after",
+           first(seen, lambda e: e["covered"]) is not None and not any(e["holds"]["identity"] for e in seen)
+           and not any("brought back" in m or "neutral pose" in m for m in said)
            and back[-1]["state"] == "running" and not back[-1]["holds"]["identity"],
-           guard_states=states, still_after_s=first(seen, lambda e: e["holds"]["identity"]),
-           events=events_since(rt, last), seen=seen + back)
+           covered_after_s=first(seen, lambda e: e["covered"]), covered_share=round(sum(e["covered"] for e in seen) / len(seen), 2),
+           guard_states=states, events=said, seen=seen + back)
 
     # 5. The camera drops out for five seconds.
     last = rt.events.last_id
