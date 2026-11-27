@@ -581,6 +581,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--soak", type=int, metavar="MINUTES", help="instead, one long session; writes results/demo_soak.json")
     parser.add_argument("--port", type=int, default=8011, help="where the soak serves the app (default 8011; never the engine's 8000)")
+    parser.add_argument("--out", default=str(ROOT / "results" / "demo_rehearsal.json"),
+                        help="where the results go (default results/demo_rehearsal.json; the preflight uses logs/)")
     parser.add_argument("--crash", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.crash:
@@ -625,9 +627,10 @@ def main():
         "stand_in": STAND_IN, "minutes": round((time.perf_counter() - started) / 60, 1),
         "passed": sum(r["as_expected"] for r in results), "cases": len(results), "results": results,
     }
-    out = ROOT / "results" / "demo_rehearsal.json"
+    out = Path(args.out).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o)), encoding="utf-8")
-    print(f"\n{report['passed']} of {report['cases']} as expected, in {report['minutes']} minutes. Written to {out.relative_to(ROOT)}.")
+    print(f"\n{report['passed']} of {report['cases']} as expected, in {report['minutes']} minutes. Written to {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}.")
 
 
 if __name__ == "__main__":

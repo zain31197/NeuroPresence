@@ -5,6 +5,8 @@
     python scripts/preflight.py --no-camera  leave the camera alone
     python scripts/preflight.py --warm       also convert the networks for this graphics card, warm the voice model,
                                              and measure how fast this computer draws (about three minutes)
+    python scripts/preflight.py --demo       the morning of the demonstration: all of that, then the rehearsal of
+                                             its failure paths on this computer (about eight minutes)
 
 Run it with the engine stopped, or with the virtual camera switched off in the Live Studio: the check opens the
 virtual camera for a moment. The report is printed and also kept in logs/preflight.log, to send to the team.
@@ -20,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from neuropresence.preflight import FAIL, report, run_checks, warm  # noqa: E402
+from neuropresence.preflight import FAIL, rehearse, report, run_checks, warm  # noqa: E402
 
 
 def main():
@@ -33,17 +35,24 @@ def main():
     parser.add_argument("--no-voice", action="store_true", help="with --warm: leave the voice model out")
     parser.add_argument("--data-dir", default=str(ROOT / "data"), help="where the enrolment is kept")
     parser.add_argument("--port", type=int, default=8000, help="the port the engine will use (default 8000)")
+    parser.add_argument("--demo", action="store_true",
+                        help="for the demonstration: --warm, then the rehearsal of its failure paths (scripts/rehearse_demo.py)")
     args = parser.parse_args()
+    args.warm = args.warm or args.demo
 
     print("Checking this computer ...", flush=True)
     checks = run_checks(camera=None if args.no_camera else args.camera, data_dir=args.data_dir, port=args.port)
+    ready = not any(c.level == FAIL for c in checks if c.name in ("Graphics card", "Python packages")
+                    or c.name.startswith("File: "))
+    say = lambda text: print(text, flush=True)  # noqa: E731
     if args.warm:
-        if any(c.level == FAIL for c in checks if c.name in ("Graphics card", "Python packages")):
-            print("Skipping the warm-up: the graphics card or the packages are not ready.")
+        if not ready:
+            print("Skipping the warm-up: the graphics card, the packages or the model files are not ready.")
         else:
-            checks += warm(data_dir=args.data_dir, seconds=args.seconds, voice=not args.no_voice,
-                           say=lambda text: print(text, flush=True))
-    text = report(checks)
+            checks += warm(data_dir=args.data_dir, seconds=args.seconds, voice=not args.no_voice, say=say)
+    if args.demo and ready:
+        checks += rehearse(say=say)
+    text = report(checks, demo=args.demo)
     header = f"NeuroPresence preflight, {datetime.now():%Y-%m-%d %H:%M}, {platform.node()}, {platform.platform()}"
     print("\n" + header + "\n" + text)
     log = ROOT / "logs" / "preflight.log"

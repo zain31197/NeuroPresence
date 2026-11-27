@@ -136,3 +136,99 @@ def test_the_report_lists_fixes_for_what_is_not_ok_and_sums_up():
     assert "-> Plug in" in text and "-> Check the network" in text
     assert "1 failed, 1 to look at" in text
     assert preflight.report([Check("Graphics card", OK, "RTX 5050")]).endswith("Ready.")
+
+
+# ------------------------------------------------------------------ accounts and the demonstration
+
+
+def make_accounts(data_dir, *accounts):
+    """A database with the users table of accounts.py: (name, folder, last signed in) for each account."""
+    import sqlite3
+
+    connection = sqlite3.connect(data_dir / "neuropresence.db")
+    connection.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, folder TEXT, created_at REAL, "
+                       "last_login_at REAL)")
+    connection.executemany("INSERT INTO users (name, folder, created_at, last_login_at) VALUES (?, ?, 1.0, ?)", accounts)
+    connection.commit()
+    connection.close()
+
+
+def enrol_in(folder, poses=("front", "left", "right", "up", "down")):
+    folder.mkdir(parents=True)
+    for name in ("picture.png", "identity.npy"):
+        (folder / name).write_bytes(b"x")
+    (folder / "poses.json").write_text(json.dumps({pose: {} for pose in poses}))
+
+
+def test_the_account_signed_in_last_is_the_one_checked(tmp_path):
+    assert preflight.account_check(tmp_path).level == WARN  # no database: no account yet
+    enrol_in(tmp_path / "enrolment")  # the first account's, from before accounts
+    make_accounts(tmp_path, ("Zain", "enrolment", 100.0), ("Sana", "users/2", 200.0))
+    check = preflight.account_check(tmp_path)
+    assert check.level == OK and check.detail == "Sana signed in last (2 accounts on this computer)"
+    check = preflight.enrolment_check(tmp_path)
+    assert check.level == WARN and check.detail == "Sana has no meeting picture enrolled"  # not Zain's picture
+    enrol_in(tmp_path / "users" / "2")
+    assert preflight.enrolment_check(tmp_path).level == OK
+    assert preflight.enrolment_folder(tmp_path) == tmp_path / "users" / "2"
+
+
+def test_the_engine_names_the_account_whose_enrolment_is_checked(tmp_path):
+    # The System screen: the signed-in account may be any of them, not only the one signed in last.
+    enrol_in(tmp_path / "users" / "3")
+    assert preflight.enrolment_check(None, folder=tmp_path / "users" / "3", name="Talha").level == OK
+    check = preflight.enrolment_check(None, folder=tmp_path / "users" / "4", name="Sana")
+    assert check.level == WARN and check.detail == "Sana has no meeting picture enrolled"
+
+
+def test_a_database_from_before_accounts_is_the_old_folder(tmp_path):
+    import sqlite3
+
+    sqlite3.connect(tmp_path / "neuropresence.db").close()  # no users table
+    enrol_in(tmp_path / "enrolment")
+    assert preflight.last_account(tmp_path) is None
+    assert preflight.enrolment_check(tmp_path).level == OK
+
+
+def rehearsal(tmp_path, cases, code=0, lines=("ok   A case: figures",)):
+    out = tmp_path / "logs" / "demo_rehearsal.json"
+    said = []
+
+    def run(command, say):
+        assert "--out" in command and str(out) in command
+        if cases is not None:
+            out.write_text(json.dumps({"results": cases}))
+        return code, list(lines)
+
+    return preflight.rehearse(say=said.append, out=out, run=run), said, out
+
+
+def test_a_rehearsal_that_went_as_expected_is_one_line(tmp_path):
+    cases = [{"case": "A photograph", "expected": "refused", "as_expected": True, "seen": []},
+             {"case": "Someone else", "expected": "the still picture", "as_expected": True}]
+    checks, said, _ = rehearsal(tmp_path, cases)
+    assert [(c.name, c.level) for c in checks] == [("Demo rehearsal", OK)]
+    assert checks[0].detail.startswith("2 of 2 cases as expected") and "four minutes" in said[0]
+
+
+def test_each_case_that_did_not_go_as_expected_is_named_with_its_figures(tmp_path):
+    cases = [{"case": "A photograph", "expected": "refused", "as_expected": True},
+             {"case": "Someone else sits down", "expected": "the still picture within about 3 s", "as_expected": False,
+              "still_after_s": None, "seen": [{"t": 0.1}], "events": ["a long list"]}]
+    checks, _, _ = rehearsal(tmp_path, cases)
+    assert checks[0].level == FAIL and checks[0].detail.startswith("1 of 2")
+    assert checks[1].level == FAIL and "Someone else sits down" in checks[1].name
+    assert checks[1].detail == "still_after_s None" and "within about 3 s" in checks[1].fix  # not the long lists
+    assert "-> Expected: the still picture" in preflight.report(checks, demo=True)
+    assert preflight.report(checks, demo=True).endswith("Fix the failures before the demonstration.")
+
+
+def test_a_rehearsal_that_did_not_finish_keeps_its_last_lines(tmp_path):
+    checks, _, out = rehearsal(tmp_path, None, code=1, lines=("loading", "Traceback (most recent call last):", "RuntimeError: no GPU"))
+    assert [(c.name, c.level) for c in checks] == [("Demo rehearsal", FAIL)]
+    assert "exit code 1" in checks[0].detail and "no GPU" in checks[0].detail
+    assert "RuntimeError: no GPU" in out.with_suffix(".log").read_text()
+
+
+def test_the_report_says_ready_for_the_demonstration():
+    assert preflight.report([Check("Graphics card", OK, "RTX 5050")], demo=True).endswith("Ready for the demonstration.")

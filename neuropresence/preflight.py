@@ -8,6 +8,8 @@ built on, so everything it needs is checked in one go, each item with what to do
     python scripts/preflight.py --no-camera  leave the camera alone
     python scripts/preflight.py --warm       also make the networks ready for this graphics card, warm the voice
                                              model, and measure how fast this computer draws over a minute
+    python scripts/preflight.py --demo       --warm, then the demonstration's failure paths rehearsed on this
+                                             computer with a stand-in (scripts/rehearse_demo.py)
 
 The report is printed and kept in logs/preflight.log. The exit code is 1 if anything failed.
 """
@@ -17,10 +19,14 @@ import json
 import platform
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+from collections import deque
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -182,11 +188,50 @@ def files_check(root=ROOT):
     return checks
 
 
-def enrolment_check(data_dir):
-    folder = Path(data_dir) / "enrolment"
+def last_account(data_dir):
+    """The account signed in last on this computer, as (name, folder, how many accounts there are), read without
+    changing anything; None before the first account, or with a database from before accounts."""
+    database = Path(data_dir) / "neuropresence.db"
+    if not database.exists():
+        return None
+    try:
+        with closing(sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)) as connection:
+            row = connection.execute("SELECT name, folder FROM users ORDER BY COALESCE(last_login_at, created_at) DESC, "
+                                     "id DESC LIMIT 1").fetchone()
+            count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    except sqlite3.Error:  # no users table: a database from before accounts
+        return None
+    return None if row is None else (row[0], row[1], count)
+
+
+def enrolment_folder(data_dir):
+    """Where the face and the meeting picture of the account signed in last are kept: data/enrolment for the first
+    account, and from before accounts; data/users/<id> for the others."""
+    account = last_account(data_dir)
+    return Path(data_dir) / (account[1] if account else "enrolment")
+
+
+def account_check(data_dir):
+    account = last_account(data_dir)
+    if account is None:
+        return Check("Account", WARN, "no account on this computer yet",
+                     "Open the web app and create the account to demonstrate with; keep its recovery code on paper")
+    name, _, count = account
+    others = "" if count == 1 else f" ({count} accounts on this computer)"
+    return Check("Account", OK, f"{name} signed in last{others}")
+
+
+def enrolment_check(data_dir, folder=None, name=None):
+    """The face and the meeting picture of the account signed in last; or, when the caller knows whose they are
+    (the engine does), of the account whose `folder` and `name` it gives."""
+    if folder is None:
+        account = last_account(data_dir)
+        folder, name = enrolment_folder(data_dir), account[0] if account else None
+    folder = Path(folder)
     picture, record = folder / "picture.png", folder / "record.json"
     if not picture.exists() or not (folder / "identity.npy").exists():
-        return Check("Enrolment", WARN, "nobody is enrolled on this computer",
+        detail = f"{name} has no meeting picture enrolled" if name else "nobody is enrolled on this computer"
+        return Check("Enrolment", WARN, detail,
                      "Open the web app, Enrolment: verify the face, register the poses, upload the meeting picture")
     when = ""
     try:
@@ -320,7 +365,7 @@ def run_checks(camera=0, data_dir=None, port=8000):
     data_dir = ROOT / "data" if data_dir is None else Path(data_dir)
     checks = [python_check(), packages_check(), gpu_check(), power_check()]
     checks += files_check()
-    checks += [enrolment_check(data_dir), virtual_camera_check(), virtual_microphone_check()]
+    checks += [account_check(data_dir), enrolment_check(data_dir), virtual_camera_check(), virtual_microphone_check()]
     if camera is not None:
         checks.append(camera_check(camera))
     checks += [internet_check(), port_check(port), resources_check()]
@@ -339,7 +384,7 @@ def warm(data_dir=None, seconds=60.0, voice=True, say=print):
     from .reenactment.engine import LIVEPORTRAIT_DIR
 
     data_dir = ROOT / "data" if data_dir is None else Path(data_dir)
-    picture = data_dir / "enrolment" / "picture.png"
+    picture = enrolment_folder(data_dir) / "picture.png"
     source = picture if picture.exists() else LIVEPORTRAIT_DIR / "assets" / "examples" / "source" / "s9.jpg"
     checks = _warm_engine(source, seconds, say)
     if voice:
@@ -427,12 +472,66 @@ def _warm_voice(source, say):
                   "" if ready else "Send logs/preflight.log to the team")]
 
 
+# ------------------------------------------------------------------ rehearsal
+
+REHEARSAL_OUT = ROOT / "logs" / "demo_rehearsal.json"
+REHEARSAL_MINUTES = 20  # it takes three to four; a rehearsal still going after this has hung
+_LEFT_OUT = {"case", "expected", "as_expected", "seen", "events", "child_error"}
+
+
+def _run_rehearsal(command, say):
+    """Run it, show each case as it is judged, and return (exit code, its last lines)."""
+    lines = deque(maxlen=60)
+    process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                               encoding="utf-8", errors="replace")
+    timer = threading.Timer(REHEARSAL_MINUTES * 60, process.kill)
+    timer.start()
+    try:
+        for line in process.stdout:
+            line = line.rstrip()
+            lines.append(line)
+            if line.startswith(("ok  ", "FAIL")):
+                say("  " + line.split(":", 1)[0])
+        return process.wait(), list(lines)
+    finally:
+        timer.cancel()
+
+
+def rehearse(say=print, out=REHEARSAL_OUT, run=_run_rehearsal):
+    """The demonstration's failure paths on this computer (scripts/rehearse_demo.py), in a process of its own: a
+    stand-in at the camera, its own data folder, no camera, microphone or meeting opened. One check for the
+    whole, and one more for each case that did not go as it should."""
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.unlink(missing_ok=True)
+    say("Rehearsing the demonstration's failure paths with a stand-in at the camera: about four minutes.")
+    started = time.perf_counter()
+    code, lines = run([sys.executable, str(ROOT / "scripts" / "rehearse_demo.py"), "--out", str(out)], say)
+    if code != 0 or not out.exists():
+        log = out.with_suffix(".log")
+        log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        last = next((line for line in reversed(lines) if line.strip()), "no output")
+        return [Check("Demo rehearsal", FAIL, f"did not finish (exit code {code}): {last[:120]}",
+                      f"Send logs/preflight.log and {log.relative_to(ROOT) if log.is_relative_to(ROOT) else log} to the team")]
+    found = json.loads(out.read_text(encoding="utf-8"))
+    cases = found["results"]
+    missed = [case for case in cases if not case["as_expected"]]
+    took = (time.perf_counter() - started) / 60
+    checks = [Check("Demo rehearsal", FAIL if missed else OK,
+                    f"{len(cases) - len(missed)} of {len(cases)} cases as expected, in {took:.1f} minutes",
+                    "Send logs/preflight.log and logs/demo_rehearsal.json to the team" if missed else "")]
+    for case in missed:
+        figures = ", ".join(f"{key} {value}" for key, value in case.items() if key not in _LEFT_OUT)
+        checks.append(Check(f"  {case['case']}", FAIL, figures[:160] or "no figures", f"Expected: {case['expected']}"))
+    return checks
+
+
 # ------------------------------------------------------------------ report
 
 MARKS = {OK: "OK  ", WARN: "WARN", FAIL: "FAIL"}
 
 
-def report(checks):
+def report(checks, demo=False):
     width = max(len(c.name) for c in checks)
     lines = []
     for c in checks:
@@ -441,10 +540,12 @@ def report(checks):
             lines.append(f"       {' ' * width}  -> {c.fix}")
     failed = sum(c.level == FAIL for c in checks)
     warned = sum(c.level == WARN for c in checks)
+    for_what = " for the demonstration" if demo else ""
     if failed:
-        lines.append(f"\n{failed} failed, {warned} to look at. Fix the failures before a session.")
+        lines.append(f"\n{failed} failed, {warned} to look at. Fix the failures before "
+                     f"{'the demonstration' if demo else 'a session'}.")
     elif warned:
-        lines.append(f"\nReady, with {warned} to look at.")
+        lines.append(f"\nReady{for_what}, with {warned} to look at.")
     else:
-        lines.append("\nReady.")
+        lines.append(f"\nReady{for_what}.")
     return "\n".join(lines)
