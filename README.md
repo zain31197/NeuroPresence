@@ -136,9 +136,10 @@ For meetings, install the two devices a meeting application picks up: **OBS Stud
 
 ```
 python scripts/preflight.py --warm
+python scripts/preflight.py --demo    # the morning of the demonstration: --warm, then the rehearsal of its failure paths
 ```
 
-It checks everything a session needs and says how to fix what is missing: Python and its packages, the graphics card, power (a laptop on battery runs its graphics card much slower), the model files, the web app, the enrolment, the virtual camera and microphone, camera 0 (how many frames a second it really delivers), the internet for Meet, the port and free memory. With `--warm` it also converts the drawing networks for this graphics card (about a minute and a half, once per card), warms the voice model, and draws for a minute as a session does, to say how many frames a second this computer reaches and whether it slows down as it heats. `--camera 1` checks another camera, `--no-camera` none. The report is kept in `logs/preflight.log`. Run it with the virtual camera switched off in the Live Studio, since it opens that device for a moment.
+It checks everything a session needs and says how to fix what is missing: Python and its packages, the graphics card, power (a laptop on battery runs its graphics card much slower), the model files, the web app, the account signed in last and its enrolment, the virtual camera and microphone, camera 0 (how many frames a second it really delivers), the internet for Meet, the port and free memory. With `--warm` it also converts the drawing networks for this graphics card (about a minute and a half, once per card), warms the voice model, and draws for a minute as a session does, to say how many frames a second this computer reaches and whether it slows down as it heats. `--camera 1` checks another camera, `--no-camera` none. The report is kept in `logs/preflight.log`. With `--demo` it then rehearses the demonstration's eleven failure paths on that computer (`scripts/rehearse_demo.py`, a stand-in at the camera, no camera opened), adds the result to the report, and ends with "Ready for the demonstration" or what to fix; the cases are kept in `logs/demo_rehearsal.json`. About six minutes on the PC. Run it with the virtual camera switched off in the Live Studio, since it opens that device for a moment.
 
 ## Web app
 

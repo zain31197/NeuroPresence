@@ -43,6 +43,8 @@ poster/
 *.xdv
 *.synctex.gz
 *.log
+# What the engine, the preflight and the rehearsal write on this computer
+logs/
 
 # Programs downloaded for local use (the LaTeX compiler)
 *.exe

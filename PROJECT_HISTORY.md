@@ -31,7 +31,7 @@ Measured against the targets (benchmark and live session of 11 October 2026, RTX
 | Head jitter, against real video | 0.98 times (1.49) | at most 1 time |
 | Consent check, true attempts accepted | 20 of 20 by a stand-in that answers the prompt; no person at a real camera yet | at least 95% |
 
-Tests: 585 for the engine and server, 85 for the web app, all passing (22 November 2026).
+Tests: 605 for the engine and server, 85 for the web app, all passing (27 November 2026).
 
 Dates: the mid evaluation is planned for 28 October 2026 (the team's working assumption). The FYP-I final date has not been announced; the progress plan uses 7 December 2026 as a placeholder.
 
@@ -1077,6 +1077,18 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 
 **Not done:** a real hand at a real camera.
 
+### 27 November 2026: one command for the demonstration laptop
+
+**Approved by Zain**: the laptop has to be found ready, or told what to fix, without anyone reading eleven reports.
+
+**Built.** `python scripts/preflight.py --demo`: every check of the preflight, the warm-up (the networks converted for that card, a minute of drawing, the voice model), then the demonstration's failure paths rehearsed on that computer (`scripts/rehearse_demo.py`, in a process of its own, its cases shown as they are judged and kept in `logs/demo_rehearsal.json`). The report ends with "Ready for the demonstration" or with each failure and what was expected of it; a rehearsal that does not finish keeps its last lines in `logs/demo_rehearsal.log`. The preflight also knows accounts now: it names the account signed in last and checks that account's enrolment, where it only looked at `data/enrolment` before, which since accounts is the first account's; and the warm-up draws that account's picture. The database is read without changing it.
+
+**Checked.** Six new tests, with stand-ins for the database and the rehearsal (one that passes, one with a case that does not, one that does not finish). On the PC, with the camera left out and a scratch data folder: every check as it should be, 24.6 frames a second drawn, the voice model ready in 53 s, the rehearsal 11 of 11 in 3.2 minutes, "Ready for the demonstration, with 1 to look at" (3.3 GB of free memory), about six minutes in all.
+
+**Found on the way.** The System screen had checked the enrolment one folder above the signed-in account's own since accounts came: for any account but the first it said that nobody was enrolled. The engine now names the account's folder itself; a test signs in a second account and fails against the old screen. And `logs/` was not ignored by git, only `*.log` in it, so the rehearsal's `logs/demo_rehearsal.json` would have been committed: the whole folder is ignored now.
+
+**Not done:** the run on the laptop, which is the run sheet's first task for the day before.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1164,6 +1176,7 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 | A session ended by a camera that is gone said only "The camera stopped delivering frames." | | It says to check the cable or app and start again (24 November 2026) |
 | A hand over the mouth was drawn as a smeared mouth until the guard noticed, in about half the runs | The mouth was driven from what the camera showed, the hand included | The camera's lips are checked on every frame, and while they are covered the picture's mouth is held closed (27 November 2026) |
 | During a cover the mouth watch repaired a mouth that was held closed on purpose | It kept the talking read before the hand and compared the picture with it | It compares nothing while the person's lips have not been read for half a second (27 November 2026) |
+| For a second account the System screen said nobody was enrolled | It looked one folder above the account's own (`data/users`), where no face is kept | The engine names the account's folder and name itself (27 November 2026) |
 
 ## Open items
 

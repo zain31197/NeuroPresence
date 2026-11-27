@@ -8,9 +8,9 @@ Every failure path below was run on the real engine before the demo (`python scr
 
 | | What | How | Done |
 |---|---|---|---|
-| 1 | The laptop is ready | `python scripts/preflight.py --warm` on the demo laptop, plugged in. Read its frame rate in `logs/preflight.log`: 20 or more is fine | |
-| 2 | The account | Make it on the laptop and enrol under it, or copy the `data` folder from the PC with the engine closed on both. Write the recovery code on paper and keep it with the laptop | |
-| 3 | The rehearsal | `python scripts/rehearse_demo.py` on the laptop: all cases as expected | |
+| 1 | The account | Make it on the laptop and enrol under it, or copy the `data` folder from the PC with the engine closed on both. Write the recovery code on paper and keep it with the laptop | |
+| 2 | The laptop is ready | `python scripts/preflight.py --demo` on the demo laptop, plugged in, the engine stopped (about seven minutes): every check, the networks made ready for its card, its drawing speed (20 or more is fine), the voice model, and the eleven failure paths rehearsed. It must end with "Ready for the demonstration"; send `logs/preflight.log` to the team either way | |
+| 3 | The morning itself | The same command again, in the room if there is time: the room's power and the laptop's heat are what count | |
 | 4 | Two meetings | A Google Meet link and a Microsoft Teams (or Zoom) link, each with a second device signed in as the other person (a phone is enough) | |
 | 5 | The backup | A screen recording of the whole script below on the laptop, played from the laptop's own disk, not the internet | |
 | 6 | Kit | Laptop charger, the webcam or phone camera and its cable, a printed photograph of the presenter, the recovery code | |
