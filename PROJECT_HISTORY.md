@@ -1097,6 +1097,43 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 
 **Found in it.** Both checks recorded since the database began were passed by Zain at his own camera on 22 November (the face matched at 0.57 and 0.80 at the lowest), so the notes that said no person had passed the prompt at a real camera were corrected. In the second session (2.7 minutes, 22.0 frames a second, 88 ms) the picture's mouth followed his: correlation 0.98 between his lips and the picture's, never open while his were closed nor the other way; but he was mostly silent, so it says nothing yet about the mouth that stuck in the Meet call.
 
+### 28 November 2026: the FYP 1 final report drafted
+
+**The panel at the mid evaluation**, as Zain reported it: the work was good overall; the team was to work on the smoothness of the movement, then the remaining development of FYP 1. Both are actions A11 and A12 of Form 10. Supervisor meetings since the mid: 22 October, 6 November, 19 November and 27 November 2026.
+
+**The committee's instructions** for the final: the structure of the mid report carried on for this iteration; Forms 10 and 13 of the handbook as appendices; the report and presentation prepared against Forms 4 and 5; the file named `FYP1-FinalReport-F26-182-NeuroPresence.pdf`.
+
+**Done**, in a copy of the mid report's folder (`NeuroPresence_Final_Report/`, outside git):
+- a new Chapter 7 for iteration 2, and Chapter 6 kept for iteration 1, shortened;
+- Chapters 1 to 5 and 8 to 10 brought to the final, Chapter 10 rewritten as the FYP 2 plan with baselines, benchmark, metrics and a user study, as Form 5 asks;
+- Form 10 (A1 to A12) and Form 13 with an AI usage log, framed as the members' use of a tool, at level L2, and a database appendix;
+- the commit list of iteration 2 and the test list written from the repository, the abstract within the handbook's 125 words.
+
+The report is 120 pages, the upper bound Zain set.
+
+**Left to the team:**
+- four screenshots: the Meet call from the other side, a camera off session, the Overview and Your data;
+- the draw.io diagrams of Chapter 5 to be redrawn for iteration 2: the virtual camera and microphone, the voice path, the database and accounts;
+- the meeting topics to be corrected, and the forms to be signed.
+
+### 29 November 2026: the live stream cut off by a numpy bool
+
+**Found** by Zain, while starting the engine to take the report's screenshots: the terminal showed the Live Studio's stream failing in `json.dumps` with "Object of type bool is not JSON serializable".
+
+**Cause.** Added on 27 November, the status carries `cover_usable`, whether the cover detector can tell lips from a cover for this person. After its first step of following the light, the detector's baseline was a numpy float (from `np.exp`), so `usable` became numpy's bool. JSON and FastAPI's encoder both refuse it, so the stream to the Live Studio died a few seconds into every camera session and `/api/status` failed while it ran. The tests passed because none fed the detector long enough to follow. Why the rehearsal of 27 November did not trip on it is not known.
+
+**Fixed.**
+- `capture/cover.py` keeps the baseline, the wander and the share as plain floats and answers `usable` as a plain bool.
+- The session wraps both flags in `bool()`.
+- `server/app.py` passes the status through `plain()` on both ways out, HTTP and the stream, so no numpy value left anywhere in it can do this again.
+
+**Checked.**
+- Two new tests. One feeds the detector until it follows and checks the types; it fails on the old code and passes on the new.
+- 607 tests pass.
+- The real app on scratch data with a sample clip (no camera): 157 status messages and 875 frames over 40 s, `cover_usable` going from false to true, `/api/status` never failing.
+
+**Still to see:** a camera session in the Live Studio, at Zain's camera.
+
 ## Decisions and their reasons
 
 | Decision | Reason |
@@ -1185,6 +1222,7 @@ Three versions were measured on the way (`scripts/study_mouth_cover.py`, Zain's 
 | A hand over the mouth was drawn as a smeared mouth until the guard noticed, in about half the runs | The mouth was driven from what the camera showed, the hand included | The camera's lips are checked on every frame, and while they are covered the picture's mouth is held closed (27 November 2026) |
 | During a cover the mouth watch repaired a mouth that was held closed on purpose | It kept the talking read before the hand and compared the picture with it | It compares nothing while the person's lips have not been read for half a second (27 November 2026) |
 | For a second account the System screen said nobody was enrolled | It looked one folder above the account's own (`data/users`), where no face is kept | The engine names the account's folder and name itself (27 November 2026) |
+| A few seconds into every camera session the Live Studio lost its live connection, and `/api/status` failed with "Object of type bool is not JSON serializable" | Once the cover detector followed the light, its baseline became a numpy float, so `cover_usable` in the status became a numpy bool, which JSON refuses (numpy 2 calls the type `bool` too). The tests used a detector that had not followed yet | The detector keeps plain floats and a plain bool, the session wraps both flags in `bool()`, and both ways the status leaves the server turn any numpy value into a plain one (29 November 2026) |
 
 ## Open items
 

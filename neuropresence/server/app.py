@@ -58,6 +58,20 @@ class MicrophoneChange(BaseModel):
     offset_ms: float | None = None
 
 
+
+def plain(value):
+    """The status with every numpy value turned into Python's own, which JSON can write. One numpy bool in
+    the status once cut off the Live Studio's stream and failed /api/status during every camera session."""
+    if isinstance(value, dict):
+        return {key: plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [plain(item) for item in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
 def create_app(runtime=None, web_dist=WEB_DIST):
     runtime = runtime or Runtime()
 
@@ -98,7 +112,7 @@ def create_app(runtime=None, web_dist=WEB_DIST):
 
     @app.get("/api/status")
     def status():
-        return runtime.status()
+        return plain(runtime.status())
 
     @app.get("/api/capabilities")
     def capabilities():
@@ -361,7 +375,7 @@ def create_app(runtime=None, web_dist=WEB_DIST):
                         events = runtime.events.since(last_event)
                         if events:
                             last_event = events[-1]["id"]
-                        await socket.send_text(json.dumps({"status": status, "events": events}))
+                        await socket.send_text(json.dumps(plain({"status": status, "events": events})))
                 pair = runtime.latest_pair()
                 if not wanted["frames"]:
                     await asyncio.sleep(max(0.02, next_status - loop.time()))

@@ -1,5 +1,7 @@
 """A covered mouth at the camera (capture/cover.py), and what the engine and the pipeline do about it."""
 
+import json
+
 import cv2
 import numpy as np
 import pytest
@@ -53,6 +55,16 @@ def test_a_cover_is_found_in_a_few_frames_and_its_end_in_a_few_more():
     assert said.index(True) == cover_module.FRAMES_TO_COVER - 1  # about a fifth of a second
     said = feed(detector, picture(), 10, start=3.0)
     assert said.index(False) == cover_module.FRAMES_TO_UNCOVER - 1
+
+
+def test_what_the_detector_says_can_be_written_as_json():
+    """The session puts these in the status. A numpy bool among them once cut off the Live Studio's stream."""
+    detector = MouthCover()
+    feed(detector, picture(), cover_module.LEARN_FRAMES + 10)  # learned, then followed for ten frames
+    feed(detector, picture(covered=True), 10, start=2.0)
+    assert type(detector.usable) is bool and type(detector.covered) is bool
+    assert all(type(value) is float for value in (detector.base, detector.noise, detector.share))
+    json.dumps({"usable": detector.usable, "covered": detector.covered, "share": detector.share})
 
 
 def test_one_odd_frame_is_not_a_cover():

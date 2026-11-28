@@ -668,7 +668,7 @@ class LiveSession:
             resting = track.ok and at_rest(track) and not result.mouth_covered
             self.resting_since = (self.resting_since or finished) if resting else None
             tracking = {"status": result.status.value, "pose_deg": None, "mouth_open": None,
-                        "mouth_covered": result.mouth_covered, "cover_usable": pipeline.cover.usable}
+                        "mouth_covered": bool(result.mouth_covered), "cover_usable": bool(pipeline.cover.usable)}
             if track.ok:
                 tracking["pose_deg"] = [round(float(angle), 1) for angle in track.pose_deg]
                 tracking["mouth_open"] = round(float(track.blendshapes.get("jawOpen", 0.0)), 3)

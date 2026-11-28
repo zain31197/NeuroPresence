@@ -97,8 +97,9 @@ class MouthCover:
     @property
     def usable(self):
         """Can a cover be told from a mouth for this person in this light?"""
-        return (self.base is not None and self.base >= LEAST_CONTRAST
-                and self.base >= LEAST_OVER_NOISE * (self.noise or 0.0))
+        # A plain bool: the session puts it in the status, and JSON refuses numpy's own bool.
+        return bool(self.base is not None and self.base >= LEAST_CONTRAST
+                    and self.base >= LEAST_OVER_NOISE * (self.noise or 0.0))
 
     def update(self, frame_bgr, landmarks, at):
         """One frame with its tracked face. Returns whether the mouth is covered now."""
@@ -119,7 +120,7 @@ class MouthCover:
                 self.base = self.noise = None
             self.covered, self._run, self.share = False, 0, None
             return False
-        self.share = reading / self.base
+        self.share = float(reading / self.base)
         margin = NOISE_MARGIN * self.noise
         far = (reading < self.base - max((1.0 - COVERED_BELOW) * self.base, margin)
                or reading > self.base + max((COVERED_ABOVE - 1.0) * self.base, margin))
@@ -131,9 +132,9 @@ class MouthCover:
         if not self.covered and not far and elapsed > 0.0:
             # The light changes slowly, and the baseline follows it; the wander is kept up to date with it, each
             # reading counted at most three times the wander so far, so that one odd frame does not swell it.
-            self.base += (reading - self.base) * (1.0 - np.exp(-elapsed / FOLLOW_SECONDS))
+            self.base = float(self.base + (reading - self.base) * (1.0 - np.exp(-elapsed / FOLLOW_SECONDS)))
             wander = 1.25 * min(abs(reading - self.base), 3.0 * self.noise)  # a mean distance, as a spread
-            self.noise += (wander - self.noise) * (1.0 - np.exp(-elapsed / NOISE_SECONDS))
+            self.noise = float(self.noise + (wander - self.noise) * (1.0 - np.exp(-elapsed / NOISE_SECONDS)))
             if not self.usable:  # this person's lips, in this light, can no longer be told from the noise
                 self._learning.clear()
                 self.base = self.noise = None

@@ -2151,3 +2151,12 @@ def test_stopping_a_voice_session_lets_the_microphone_and_the_model_go(parts):
 def test_a_voice_session_needs_the_verified_face_like_a_camera_session(parts):
     reply = parts["client"].post("/api/session/start", json={"input": "voice:0"})
     assert reply.status_code == 409 and "Enrol a picture first" in reply.json()["detail"]
+
+
+def test_the_status_leaves_the_server_as_plain_json_whatever_numpy_put_in_it():
+    from neuropresence.server.app import plain
+
+    status = {"a": np.bool_(True), "b": [np.float64(1.5), (np.int64(2),)], "c": {"d": np.arange(3)}, "e": None, "f": "x"}
+    out = plain(status)
+    assert type(out["a"]) is bool
+    assert json.loads(json.dumps(out)) == {"a": True, "b": [1.5, [2]], "c": {"d": [0, 1, 2]}, "e": None, "f": "x"}
